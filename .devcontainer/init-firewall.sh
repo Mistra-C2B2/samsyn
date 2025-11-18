@@ -35,6 +35,8 @@ iptables -A OUTPUT -p tcp --dport 22 -j ACCEPT
 iptables -A INPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
 iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
+iptables -A INPUT -p tcp --dport 5173 -j ACCEPT
+iptables -A OUTPUT -p tcp --sport 5173 -m state --state ESTABLISHED -j ACCEPT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
@@ -49,14 +51,22 @@ ipset add blocked-networks 192.168.0.0/16
 
 iptables -A OUTPUT -m set --match-set blocked-networks dst -j REJECT
 
-# Get host IP and block it specifically
+# Get host IP for allowlist before blocking
 HOST_IP=$(ip route | grep default | cut -d" " -f3)
 if [ -z "$HOST_IP" ]; then
     echo "ERROR: Failed to detect host IP"
     exit 1
 fi
 
-echo "Blocking host IP: $HOST_IP"
+# Allow host to connect to development servers BEFORE blocking
+echo "Allowing host $HOST_IP to connect to development ports..."
+iptables -I INPUT 1 -s "$HOST_IP" -p tcp --dport 5173 -j ACCEPT
+iptables -I OUTPUT 1 -d "$HOST_IP" -p tcp --sport 5173 -j ACCEPT
+iptables -I INPUT 1 -s "$HOST_IP" -p tcp --dport 3000 -j ACCEPT
+iptables -I OUTPUT 1 -d "$HOST_IP" -p tcp --sport 3000 -j ACCEPT
+
+# Now block other connections to host IP
+echo "Blocking other connections to host IP: $HOST_IP"
 ipset add blocked-networks "$HOST_IP"
 
 # Block the entire host network

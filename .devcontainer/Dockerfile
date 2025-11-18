@@ -34,6 +34,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libsdl2-ttf-dev \
   libfreetype6-dev \
   libportmidi-dev \
+  libnss3 \
+  libnspr4 \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libdrm2 \
+  libdbus-1-3 \
+  libxkbcommon0 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libpango-1.0-0 \
+  libcairo2 \
+  libasound2 \
+  libatspi2.0-0 \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Ensure default node user has access to /usr/local/share
@@ -95,8 +112,14 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     /home/node/.local/bin/uv tool install black && \
     /home/node/.local/bin/uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
 
-# Add uv and Python tools to PATH
-ENV PATH="/home/node/.cargo/bin:/home/node/.local/bin:$PATH"
+# Install Playwright in a dedicated venv
+RUN python3 -m venv /home/node/.playwright-venv && \
+    /home/node/.playwright-venv/bin/pip install --no-cache-dir playwright && \
+    /home/node/.playwright-venv/bin/playwright install chromium && \
+    /home/node/.playwright-venv/bin/playwright install firefox
+
+# Add uv, Python tools, and Playwright to PATH
+ENV PATH="/home/node/.cargo/bin:/home/node/.local/bin:/home/node/.playwright-venv/bin:$PATH"
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/

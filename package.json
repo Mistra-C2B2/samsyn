@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.56.0",
     "deck.gl": "^9.2.2",
     "mapbox-gl": "^3.16.0",
     "maplibre-gl": "^5.13.0",

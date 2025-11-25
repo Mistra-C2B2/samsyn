@@ -1,41 +1,140 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
-import { MapPin, Layers, ArrowRight, Check } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { UserMap } from "../App";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Separator } from "./ui/separator";
+import {
+  MapPin,
+  Layers,
+  ArrowRight,
+  Check,
+  Plus,
+  Lock,
+  Users,
+  Globe,
+  X,
+  Mail,
+  Map,
+} from "lucide-react";
 
 interface MapCreationWizardProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description: string) => void;
+  onCreate: (
+    name: string,
+    description: string,
+    permissions: MapPermissions,
+  ) => void;
   onOpenLayerManager: () => void;
+  editMode?: boolean;
+  existingMap?: UserMap;
 }
 
-type Step = 'create' | 'success';
+export interface MapPermissions {
+  editAccess: "private" | "collaborators" | "public";
+  collaborators: string[]; // Array of email addresses
+  visibility: "private" | "public"; // Who can view the map
+}
+
+type Step = "create" | "success";
 
 export function MapCreationWizard({
   isOpen,
   onClose,
   onCreate,
   onOpenLayerManager,
+  editMode,
+  existingMap,
 }: MapCreationWizardProps) {
-  const [step, setStep] = useState<Step>('create');
-  const [mapName, setMapName] = useState('');
-  const [mapDescription, setMapDescription] = useState('');
+  const [step, setStep] = useState<Step>("create");
+  const [mapName, setMapName] = useState("");
+  const [mapDescription, setMapDescription] = useState("");
+  const [editAccess, setEditAccess] = useState<
+    "private" | "collaborators" | "public"
+  >("private");
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [newCollaboratorEmail, setNewCollaboratorEmail] =
+    useState("");
+  const [visibility, setVisibility] = useState<
+    "private" | "public"
+  >("private");
+
+  // Update state when existingMap changes (when entering edit mode)
+  useEffect(() => {
+    if (editMode && existingMap) {
+      setMapName(existingMap.name);
+      setMapDescription(existingMap.description);
+      setEditAccess(existingMap.permissions?.editAccess || "private");
+      setCollaborators(existingMap.permissions?.collaborators || []);
+      setVisibility(existingMap.permissions?.visibility || "private");
+    } else {
+      // Reset to defaults when not in edit mode
+      setMapName("");
+      setMapDescription("");
+      setEditAccess("private");
+      setCollaborators([]);
+      setVisibility("private");
+    }
+  }, [editMode, existingMap, isOpen]);
+
+  const handleAddCollaborator = () => {
+    const email = newCollaboratorEmail.trim().toLowerCase();
+    if (
+      email &&
+      email.includes("@") &&
+      !collaborators.includes(email)
+    ) {
+      setCollaborators([...collaborators, email]);
+      setNewCollaboratorEmail("");
+    }
+  };
+
+  const handleRemoveCollaborator = (email: string) => {
+    setCollaborators(collaborators.filter((c) => c !== email));
+  };
 
   const handleCreate = () => {
     if (mapName.trim()) {
-      onCreate(mapName, mapDescription);
-      setStep('success');
+      const permissions: MapPermissions = {
+        editAccess,
+        collaborators:
+          editAccess === "collaborators" ? collaborators : [],
+        visibility,
+      };
+      onCreate(mapName, mapDescription, permissions);
+      if (!editMode) {
+        setStep("success");
+      } else {
+        handleClose();
+      }
     }
   };
 
   const handleClose = () => {
-    setStep('create');
-    setMapName('');
-    setMapDescription('');
+    setStep("create");
+    setMapName("");
+    setMapDescription("");
+    setEditAccess("private");
+    setCollaborators([]);
+    setNewCollaboratorEmail("");
+    setVisibility("private");
     onClose();
   };
 
@@ -46,18 +145,22 @@ export function MapCreationWizard({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[550px]">
-        {step === 'create' ? (
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+        {step === "create" ? (
           <>
             <DialogHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-accent" />
+                <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center bg-[rgba(255,255,255,0.1)]">
+                  <Map className="w-6 h-6" />
                 </div>
                 <div>
-                  <DialogTitle>Create a New Map</DialogTitle>
+                  <DialogTitle>
+                    {editMode ? "Edit Map" : "Create a New Map"}
+                  </DialogTitle>
                   <DialogDescription>
-                    Give your map a name and description to get started
+                    {editMode
+                      ? "Update your map settings and permissions"
+                      : "Give your map a name and configure permissions"}
                   </DialogDescription>
                 </div>
               </div>
@@ -72,24 +175,230 @@ export function MapCreationWizard({
                   value={mapName}
                   onChange={(e) => setMapName(e.target.value)}
                   autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && mapName.trim()) {
-                      handleCreate();
-                    }
-                  }}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="map-description">Description</Label>
+                <Label htmlFor="map-description">
+                  Description
+                </Label>
                 <Textarea
                   id="map-description"
                   placeholder="Describe the purpose of this map and what information it will contain..."
                   value={mapDescription}
-                  onChange={(e) => setMapDescription(e.target.value)}
-                  rows={4}
+                  onChange={(e) =>
+                    setMapDescription(e.target.value)
+                  }
+                  rows={3}
                   className="resize-none"
                 />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-teal-600" />
+                  <Label className="text-sm text-slate-900 mb-0">
+                    Edit Permissions
+                  </Label>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Control who can modify or delete this map
+                </p>
+
+                <Select
+                  value={editAccess}
+                  onValueChange={(value) =>
+                    setEditAccess(
+                      value as
+                        | "private"
+                        | "collaborators"
+                        | "public",
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <div className="text-left">Private</div>
+                          <div className="text-xs text-slate-500 text-left">
+                            Only you can edit
+                          </div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="collaborators">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <div className="text-left">Collaborators</div>
+                          <div className="text-xs text-slate-500 text-left">
+                            Specific people can edit
+                          </div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="public">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <div className="text-left">Public</div>
+                          <div className="text-xs text-slate-500 text-left">
+                            Anyone can edit
+                          </div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {editAccess === "collaborators" && (
+                  <div className="space-y-2 pt-2">
+                    <Label
+                      htmlFor="collaborator-email"
+                      className="text-xs text-slate-700"
+                    >
+                      Add Collaborators by Email
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="collaborator-email"
+                        type="email"
+                        placeholder="colleague@example.com"
+                        value={newCollaboratorEmail}
+                        onChange={(e) =>
+                          setNewCollaboratorEmail(
+                            e.target.value,
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddCollaborator();
+                          }
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddCollaborator}
+                        disabled={!newCollaboratorEmail.trim()}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {collaborators.length > 0 && (
+                      <div className="space-y-1 mt-2">
+                        {collaborators.map((email) => (
+                          <div
+                            key={email}
+                            className="flex items-center justify-between bg-white border border-slate-200 rounded px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Mail className="w-4 h-4 text-slate-400" />
+                              <span className="text-sm text-slate-700">
+                                {email}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                handleRemoveCollaborator(email)
+                              }
+                              className="h-6 w-6 p-0 hover:bg-red-50 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {collaborators.length === 0 && (
+                      <p className="text-xs text-slate-500 italic">
+                        No collaborators added yet
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {editAccess === "public" && (
+                  <div className="bg-amber-50 border border-amber-200 rounded p-3 mt-2">
+                    <p className="text-xs text-amber-800">
+                      ⚠️ Anyone with access to this map will be
+                      able to modify or delete it.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-teal-600" />
+                  <Label className="text-sm text-slate-900 mb-0">
+                    View Permissions
+                  </Label>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Control who can view this map
+                </p>
+
+                <Select
+                  value={visibility}
+                  onValueChange={(value) =>
+                    setVisibility(value as "private" | "public")
+                  }
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <div className="text-left">You & Collaborators</div>
+                          <div className="text-xs text-slate-500 text-left">
+                            Only you and your collaborators can
+                            view
+                          </div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="public">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <div className="text-left">Public</div>
+                          <div className="text-xs text-slate-500 text-left">
+                            Everyone can view
+                          </div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {visibility === "public" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-2">
+                    <p className="text-xs text-blue-800">
+                      ℹ️ This map will be visible to everyone.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -97,8 +406,11 @@ export function MapCreationWizard({
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate} disabled={!mapName.trim()}>
-                Create Map
+              <Button
+                onClick={handleCreate}
+                disabled={!mapName.trim()}
+              >
+                {editMode ? 'Save Changes' : 'Create Map'}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </DialogFooter>
@@ -111,7 +423,9 @@ export function MapCreationWizard({
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
                 <div className="text-center">
-                  <DialogTitle className="text-2xl mb-2">Map Created Successfully!</DialogTitle>
+                  <DialogTitle className="text-2xl mb-2">
+                    Map Created Successfully!
+                  </DialogTitle>
                   <DialogDescription className="text-base">
                     Your map "{mapName}" has been created
                   </DialogDescription>
@@ -125,19 +439,30 @@ export function MapCreationWizard({
                   <Layers className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-slate-900 mb-1">Next Step: Add Layers</h3>
+                  <h3 className="text-slate-900 mb-1">
+                    Next Step: Add Layers
+                  </h3>
                   <p className="text-sm text-slate-600">
-                    Your map is empty right now. Add data layers to visualize information like fish stocks, fishing zones, or protected areas.
+                    Your map is empty right now. Add data layers
+                    to visualize information like fish stocks,
+                    fishing zones, or protected areas.
                   </p>
                 </div>
               </div>
             </div>
 
             <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={handleClose} className="sm:flex-1">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                className="sm:flex-1"
+              >
                 I'll Do It Later
               </Button>
-              <Button onClick={handleAddLayers} className="sm:flex-1">
+              <Button
+                onClick={handleAddLayers}
+                className="sm:flex-1"
+              >
                 <Layers className="w-4 h-4 mr-2" />
                 Add Layers Now
               </Button>

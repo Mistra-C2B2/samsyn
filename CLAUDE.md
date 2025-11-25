@@ -4,239 +4,200 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A geospatial visualization application built with React, TypeScript, deck.gl, and react-map-gl for rendering interactive maps and spatial data visualizations. The application features user authentication, collaborative commenting, layer management, and support for multiple map types including GeoJSON, heatmaps, raster, and vector layers.
+SamSyn is a React-based marine spatial planning application for creating and managing interactive maps with multiple data layers. The app supports temporal data visualization, collaborative commenting, and user authentication via Clerk. It's designed for marine biologists, fisheries managers, and policy advisors to visualize and analyze spatial data (fish stocks, fishing intensity, aquaculture sites, etc.).
 
-## Tech Stack
-
-- **Frontend Framework**: React 18.3+ with TypeScript 5.9+
-- **Build Tool**: Vite 5.4+ with React SWC plugin
-- **Styling**: Tailwind CSS 4.1+ with custom configuration
-- **Authentication**: Clerk (@clerk/clerk-react 5.56+) for SSO and user management
-- **UI Components**: Radix UI primitives with custom shadcn/ui components
-- **Mapping Libraries**:
-  - react-map-gl 8.1+ (React wrapper for Mapbox GL)
-  - deck.gl 9.2+ (WebGL-powered visualization layers)
-  - mapbox-gl 3.16+ (base mapping library)
-  - maplibre-gl 5.13+ (open-source alternative to Mapbox GL)
-- **Additional Libraries**:
-  - lucide-react (icons)
-  - react-hook-form (form management)
-  - date-fns (date utilities)
-  - recharts (data visualization)
-  - sonner (toast notifications)
-  - class-variance-authority, clsx, tailwind-merge (styling utilities)
+Original Figma design: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSyn
 
 ## Development Commands
 
-**Start development server:**
-
+### Setup
 ```bash
-npm run dev
+npm i                    # Install dependencies
 ```
 
-Server runs on port 5173, configured to listen on all network interfaces (0.0.0.0).
-
-**Build for production:**
-
+### Development
 ```bash
-npm run build
+npm run dev             # Start dev server on port 3000 (auto-opens browser)
 ```
 
-**Preview production build:**
-
+### Build
 ```bash
-npm run preview
+npm run build           # Production build to ./build directory
 ```
+
+## Authentication Setup
+
+The app uses Clerk for authentication. To enable:
+1. Create a `.env.local` file (already in `.gitignore`)
+2. Add: `VITE_CLERK_PUBLISHABLE_KEY=pk_test_...` or `pk_live_...`
+3. The app detects configuration and conditionally enables auth features
+
+When Clerk is not configured, the app gracefully degrades to show a non-functional Sign In button with a toast notification.
 
 ## Architecture
 
-### Entry Point
+### Core Data Model
 
-- `src/main.tsx` - React application entry point with StrictMode wrapper and Clerk authentication provider
-- `index.html` - HTML template with root div mount point
+The application is built around two primary TypeScript interfaces defined in `src/App.tsx`:
 
-### Component Structure
+**Layer**: Represents a map layer with properties for:
+- Type: `geojson`, `heatmap`, `markers`, `raster`, `vector`
+- Visibility and opacity controls
+- Temporal data support with time ranges and snapshots
+- Permission settings (`createdBy`, `editable`)
+- Metadata (description, author, DOI, category)
+- Legend definitions (gradient or categories)
+- External data sources (WMS, GeoTIFF URLs)
 
-#### Main Application
+**UserMap**: Represents a complete map configuration with:
+- Layers collection
+- Map center/zoom state
+- Permission system (private/collaborators/public)
+- Creator and collaborator lists
 
-- `src/App.tsx` - Main application component with state management for maps, layers, comments, and UI panels
-  - Manages multiple user maps with layers
-  - Coordinates between MapView, LayerManager, MapSelector, and CommentSection
-  - Handles authentication UI with Clerk (SignIn, SignUp, UserButton)
+### State Management
 
-#### Core Components
+All state is managed via React useState hooks in `src/App.tsx` (AppContent component):
+- `currentMap`: Active map and its layers
+- `maps`: Array of all user maps
+- `availableLayers`: Global layer library for reuse across maps
+- `comments`: Comment system linked to maps/layers
+- `currentTimeRange`: Controls temporal data playback
+- Panel visibility states for LayerManager, CommentSection, etc.
 
-- `src/components/MapView.tsx` - Map rendering component using react-map-gl/maplibre
-  - Supports multiple layer types (GeoJSON, heatmap, markers, raster, vector)
-  - Drawing capabilities for creating custom geometries
-  - Exposes MapViewRef for external control
+State flows down through props; updates flow up through callback functions.
 
-- `src/components/LayerManager.tsx` - Layer visibility, opacity, and order management
-  - Drag-and-drop reordering
-  - Layer visibility toggles
-  - Opacity controls
-  - Access to layer comments
+### Key Components
 
-- `src/components/MapSelector.tsx` - Map switching and creation interface
-  - Browse available maps
-  - Create new maps
-  - Switch between different map views
+**App.tsx** (860 lines)
+- Root component with all application state
+- Conditionally wraps with ClerkProvider when auth is configured
+- Header with navigation buttons and auth UI
+- Main map view with side panels
+- Temporal slider for time-based data
 
-- `src/components/CommentSection.tsx` - Collaborative commenting system
-  - Map-level and layer-level comments
-  - Author attribution and timestamps
-  - Filter by map or layer
+**MapView.tsx**
+- Integrates Mapbox GL JS and MapboxDraw
+- Manages map instance and drawing tools via refs
+- Exposes imperative API: `startDrawing()`, `cancelDrawing()`
+- Handles layer rendering and basemap switching
+- Note: Currently uses placeholder Mapbox token
 
-- `src/components/LayerCreator.tsx` - Create new layers with various types
-  - Upload GeoJSON
-  - Configure WMS/raster layers
-  - Draw custom geometries
-  - Set layer metadata (name, description, DOI, category)
+**LayerManager.tsx**
+- Drag-and-drop layer reordering
+- Visibility/opacity controls per layer
+- Layer library with search, sort, and filter
+- Opens LayerCreator for adding/editing layers
+- Shows comment counts per layer
 
-- `src/components/AdminPanel.tsx` - Administrative layer management
-  - Add/remove layers from available layer library
-  - Manage global layer catalog
+**LayerCreator.tsx**
+- Multi-tab interface: draw features, upload files, WMS/GeoTIFF URLs, or paste GeoJSON
+- Interactive drawing for Points, LineStrings, Polygons
+- Feature styling (icons for points, line styles)
+- Permission controls (creator-only vs everyone editable)
 
-- `src/components/Legend.tsx` - Layer legend display
-  - Gradient legends for heatmaps
-  - Category legends for classified data
+**TimeSlider.tsx**
+- Displays when temporal layers are visible
+- Controls `currentTimeRange` to filter layer data
+- Layers automatically update based on closest temporal snapshot
 
-- `src/components/MapCreationWizard.tsx` - Guided map creation workflow
-- `src/components/CategorySelector.tsx` - Category filtering for layers
+**CommentSection.tsx**
+- Threaded comments on maps or individual layers
+- Filter by target (map vs specific layer)
 
-#### UI Component Library
+**AdminPanel.tsx**
+- Global layer library management
+- Add/remove/update layers available to all maps
 
-- `src/components/ui/` - Comprehensive shadcn/ui component library built on Radix UI
-  - Common components: Button, Input, Select, Dialog, Dropdown, Tabs, etc.
-  - Form components: Label, Checkbox, Radio, Switch, Slider, etc.
-  - Layout components: Card, Separator, ScrollArea, Resizable, etc.
-  - Feedback components: Alert, Toast (Sonner), Progress, Skeleton, etc.
-  - `src/components/ui/utils.ts` - Utility functions for className merging
+### Panel State Management
 
-### Styling
+Only one side panel shows at a time. Each panel button in the header:
+1. Toggles its own panel state
+2. Hides all other panels when opening
 
-- `src/index.css` - Global styles and Tailwind CSS imports
-- `src/styles/globals.css` - Additional global style definitions
-- Tailwind CSS configuration embedded in the application
-- CSS-in-JS pattern for component-specific styles
+The panel states are: `showLayerManager`, `showMapSelector`, `showComments`, `showLayerCreator`, `showAdminPanel`
 
-### Data Models
+### Temporal Data Flow
 
-#### Layer Interface
-```typescript
-interface Layer {
-  id: string;
-  name: string;
-  type: 'geojson' | 'heatmap' | 'markers' | 'raster' | 'vector';
-  visible: boolean;
-  opacity: number;
-  data?: any;
-  color?: string;
-  description?: string;
-  author?: string;
-  doi?: string;  // Digital Object Identifier for citing data
-  category?: string;
-  // WMS properties
-  wmsUrl?: string;
-  wmsLayerName?: string;
-  // GeoTIFF properties
-  geotiffUrl?: string;
-  // Vector properties
-  features?: any[];
-  legend?: {
-    type: 'gradient' | 'categories';
-    items: Array<{ color: string; label: string; value?: number }>;
-  };
-}
-```
+1. `globalTimeRange` (useMemo): Calculates min/max dates from all visible temporal layers
+2. `currentTimeRange` (state): User-controlled time window via TimeSlider
+3. `layersWithTemporalData` (useMemo): For each temporal layer, finds closest snapshot to current time and replaces `layer.data`
+4. MapView receives pre-filtered layers and renders
 
-#### UserMap Interface
-```typescript
-interface UserMap {
-  id: string;
-  name: string;
-  description: string;
-  layers: Layer[];
-  center: [number, number];  // [latitude, longitude]
-  zoom: number;
-}
-```
+### Drawing Flow
 
-### Map Implementation
+1. User initiates drawing in LayerCreator
+2. LayerCreator calls `onStartDrawing(type, callback)`
+3. App.tsx stores `drawingMode` and `drawCallback` in state
+4. App.tsx calls `mapViewRef.current?.startDrawing(type)`
+5. MapView activates MapboxDraw
+6. On completion, MapView calls `onDrawComplete(feature)`
+7. App.tsx executes stored `drawCallback(feature)`
+8. LayerCreator receives feature and adds to layer
 
-The application uses MapLibre GL (via react-map-gl/maplibre) with a demo tile service. Maps support:
-- Default view centered on the Baltic Sea region (longitude: 18.0686, latitude: 59.3293)
-- Default zoom level of 7
-- Interactive controls with programmatic updates
-- Multiple layer types rendered simultaneously
-- Drawing mode for creating custom geometries (Point, LineString, Polygon)
-- Layer reordering and opacity control
+## UI Components
 
-### Development Environment
+Uses shadcn/ui components (Radix UI primitives + Tailwind CSS):
+- Located in `src/components/ui/`
+- Import aliases configured in `vite.config.ts` (handles versioned package names)
+- Uses `sonner` for toast notifications
+- Lucide React for icons
 
-The project uses a devcontainer configuration with:
+## Styling
 
-- Network capabilities (NET_ADMIN, NET_RAW) for advanced networking features
-- GPU support enabled
-- Forwarded ports: 5173 (Vite dev server), 3000 (additional services)
-- Prettier and ESLint configured with format-on-save
-- Node.js environment with 4GB max old space size
+- Tailwind CSS via `src/styles/globals.css` and `src/index.css`
+- Brand color: teal-500 (`#14b8a6`)
+- UI tokens: slate palette for neutrals
 
-## Key Considerations
+## Key Patterns
 
-**TypeScript**: The application is written in TypeScript with strict type checking enabled. Key interfaces (Layer, UserMap) are defined in `src/App.tsx`. When creating new components or modifying existing ones, maintain type safety and export reusable types.
+**Map Updates**: All mutations go through callback functions that update state in App.tsx
+- `updateLayer(layerId, updates)`: Partial updates to a layer
+- `addLayerToMap(layer)`: Adds to current map and availableLayers if new
+- `reorderLayers(startIndex, endIndex)`: Drag-and-drop reordering
 
-**Authentication with Clerk**:
-- User authentication is handled by Clerk (@clerk/clerk-react)
-- Requires `VITE_CLERK_PUBLISHABLE_KEY` environment variable
-- The ClerkProvider wraps the application in `src/main.tsx`
-- Components use `<SignedIn>`, `<SignedOut>`, `<SignInButton>`, `<SignUpButton>`, and `<UserButton>` for auth UI
-- Configure Clerk keys via `.env` file (not tracked in git)
-
-**MapLibre vs Mapbox**: The application currently uses MapLibre GL, an open-source fork of Mapbox GL. This avoids the need for Mapbox access tokens. If switching to Mapbox-specific features, token management will need to be configured.
-
-**deck.gl Layers**: deck.gl is included as a dependency for high-performance geospatial data visualization. Use deck.gl layers for rendering large datasets (points, polygons, lines) efficiently on top of the base map.
-
-**UI Components**:
-- The project uses shadcn/ui components built on Radix UI primitives
-- All UI components are in `src/components/ui/` and use Tailwind CSS for styling
-- Components support dark mode via next-themes (if configured)
-- Use `cn()` utility from `src/components/ui/utils.ts` for className merging
-
-**Tailwind CSS**:
-- Tailwind CSS 4.1+ is configured for styling
-- Global styles in `src/index.css` and `src/styles/globals.css`
-- Use utility classes for component styling
-- Custom theme configuration can be added via Tailwind config
-
-**Vite Configuration**:
-- The dev server is configured to listen on all interfaces (host: true) to support containerized development environments
-- Build target is set to 'esnext' for modern JavaScript features
-- Uses React SWC plugin for faster builds
-- Path aliases configured (`@/*` maps to `./src/*`)
-- Extensive dependency aliases for package resolution
-
-**State Management**:
-- Currently uses React useState hooks in `src/App.tsx`
-- Maps, layers, comments, and UI state are managed at the top level
-- Consider migrating to Context API or state management library if state becomes more complex
+**Layer Permissions**:
+- `createdBy` stores user ID
+- `editable` can be "creator-only" or "everyone"
+- LayerCreator enforces these when editing
 
 **Mock Data**:
-- Sample layers and maps are defined in `src/App.tsx`
-- Mock data includes Baltic Sea fishing data with GeoJSON and heatmap layers
-- Replace with real API calls when backend is available
+- Sample layers and maps defined in `src/App.tsx` (lines 77-325)
+- Demonstrates heatmap, GeoJSON polygons, and temporal data structures
 
-## Environment Variables
+## External Dependencies
 
-Create a `.env` file in the project root with:
+- **Mapbox GL JS**: Map rendering (loaded via CDN in index.html, implied)
+- **MapboxDraw**: Drawing tools (loaded via CDN, implied)
+- **Clerk**: Authentication (@clerk/clerk-react)
+- **Radix UI**: Headless UI primitives
+- **Tailwind CSS**: Styling
+- **Vite**: Build tool with React SWC plugin
+
+## File Organization
 
 ```
-VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key_here
+src/
+  App.tsx              - Main app component with all state
+  main.tsx             - React root initialization
+  index.css            - Global styles
+  components/
+    MapView.tsx        - Mapbox integration
+    LayerManager.tsx   - Layer controls
+    LayerCreator.tsx   - Layer creation/editing
+    CommentSection.tsx - Commenting system
+    TimeSlider.tsx     - Temporal controls
+    MapSelector.tsx    - Map switching
+    AdminPanel.tsx     - Layer library management
+    SettingsDialog.tsx - App settings
+    Legend.tsx         - Map legend display
+    ui/                - shadcn/ui components
 ```
 
-## TypeScript Configuration
+## Development Notes
 
-- `tsconfig.json` - Main TypeScript configuration with strict mode enabled
-- `tsconfig.node.json` - Configuration for Node.js environment (Vite config)
-- Path aliases: `@/*` resolves to `./src/*`
-- Target: ES2020 with DOM libraries
+- Path alias `@` maps to `./src` (vite.config.ts:49)
+- Build target: ESNext (vite.config.ts:53)
+- Dev server auto-opens on port 3000
+- TypeScript types defined inline in App.tsx for Layer and UserMap
+- No backend currently - all data is mock/in-memory

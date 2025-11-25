@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { CategorySelector } from './CategorySelector';
-import { X, Plus, Trash2, Save } from 'lucide-react';
+import { X, Plus, Trash2, Save, Edit, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import {
   Select,
@@ -20,12 +20,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Badge } from './ui/badge';
 
 interface AdminPanelProps {
   availableLayers: Layer[];
   onAddLayer: (layer: Layer) => void;
   onRemoveLayer: (layerId: string) => void;
+  onUpdateLayer: (layerId: string, updates: Partial<Layer>) => void;
   onClose: () => void;
 }
 
@@ -35,10 +46,14 @@ export function AdminPanel({
   availableLayers,
   onAddLayer,
   onRemoveLayer,
+  onUpdateLayer,
   onClose,
 }: AdminPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [layerSource, setLayerSource] = useState<LayerSource>('wms');
+  const [isSaving, setIsSaving] = useState(false);
+  const [layerToDelete, setLayerToDelete] = useState<Layer | null>(null);
   
   // Form state
   const [name, setName] = useState('');
@@ -69,10 +84,42 @@ export function AdminPanel({
     setWmsUrl('');
     setWmsLayerName('');
     setGeotiffUrl('');
+    setEditingLayerId(null);
     setLegendItems([
       { label: 'Low', color: '#3b82f6' },
       { label: 'High', color: '#ef4444' },
     ]);
+  };
+
+  const loadLayerToForm = (layer: Layer) => {
+    setName(layer.name);
+    setDescription(layer.description || '');
+    setAuthor(layer.author || '');
+    setDoi(layer.doi || '');
+    setCategory(layer.category || '');
+    setWmsUrl(layer.wmsUrl || '');
+    setWmsLayerName(layer.wmsLayerName || '');
+    setGeotiffUrl(layer.geotiffUrl || '');
+    setLegendType(layer.legend?.type || 'gradient');
+    setLegendItems(layer.legend?.items || [
+      { label: 'Low', color: '#3b82f6' },
+      { label: 'High', color: '#ef4444' },
+    ]);
+    
+    // Determine layer source
+    if (layer.wmsUrl) {
+      setLayerSource('wms');
+    } else if (layer.geotiffUrl) {
+      setLayerSource('geotiff');
+    } else {
+      setLayerSource('vector');
+    }
+  };
+
+  const handleEdit = (layer: Layer) => {
+    loadLayerToForm(layer);
+    setEditingLayerId(layer.id);
+    setShowAddForm(true);
   };
 
   const handleAddLegendItem = () => {
@@ -94,6 +141,8 @@ export function AdminPanel({
       alert('Please enter a layer name');
       return;
     }
+
+    setIsSaving(true);
 
     const newLayer: Layer = {
       id: `admin-${Date.now()}`,
@@ -119,7 +168,12 @@ export function AdminPanel({
       newLayer.geotiffUrl = geotiffUrl;
     }
 
-    onAddLayer(newLayer);
+    if (editingLayerId) {
+      onUpdateLayer(editingLayerId, newLayer);
+    } else {
+      onAddLayer(newLayer);
+    }
+    setIsSaving(false);
     resetForm();
     setShowAddForm(false);
   };
@@ -175,13 +229,22 @@ export function AdminPanel({
                         <Badge variant="outline" className="mt-1 text-xs">Custom Vector</Badge>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRemoveLayer(layer.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(layer)}
+                      >
+                        <Edit className="w-4 h-4 text-teal-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setLayerToDelete(layer)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
                   </div>
                   {layer.description && (
                     <p className="text-xs text-slate-600 mt-2">{layer.description}</p>
@@ -207,7 +270,7 @@ export function AdminPanel({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="layerSource">Layer Source</Label>
               <Select value={layerSource} onValueChange={(v) => setLayerSource(v as LayerSource)}>
                 <SelectTrigger id="layerSource">
@@ -228,7 +291,7 @@ export function AdminPanel({
 
             {layerSource === 'wms' && (
               <>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="wmsUrl">WMS URL</Label>
                   <Input
                     id="wmsUrl"
@@ -237,7 +300,7 @@ export function AdminPanel({
                     placeholder="https://example.com/wms"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="wmsLayerName">WMS Layer Name</Label>
                   <Input
                     id="wmsLayerName"
@@ -250,7 +313,7 @@ export function AdminPanel({
             )}
 
             {layerSource === 'geotiff' && (
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="geotiffUrl">GeoTIFF URL</Label>
                 <Input
                   id="geotiffUrl"
@@ -275,7 +338,7 @@ export function AdminPanel({
               <h3 className="text-sm text-slate-700 mb-3">Layer Metadata</h3>
               
               <div className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="name">Layer Name *</Label>
                   <Input
                     id="name"
@@ -285,7 +348,7 @@ export function AdminPanel({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
@@ -296,7 +359,7 @@ export function AdminPanel({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="author">Author / Source</Label>
                   <Input
                     id="author"
@@ -306,7 +369,7 @@ export function AdminPanel({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="doi">DOI (optional)</Label>
                   <Input
                     id="doi"
@@ -328,7 +391,7 @@ export function AdminPanel({
               <h3 className="text-sm text-slate-700 mb-3">Legend</h3>
               
               <div className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="legendType">Legend Type</Label>
                   <Select value={legendType} onValueChange={(v) => setLegendType(v as 'gradient' | 'categorical')}>
                     <SelectTrigger id="legendType">
@@ -341,7 +404,7 @@ export function AdminPanel({
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label>Legend Items</Label>
                   <div className="space-y-2 mt-2">
                     {legendItems.map((item, index) => (
@@ -385,13 +448,44 @@ export function AdminPanel({
           </div>
 
           <div className="p-4 border-t border-slate-200">
-            <Button onClick={handleSubmit} className="w-full">
-              <Save className="w-4 h-4 mr-2" />
-              Add to Library
+            <Button onClick={handleSubmit} className="w-full" disabled={!name.trim() || isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              {editingLayerId ? 'Update Layer' : 'Add to Library'}
             </Button>
           </div>
         </>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!layerToDelete} onOpenChange={() => setLayerToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {layerToDelete && (
+                <>
+                  This will permanently delete the layer "{layerToDelete.name}" from the library. 
+                  This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (layerToDelete) {
+                  onRemoveLayer(layerToDelete.id);
+                  setLayerToDelete(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Layer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

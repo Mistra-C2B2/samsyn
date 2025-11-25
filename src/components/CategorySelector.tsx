@@ -45,7 +45,7 @@ export function CategorySelector({
 
   if (isAddingNew) {
     return (
-      <div>
+      <div className="space-y-2">
         <Label htmlFor="newCategory">{label} (New)</Label>
         <div className="flex gap-2">
           <Input
@@ -87,7 +87,7 @@ export function CategorySelector({
   }
 
   return (
-    <div>
+    <div className="space-y-2">
       <Label htmlFor="category">{label}</Label>
       <Select value={value || '__none__'} onValueChange={handleSelectChange}>
         <SelectTrigger id="category">

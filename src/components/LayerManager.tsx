@@ -1,6 +1,7 @@
 import { Layer } from "../App";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
+import { Input } from "./ui/input";
 import {
   Eye,
   EyeOff,
@@ -12,6 +13,9 @@ import {
   Pencil,
   Info,
   MessageSquare,
+  Search,
+  SlidersHorizontal,
+  ArrowUpDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -21,11 +25,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Badge } from "./ui/badge";
 
 interface LayerManagerProps {
   layers: Layer[];
   availableLayers: Layer[];
+  mapName: string;
+  basemap: string;
   onUpdateLayer: (
     layerId: string,
     updates: Partial<Layer>,
@@ -38,6 +51,8 @@ interface LayerManagerProps {
   onRemoveLayer: (layerId: string) => void;
   onClose: () => void;
   onOpenLayerCreator: () => void;
+  onEditLayer?: (layer: Layer) => void;
+  onChangeBasemap: (basemap: string) => void;
   onOpenComments?: (layerId: string) => void;
   getLayerCommentCount?: (layerId: string) => number;
 }
@@ -45,12 +60,16 @@ interface LayerManagerProps {
 export function LayerManager({
   layers,
   availableLayers,
+  mapName,
+  basemap,
   onUpdateLayer,
   onReorderLayers,
   onAddLayer,
   onRemoveLayer,
   onClose,
   onOpenLayerCreator,
+  onEditLayer,
+  onChangeBasemap,
   onOpenComments,
   getLayerCommentCount,
 }: LayerManagerProps) {
@@ -60,6 +79,13 @@ export function LayerManager({
   const [showLibrary, setShowLibrary] = useState(false);
   const [selectedLayerInfo, setSelectedLayerInfo] =
     useState<Layer | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<
+    "name" | "type" | "category"
+  >("name");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterCategory, setFilterCategory] =
+    useState<string>("all");
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -85,21 +111,90 @@ export function LayerManager({
       !layers.some((layer) => layer.id === availableLayer.id),
   );
 
+  // Get unique types and categories for filters
+  const uniqueTypes = Array.from(
+    new Set(layersNotInMap.map((l) => l.type)),
+  );
+  const uniqueCategories = Array.from(
+    new Set(
+      layersNotInMap
+        .map((l) => l.category)
+        .filter((c): c is string => !!c),
+    ),
+  );
+
+  // Filter and sort layers
+  const getFilteredAndSortedLayers = () => {
+    let filtered = layersNotInMap;
+
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (layer) =>
+          layer.name
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          layer.description
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()),
+      );
+    }
+
+    // Apply type filter
+    if (filterType !== "all") {
+      filtered = filtered.filter(
+        (layer) => layer.type === filterType,
+      );
+    }
+
+    // Apply category filter
+    if (filterCategory !== "all") {
+      filtered = filtered.filter(
+        (layer) => layer.category === filterCategory,
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === "type") {
+        return a.type.localeCompare(b.type);
+      } else if (sortBy === "category") {
+        return (a.category || "").localeCompare(
+          b.category || "",
+        );
+      }
+      return 0;
+    });
+
+    return filtered;
+  };
+
+  const filteredLayers = getFilteredAndSortedLayers();
+
   return (
     <div className="absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-slate-200 flex flex-col shadow-lg">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <h2 className="text-slate-900">Map Layers</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+      {!showLibrary && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-slate-900">Layers</h2>
+            <p className="text-xs text-slate-500 truncate">
+              {mapName}
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
 
       {showLibrary ? (
         // Layer Library View
         <>
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-sm text-slate-700">
-              Available Layers
+              Add from Library
             </h3>
             <Button
               variant="ghost"
@@ -111,57 +206,195 @@ export function LayerManager({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {layersNotInMap.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center py-8">
-                All available layers are already added to this
-                map
-              </p>
-            ) : (
-              layersNotInMap.map((layer) => (
-                <div
-                  key={layer.id}
-                  className="bg-slate-50 border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors"
-                >
-                  <div className="flex items-start gap-2 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className="text-slate-900 text-sm truncate"
-                        title={layer.name}
-                      >
-                        {layer.name}
-                      </h3>
-                      <p className="text-slate-500 text-xs capitalize">
-                        {layer.type}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        onAddLayer(layer);
-                        setShowLibrary(false);
-                      }}
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add
-                    </Button>
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search layers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9"
+              />
+            </div>
+
+            {/* Sort and Filter Controls */}
+            <div className="flex gap-2">
+              <Select
+                value={sortBy}
+                onValueChange={(v) =>
+                  setSortBy(v as "name" | "type" | "category")
+                }
+              >
+                <SelectTrigger className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span className="text-xs">
+                      Sort by: {sortBy}
+                    </span>
                   </div>
-                  {layer.legend && (
-                    <div className="text-xs text-slate-500">
-                      {layer.legend.type === "gradient"
-                        ? "Gradient layer"
-                        : `${layer.legend.items.length} categories`}
-                    </div>
-                  )}
-                </div>
-              ))
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="type">Type</SelectItem>
+                  <SelectItem value="category">
+                    Category
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filterType}
+                onValueChange={setFilterType}
+              >
+                <SelectTrigger className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-3 h-3" />
+                    <span className="text-xs">Type</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {uniqueTypes.map((type) => (
+                    <SelectItem
+                      key={type}
+                      value={type}
+                      className="capitalize"
+                    >
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {uniqueCategories.length > 0 && (
+              <Select
+                value={filterCategory}
+                onValueChange={setFilterCategory}
+              >
+                <SelectTrigger className="w-full">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-3 h-3" />
+                    <span className="text-xs">
+                      Category:{" "}
+                      {filterCategory === "all"
+                        ? "All"
+                        : filterCategory}
+                    </span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Categories
+                  </SelectItem>
+                  {uniqueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
+
+            {/* Results */}
+            <div className="pt-2 space-y-2">
+              {filteredLayers.length === 0 ? (
+                <p className="text-slate-500 text-sm text-center py-8">
+                  {layersNotInMap.length === 0
+                    ? "All available layers are already added to this map"
+                    : "No layers match your search criteria"}
+                </p>
+              ) : (
+                filteredLayers.map((layer) => (
+                  <div
+                    key={layer.id}
+                    className="bg-slate-50 border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-start gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className="text-slate-900 text-sm truncate"
+                          title={layer.name}
+                        >
+                          {layer.name}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <p className="text-slate-500 text-xs capitalize">
+                            {layer.type}
+                          </p>
+                          {layer.category && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {layer.category}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onAddLayer(layer);
+                          setShowLibrary(false);
+                        }}
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add
+                      </Button>
+                    </div>
+                    {layer.legend && (
+                      <div className="text-xs text-slate-500">
+                        {layer.legend.type === "gradient"
+                          ? "Gradient layer"
+                          : `${layer.legend.items.length} categories`}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </>
       ) : (
         // Current Layers View
         <>
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {/* Basemap Selector */}
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <label className="text-xs text-slate-600 whitespace-nowrap">
+                Basemap:
+              </label>
+              <Select
+                value={basemap}
+                onValueChange={onChangeBasemap}
+              >
+                <SelectTrigger className="h-7 text-xs flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light-v11">
+                    Light
+                  </SelectItem>
+                  <SelectItem value="dark-v11">Dark</SelectItem>
+                  <SelectItem value="streets-v12">
+                    Streets
+                  </SelectItem>
+                  <SelectItem value="outdoors-v12">
+                    Outdoors
+                  </SelectItem>
+                  <SelectItem value="satellite-v9">
+                    Satellite
+                  </SelectItem>
+                  <SelectItem value="satellite-streets-v12">
+                    Satellite Streets
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {layers.length === 0 ? (
               <div className="text-center py-8 space-y-3">
                 <p className="text-slate-500 text-sm">
@@ -177,9 +410,9 @@ export function LayerManager({
                     Add from Library
                   </Button>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={onOpenLayerCreator}
+                    className="w-full"
                   >
                     <Pencil className="w-3 h-3" />
                     Create Layer
@@ -263,6 +496,22 @@ export function LayerManager({
                             )}
                         </Button>
                       )}
+                      {layer.createdBy &&
+                        layer.editable === "everyone" &&
+                        onEditLayer && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditLayer(layer);
+                            }}
+                            className="flex-shrink-0"
+                            title="Edit layer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
                     </div>
                     <Button
                       variant="ghost"
@@ -295,7 +544,7 @@ export function LayerManager({
                       }
                       max={100}
                       step={1}
-                      className="w-full"
+                      className="w-full [&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-thumb]]:size-3"
                     />
                   </div>
                 </div>
@@ -309,18 +558,17 @@ export function LayerManager({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowLibrary(true)}
-                className="w-full"
+                className="w-full hover:border-teal-400 hover:bg-white hover:text-slate-900"
               >
                 <Library className="w-3 h-3" />
                 Add from Library
               </Button>
               <Button
-                variant="outline"
                 size="sm"
                 onClick={onOpenLayerCreator}
                 className="w-full"
               >
-                <Pencil className="w-3 h-3" />
+                <Plus className="w-4 h-4" />
                 Create Layer
               </Button>
             </div>

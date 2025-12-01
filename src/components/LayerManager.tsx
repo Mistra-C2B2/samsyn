@@ -76,6 +76,9 @@ export function LayerManager({
   const [draggedIndex, setDraggedIndex] = useState<
     number | null
   >(null);
+  const [dragOverIndex, setDragOverIndex] = useState<
+    number | null
+  >(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [selectedLayerInfo, setSelectedLayerInfo] =
     useState<Layer | null>(null);
@@ -89,6 +92,7 @@ export function LayerManager({
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
+    setDragOverIndex(null);
   };
 
   const handleDragOver = (
@@ -97,12 +101,15 @@ export function LayerManager({
   ) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
-    onReorderLayers(draggedIndex, index);
-    setDraggedIndex(index);
+    setDragOverIndex(index);
   };
 
   const handleDragEnd = () => {
+    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+      onReorderLayers(draggedIndex, dragOverIndex);
+    }
     setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   // Get layers that are not yet added to the current map
@@ -375,21 +382,17 @@ export function LayerManager({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light-v11">
-                    Light
+                  <SelectItem value="osm">
+                    OpenStreetMap
                   </SelectItem>
-                  <SelectItem value="dark-v11">Dark</SelectItem>
-                  <SelectItem value="streets-v12">
-                    Streets
+                  <SelectItem value="carto-light">
+                    Carto Light
                   </SelectItem>
-                  <SelectItem value="outdoors-v12">
-                    Outdoors
+                  <SelectItem value="carto-dark">
+                    Carto Dark
                   </SelectItem>
-                  <SelectItem value="satellite-v9">
-                    Satellite
-                  </SelectItem>
-                  <SelectItem value="satellite-streets-v12">
-                    Satellite Streets
+                  <SelectItem value="voyager">
+                    Carto Voyager
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -429,6 +432,8 @@ export function LayerManager({
                   onDragEnd={handleDragEnd}
                   className={`bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3 cursor-move hover:border-slate-300 transition-colors ${
                     draggedIndex === index ? "opacity-50" : ""
+                  } ${
+                    dragOverIndex === index && draggedIndex !== index ? "border-teal-500 border-2" : ""
                   }`}
                 >
                   <div className="flex items-start gap-2">

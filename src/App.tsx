@@ -333,7 +333,7 @@ function AppContent() {
   const [showLayerCreator, setShowLayerCreator] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [availableLayers, setAvailableLayers] = useState<Layer[]>(mockLayers);
-  const [basemap, setBasemap] = useState<string>('light-v11');
+  const [basemap, setBasemap] = useState<string>('osm');
   const [drawingMode, setDrawingMode] = useState<'Point' | 'LineString' | 'Polygon' | null>(null);
   const [drawCallback, setDrawCallback] = useState<((feature: any) => void) | null>(null);
   const [selectedLayerIdForComments, setSelectedLayerIdForComments] = useState<string | null>(null);

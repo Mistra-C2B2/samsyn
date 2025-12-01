@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import maplibregl from 'maplibre-gl';
+import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { Layer } from '../App';
 import { Legend } from './Legend';
 
@@ -50,110 +54,190 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // @ts-ignore
-    if (typeof window !== 'undefined' && window.mapboxgl) {
-      // @ts-ignore
-      const mapboxgl = window.mapboxgl;
-      // @ts-ignore
-      const MapboxDraw = window.MapboxDraw;
-      
-      mapboxgl.accessToken = 'pk.eyJ1IjoiZXhhbXBsZSIsImEiOiJjbGV4YW1wbGUifQ.example'; // Placeholder
-
-      const map = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: `mapbox://styles/mapbox/${basemap}`,
-        center: [center[1], center[0]], // mapbox uses [lng, lat]
-        zoom: zoom - 1,
-      });
-
-      // Initialize draw control
-      const draw = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {},
-        styles: [
-          // Polygon fill
-          {
-            'id': 'gl-draw-polygon-fill',
-            'type': 'fill',
-            'paint': {
-              'fill-color': '#3b82f6',
-              'fill-opacity': 0.3
-            }
-          },
-          // Polygon outline
-          {
-            'id': 'gl-draw-polygon-stroke-active',
-            'type': 'line',
-            'paint': {
-              'line-color': '#3b82f6',
-              'line-width': 2
-            }
-          },
-          // Line
-          {
-            'id': 'gl-draw-line',
-            'type': 'line',
-            'paint': {
-              'line-color': '#3b82f6',
-              'line-width': 2
-            }
-          },
-          // Point
-          {
-            'id': 'gl-draw-point',
-            'type': 'circle',
-            'paint': {
-              'circle-radius': 6,
-              'circle-color': '#3b82f6'
-            }
-          },
-          // Vertex points
-          {
-            'id': 'gl-draw-polygon-and-line-vertex-active',
-            'type': 'circle',
-            'paint': {
-              'circle-radius': 5,
-              'circle-color': '#ffffff',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#3b82f6'
-            }
-          }
-        ]
-      });
-
-      map.addControl(draw);
-      drawRef.current = draw;
-
-      // Handle draw create event
-      map.on('draw.create', (e: any) => {
-        if (onDrawComplete && e.features && e.features[0]) {
-          onDrawComplete(e.features[0]);
-          // Clear the drawing after completion
-          draw.deleteAll();
-        }
-      });
-
-      map.on('load', () => {
-        setMapLoaded(true);
-      });
-
-      mapRef.current = map;
-
-      return () => {
-        map.remove();
-        mapRef.current = null;
-        drawRef.current = null;
+    // Create basemap style based on basemap prop
+    const getBasemapStyle = (basemapType: string) => {
+      const basemaps: Record<string, { url: string; attribution: string }> = {
+        'osm': {
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors',
+        },
+        'carto-light': {
+          url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
+        'carto-dark': {
+          url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
+        'voyager': {
+          url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
       };
-    }
+
+      const basemap = basemaps[basemapType] || basemaps['osm'];
+
+      return {
+        version: 8,
+        sources: {
+          'raster-tiles': {
+            type: 'raster',
+            tiles: [basemap.url],
+            tileSize: 256,
+            attribution: basemap.attribution,
+          },
+        },
+        layers: [
+          {
+            id: 'background',
+            type: 'raster',
+            source: 'raster-tiles',
+          },
+        ],
+      };
+    };
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: getBasemapStyle(basemap),
+      center: [center[1], center[0]], // uses [lng, lat]
+      zoom: zoom - 1,
+      attributionControl: false, // Disable default attribution
+    });
+
+    // Add attribution control to bottom-left
+    map.addControl(new maplibregl.AttributionControl(), 'bottom-left');
+
+    // Initialize draw control
+    const draw = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {},
+      styles: [
+        // Polygon fill
+        {
+          'id': 'gl-draw-polygon-fill',
+          'type': 'fill',
+          'paint': {
+            'fill-color': '#3b82f6',
+            'fill-opacity': 0.3
+          }
+        },
+        // Polygon outline
+        {
+          'id': 'gl-draw-polygon-stroke-active',
+          'type': 'line',
+          'paint': {
+            'line-color': '#3b82f6',
+            'line-width': 2
+          }
+        },
+        // Line
+        {
+          'id': 'gl-draw-line',
+          'type': 'line',
+          'paint': {
+            'line-color': '#3b82f6',
+            'line-width': 2
+          }
+        },
+        // Point
+        {
+          'id': 'gl-draw-point',
+          'type': 'circle',
+          'paint': {
+            'circle-radius': 6,
+            'circle-color': '#3b82f6'
+          }
+        },
+        // Vertex points
+        {
+          'id': 'gl-draw-polygon-and-line-vertex-active',
+          'type': 'circle',
+          'paint': {
+            'circle-radius': 5,
+            'circle-color': '#ffffff',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#3b82f6'
+          }
+        }
+      ]
+    });
+
+    map.addControl(draw);
+    drawRef.current = draw;
+
+    // Handle draw create event
+    map.on('draw.create', (e: any) => {
+      if (onDrawComplete && e.features && e.features[0]) {
+        onDrawComplete(e.features[0]);
+        // Clear the drawing after completion
+        draw.deleteAll();
+      }
+    });
+
+    map.on('load', () => {
+      setMapLoaded(true);
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      drawRef.current = null;
+    };
   }, []);
 
   // Handle basemap changes
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
-    
+
     const map = mapRef.current;
-    map.setStyle(`mapbox://styles/mapbox/${basemap}`);
-    
+
+    const getBasemapStyle = (basemapType: string) => {
+      const basemaps: Record<string, { url: string; attribution: string }> = {
+        'osm': {
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors',
+        },
+        'carto-light': {
+          url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
+        'carto-dark': {
+          url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
+        'voyager': {
+          url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          attribution: '&copy; OpenStreetMap Contributors &copy; CARTO',
+        },
+      };
+
+      const basemap = basemaps[basemapType] || basemaps['osm'];
+
+      return {
+        version: 8,
+        sources: {
+          'raster-tiles': {
+            type: 'raster',
+            tiles: [basemap.url],
+            tileSize: 256,
+            attribution: basemap.attribution,
+          },
+        },
+        layers: [
+          {
+            id: 'background',
+            type: 'raster',
+            source: 'raster-tiles',
+          },
+        ],
+      };
+    };
+
+    map.setStyle(getBasemapStyle(basemap));
+
     // Wait for style to load before re-adding layers
     map.once('style.load', () => {
       setMapLoaded(true);
@@ -164,21 +248,27 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
     if (!mapRef.current || !mapLoaded) return;
 
     const map = mapRef.current;
-    
+
     // Remove all existing layers and sources
     layers.forEach(layer => {
-      if (map.getLayer(`${layer.id}-fill`)) {
-        map.removeLayer(`${layer.id}-fill`);
-      }
-      if (map.getLayer(`${layer.id}-line`)) {
-        map.removeLayer(`${layer.id}-line`);
-      }
-      if (map.getLayer(`${layer.id}-circle`)) {
-        map.removeLayer(`${layer.id}-circle`);
-      }
-      if (map.getLayer(`${layer.id}-symbol`)) {
-        map.removeLayer(`${layer.id}-symbol`);
-      }
+      // Remove all possible layer variations
+      const layerIds = [
+        `${layer.id}-fill`,
+        `${layer.id}-line`,
+        `${layer.id}-line-solid`,
+        `${layer.id}-line-dashed`,
+        `${layer.id}-line-dotted`,
+        `${layer.id}-circle`,
+        `${layer.id}-symbol`,
+      ];
+
+      layerIds.forEach(layerId => {
+        if (map.getLayer(layerId)) {
+          map.removeLayer(layerId);
+        }
+      });
+
+      // Now safe to remove source after all layers are removed
       if (map.getSource(layer.id)) {
         map.removeSource(layer.id);
       }
@@ -222,6 +312,19 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
         if (hasLineStyles) {
           // Create separate layers for each line style
           ['solid', 'dashed', 'dotted'].forEach(style => {
+            const paintConfig: any = {
+              'line-color': fillColor,
+              'line-width': 2,
+              'line-opacity': layer.opacity,
+            };
+
+            // Only add line-dasharray for non-solid styles
+            if (style === 'dashed') {
+              paintConfig['line-dasharray'] = [2, 2];
+            } else if (style === 'dotted') {
+              paintConfig['line-dasharray'] = [0.5, 1.5];
+            }
+
             map.addLayer({
               id: `${layer.id}-line-${style}`,
               type: 'line',
@@ -231,12 +334,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
                 ['in', ['geometry-type'], ['literal', ['Polygon', 'LineString']]],
                 ['==', ['get', 'lineStyle'], style]
               ],
-              paint: {
-                'line-color': fillColor,
-                'line-width': 2,
-                'line-opacity': layer.opacity,
-                'line-dasharray': style === 'dashed' ? [2, 2] : style === 'dotted' ? [0.5, 1.5] : undefined,
-              },
+              paint: paintConfig,
             });
           });
           
@@ -292,7 +390,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
             const feature = e.features[0];
             const name = feature.properties.name || 'Unnamed';
             const description = feature.properties.description || '';
-            new (window as any).mapboxgl.Popup()
+            new maplibregl.Popup()
               .setLngLat(e.lngLat)
               .setHTML(`<strong>${name}</strong>${description ? `<br/>${description}` : ''}`)
               .addTo(map);
@@ -304,7 +402,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
             const feature = e.features[0];
             const name = feature.properties.name || 'Unnamed';
             const description = feature.properties.description || '';
-            new (window as any).mapboxgl.Popup()
+            new maplibregl.Popup()
               .setLngLat(e.lngLat)
               .setHTML(`<strong>${name}</strong>${description ? `<br/>${description}` : ''}`)
               .addTo(map);

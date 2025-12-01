@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: samsyn-db
+    environment:
+      POSTGRES_USER: samsyn
+      POSTGRES_PASSWORD: samsyn
+      POSTGRES_DB: samsyn
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - samsyn-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samsyn"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  samsyn-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

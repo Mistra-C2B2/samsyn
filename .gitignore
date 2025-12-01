@@ -23,5 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude 
+# Claude
 .claude
+
+# Python
+.venv/
+venv/
+*.pyc
+__pycache__/

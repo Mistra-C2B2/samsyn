@@ -51,7 +51,9 @@ def db_session(engine):
 
     # Rollback transaction (undoes all changes made in the test)
     session.close()
-    transaction.rollback()
+    # Only rollback if transaction is still active
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 

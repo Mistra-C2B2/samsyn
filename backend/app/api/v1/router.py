@@ -9,10 +9,22 @@ api_router.include_router(webhooks.router)
 api_router.include_router(test_auth.router)
 api_router.include_router(test_webhooks.router)  # For local testing without signatures  # TODO: Remove after Phase 2 testing
 
+# Phase 3: Maps CRUD
+from app.api.v1 import maps
+
+api_router.include_router(maps.router)
+
+# Phase 3: Layers CRUD
+from app.api.v1 import layers
+
+api_router.include_router(layers.router)
+
+# Phase 4: Features CRUD
+from app.api.v1 import features
+
+api_router.include_router(features.router)
+
 # Future routers will be added in later phases
-# from app.api.v1 import users, maps, layers, features, comments
+# from app.api.v1 import users, comments
 # api_router.include_router(users.router)
-# api_router.include_router(maps.router)
-# api_router.include_router(layers.router)
-# api_router.include_router(features.router)
 # api_router.include_router(comments.router)

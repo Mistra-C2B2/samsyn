@@ -21,6 +21,8 @@ dependencies = [
     "python-multipart>=0.0.6",
     "shapely>=2.0.2",
     "geojson>=3.1.0",
+    "svix>=1.0.0",
+    "email-validator>=2.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -48,3 +50,13 @@ select = ["E", "F", "I", "N", "W"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "asyncio: mark test as async"
+]

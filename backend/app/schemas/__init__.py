@@ -57,6 +57,13 @@ from app.schemas.feature import (
     BulkFeatureDeleteResponse,
 )
 
+from app.schemas.comment import (
+    CommentCreate,
+    CommentUpdate,
+    CommentResponse,
+    CommentWithReplies,
+)
+
 __all__ = [
     # User schemas
     "UserBase",
@@ -102,4 +109,9 @@ __all__ = [
     "FeatureQueryParams",
     "BulkFeatureDelete",
     "BulkFeatureDeleteResponse",
+    # Comment schemas
+    "CommentCreate",
+    "CommentUpdate",
+    "CommentResponse",
+    "CommentWithReplies",
 ]

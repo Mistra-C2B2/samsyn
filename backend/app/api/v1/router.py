@@ -24,7 +24,11 @@ from app.api.v1 import features
 
 api_router.include_router(features.router)
 
+# Phase 6: Comments System
+from app.api.v1 import comments
+
+api_router.include_router(comments.router)
+
 # Future routers will be added in later phases
-# from app.api.v1 import users, comments
+# from app.api.v1 import users
 # api_router.include_router(users.router)
-# api_router.include_router(comments.router)

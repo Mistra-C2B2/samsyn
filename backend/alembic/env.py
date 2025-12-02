@@ -40,6 +40,33 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Should you include this table or not?
+    Return False to exclude PostGIS/TIGER tables from autogeneration.
+    """
+    # Exclude PostGIS system tables
+    if type_ == "table":
+        # PostGIS extension tables
+        if name in ("spatial_ref_sys", "topology", "layer"):
+            return False
+        # TIGER geocoder tables (comprehensive list)
+        tiger_tables = {
+            "featnames", "geocode_settings", "geocode_settings_default",
+            "direction_lookup", "secondary_unit_lookup", "state_lookup",
+            "street_type_lookup", "place_lookup", "county_lookup",
+            "countysub_lookup", "zip_lookup_all", "zip_lookup_base",
+            "zip_lookup", "county", "state", "place", "zip_state",
+            "zip_state_loc", "cousub", "edges", "addrfeat", "addr",
+            "zcta5", "tabblock20", "tabblock", "faces", "loader_platform",
+            "loader_variables", "loader_lookuptables", "tract", "bg",
+            "pagc_gaz", "pagc_lex", "pagc_rules"
+        }
+        if name in tiger_tables:
+            return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -60,6 +87,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -85,6 +113,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

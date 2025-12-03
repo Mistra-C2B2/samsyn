@@ -31,21 +31,25 @@ class MapService:
     # Core CRUD Operations
     # ========================================================================
 
-    def list_user_maps(self, user_id: UUID) -> List[Map]:
+    def list_user_maps(self, user_id: Optional[UUID]) -> List[Map]:
         """
         Get all maps owned by or shared with user.
 
         Returns maps where user is:
         - The creator/owner
         - A collaborator (viewer or editor)
-        - Public maps are NOT included here (use separate endpoint if needed)
+        - For unauthenticated users (user_id=None), only public maps
 
         Args:
-            user_id: User's internal UUID
+            user_id: User's internal UUID, or None for unauthenticated users
 
         Returns:
             List of Map instances user has access to
         """
+        # Unauthenticated users only see public maps
+        if user_id is None:
+            return self.db.query(Map).filter(Map.permission == "public").all()
+
         # Get maps owned by user
         owned_maps = self.db.query(Map).filter(Map.created_by == user_id).all()
 
@@ -70,13 +74,13 @@ class MapService:
         all_maps = {map.id: map for map in owned_maps + collaborated_maps}
         return list(all_maps.values())
 
-    def get_map(self, map_id: UUID, user_id: UUID) -> Optional[Map]:
+    def get_map(self, map_id: UUID, user_id: Optional[UUID]) -> Optional[Map]:
         """
         Get map by ID with permission check.
 
         Args:
             map_id: Map UUID
-            user_id: User UUID requesting the map
+            user_id: User UUID requesting the map, or None for unauthenticated users
 
         Returns:
             Map if found and user has view access, None otherwise
@@ -192,18 +196,18 @@ class MapService:
     # Permission Checks
     # ========================================================================
 
-    def can_view_map(self, map_id: UUID, user_id: UUID) -> bool:
+    def can_view_map(self, map_id: UUID, user_id: Optional[UUID]) -> bool:
         """
         Check if user can view map.
 
         Permission logic:
         - private: Only creator can view
         - collaborators: Creator + collaborators can view
-        - public: Anyone can view
+        - public: Anyone can view (including unauthenticated users)
 
         Args:
             map_id: Map UUID
-            user_id: User UUID
+            user_id: User UUID, or None for unauthenticated users
 
         Returns:
             True if user can view, False otherwise
@@ -213,12 +217,16 @@ class MapService:
         if not map_obj:
             return False
 
-        # Owner always has access
-        if map_obj.created_by == user_id:
-            return True
-
         # Public maps can be viewed by anyone
         if map_obj.permission == "public":
+            return True
+
+        # Unauthenticated users can only view public maps
+        if user_id is None:
+            return False
+
+        # Owner always has access
+        if map_obj.created_by == user_id:
             return True
 
         # For private and collaborators, check if user is a collaborator
@@ -328,7 +336,7 @@ class MapService:
     # ========================================================================
 
     def list_collaborators(
-        self, map_id: UUID, user_id: UUID
+        self, map_id: UUID, user_id: Optional[UUID]
     ) -> Optional[List[MapCollaborator]]:
         """
         List map collaborators.
@@ -337,7 +345,7 @@ class MapService:
 
         Args:
             map_id: Map UUID
-            user_id: User UUID requesting the list (must have view access)
+            user_id: User UUID requesting the list (must have view access), or None for unauthenticated users
 
         Returns:
             List of MapCollaborator instances, or None if unauthorized

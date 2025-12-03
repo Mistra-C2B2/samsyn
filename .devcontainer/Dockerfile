@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3.11 \
   python3-pip \
   python3-venv \
+  postgresql-client \
   libsdl2-dev \
   libsdl2-image-dev \
   libsdl2-mixer-dev \
@@ -110,6 +111,7 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # # Install uv and Python tools
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     /home/node/.local/bin/uv tool install black && \
+    /home/node/.local/bin/uv tool install pgcli && \
     /home/node/.local/bin/uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
 
 # Install Playwright in a dedicated venv
@@ -128,3 +130,6 @@ RUN chmod +x /usr/local/bin/init-firewall.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall
 USER node
+
+# Ensure PATH updates are in zshrc
+RUN echo 'export PATH="/home/node/.cargo/bin:/home/node/.local/bin:/home/node/.playwright-venv/bin:/usr/local/share/npm-global/bin:$PATH"' >> /home/node/.zshrc

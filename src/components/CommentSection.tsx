@@ -10,39 +10,37 @@ import {
   SelectValue,
 } from './ui/select';
 import { Layer } from '../App';
+import { CommentResponse } from '../types/api';
 import { X, Send, Loader2 } from 'lucide-react';
-
-interface Comment {
-  id: string;
-  author: string;
-  content: string;
-  timestamp: Date;
-  targetType: 'map' | 'layer';
-  targetId: string;
-  parentId?: string; // ID of parent comment if this is a reply
-  replies?: Comment[]; // Nested replies
-}
 
 interface CommentSectionProps {
   mapId: string;
   mapName: string;
   layers: Layer[];
   initialLayerId?: string | null;
-  comments: Comment[];
-  onAddComment: (comment: Omit<Comment, 'id' | 'timestamp'>) => void;
+  comments: CommentResponse[];
+  loading?: boolean;
+  error?: string | null;
+  onAddComment: (comment: {
+    content: string;
+    map_id?: string;
+    layer_id?: string;
+    parent_id?: string;
+  }) => void;
   onClose: () => void;
 }
 
 interface CommentItemProps {
-  comment: Comment;
+  comment: CommentResponse & { replies?: CommentResponse[] };
   onReply: (commentId: string) => void;
   depth?: number;
 }
 
 function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
   const [collapsed, setCollapsed] = useState(false);
-  
-  const formatTimestamp = (date: Date) => {
+
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -53,7 +51,14 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
     return 'Just now';
   };
 
+  // Check if this comment has nested replies in the tree we built
   const hasReplies = comment.replies && comment.replies.length > 0;
+  const authorName = comment.author_name || 'Unknown User';
+
+  // Generate initials from author name
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   return (
     <div className="space-y-2">
@@ -71,14 +76,14 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
         )}
         <Avatar className="w-8 h-8 flex-shrink-0">
           <AvatarFallback className="bg-slate-200 text-slate-600 text-xs">
-            {comment.author.split(' ').map(n => n[0]).join('')}
+            {getInitials(authorName)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
-            <span className="text-sm text-slate-900">{comment.author}</span>
+            <span className="text-sm text-slate-900">{authorName}</span>
             <span className="text-xs text-slate-400">
-              {formatTimestamp(comment.timestamp)}
+              {formatTimestamp(comment.created_at)}
             </span>
           </div>
           <p className="text-sm text-slate-600 mt-1">{comment.content}</p>
@@ -88,7 +93,7 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
             onClick={() => onReply(comment.id)}
             className="mt-1 h-auto p-1 text-xs text-slate-500 hover:text-teal-600"
           >
-            Reply
+            Reply {comment.reply_count > 0 && `(${comment.reply_count})`}
           </Button>
         </div>
       </div>
@@ -110,11 +115,49 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
   );
 }
 
-export function CommentSection({ mapId, mapName, layers, initialLayerId, comments, onAddComment, onClose }: CommentSectionProps) {
+export function CommentSection({ mapId, mapName, layers, initialLayerId, comments, loading, error, onAddComment, onClose }: CommentSectionProps) {
   const [newComment, setNewComment] = useState('');
   const [commentTarget, setCommentTarget] = useState<string>(initialLayerId || mapId);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg z-40">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+          <h2 className="text-slate-900">Comments</h2>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X />
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <span className="ml-2 text-gray-600">Loading comments...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg z-40">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+          <h2 className="text-slate-900">Comments</h2>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X />
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <p className="text-red-600 mb-2">Error loading comments</p>
+            <p className="text-sm text-gray-600">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Simple inline SVG icons to match lucide-react style
   const MapIcon = () => (
@@ -155,10 +198,10 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
     </svg>
   );
 
-  // Build nested comment tree
-  const buildCommentTree = (comments: Comment[]): Comment[] => {
-    const commentMap = new Map<string, Comment>();
-    const rootComments: Comment[] = [];
+  // Build nested comment tree from flat list using parent_id
+  const buildCommentTree = (comments: CommentResponse[]): (CommentResponse & { replies?: CommentResponse[] })[] => {
+    const commentMap = new Map<string, CommentResponse & { replies?: CommentResponse[] }>();
+    const rootComments: (CommentResponse & { replies?: CommentResponse[] })[] = [];
 
     // First pass: create a map of all comments with empty replies arrays
     comments.forEach(comment => {
@@ -168,8 +211,8 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
     // Second pass: organize into tree structure
     comments.forEach(comment => {
       const commentWithReplies = commentMap.get(comment.id)!;
-      if (comment.parentId) {
-        const parent = commentMap.get(comment.parentId);
+      if (comment.parent_id) {
+        const parent = commentMap.get(comment.parent_id);
         if (parent) {
           parent.replies!.push(commentWithReplies);
         } else {
@@ -184,24 +227,35 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
     return rootComments;
   };
 
-  // Filter comments based on selected target and build tree
-  const filteredComments = comments.filter(comment => comment.targetId === commentTarget);
+  // Filter comments based on selected target using backend field names
+  const filteredComments = comments.filter(comment => {
+    if (commentTarget === mapId) {
+      // Show comments on the map (map_id matches and layer_id is null)
+      return comment.map_id === mapId && comment.layer_id === null;
+    } else {
+      // Show comments on specific layer
+      return comment.layer_id === commentTarget;
+    }
+  });
   const commentTree = buildCommentTree(filteredComments);
 
   // Get comment count for a specific target (including replies)
   const getCommentCount = (targetId: string) => {
-    return comments.filter(c => c.targetId === targetId).length;
+    if (targetId === mapId) {
+      return comments.filter(c => c.map_id === mapId && c.layer_id === null).length;
+    } else {
+      return comments.filter(c => c.layer_id === targetId).length;
+    }
   };
 
   const handleSubmit = () => {
     if (newComment.trim()) {
       setIsSubmitting(true);
       onAddComment({
-        author: 'Current User',
         content: newComment,
-        targetType: commentTarget === mapId ? 'map' : 'layer',
-        targetId: commentTarget,
-        parentId: replyingTo || undefined,
+        map_id: commentTarget === mapId ? mapId : undefined,
+        layer_id: commentTarget === mapId ? undefined : commentTarget,
+        parent_id: replyingTo || undefined,
       });
       setNewComment('');
       setReplyingTo(null);
@@ -209,12 +263,13 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
     }
   };
 
-  const currentTargetName = commentTarget === mapId 
-    ? mapName 
+  const currentTargetName = commentTarget === mapId
+    ? mapName
     : layers.find(l => l.id === commentTarget)?.name || 'Unknown';
 
   // Get the comment being replied to
   const replyingToComment = replyingTo ? comments.find(c => c.id === replyingTo) : null;
+  const replyingToAuthor = replyingToComment?.author_name || 'Unknown User';
 
   return (
     <div className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg z-40">
@@ -277,7 +332,7 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
         {replyingToComment && (
           <div className="p-2 bg-slate-50 border border-slate-200 rounded text-xs">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-slate-500">Replying to <span className="font-medium text-slate-700">{replyingToComment.author}</span></span>
+              <span className="text-slate-500">Replying to <span className="font-medium text-slate-700">{replyingToAuthor}</span></span>
               <Button
                 variant="ghost"
                 size="sm"

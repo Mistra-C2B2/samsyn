@@ -12,6 +12,8 @@ import { Layers, Map, MessageSquare, Shield, Share2, Settings } from 'lucide-rea
 import { toast } from 'sonner@2.0.3';
 import { Toaster } from './components/ui/sonner';
 import { ClerkProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import { CommentResponse } from './types/api';
+import { useCommentService } from './services/commentService';
 
 // Get Clerk publishable key from environment variables
 // Make sure to set VITE_CLERK_PUBLISHABLE_KEY in your .env file
@@ -339,48 +341,35 @@ function AppContent() {
   const [selectedLayerIdForComments, setSelectedLayerIdForComments] = useState<string | null>(null);
   const [editingLayer, setEditingLayer] = useState<Layer | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [comments, setComments] = useState<Array<{
-    id: string;
-    author: string;
-    content: string;
-    timestamp: Date;
-    targetType: 'map' | 'layer';
-    targetId: string;
-  }>>([
-    {
-      id: '1',
-      author: 'Marine Biologist',
-      content: 'The fishing intensity data in the northern region seems to correlate well with the recent stock assessments.',
-      timestamp: new Date('2024-11-17T10:30:00'),
-      targetType: 'map',
-      targetId: 'baltic-fishing',
-    },
-    {
-      id: '2',
-      author: 'Fisheries Manager',
-      content: 'Should we add a layer for protected breeding zones? This would help stakeholders understand the restrictions.',
-      timestamp: new Date('2024-11-17T14:15:00'),
-      targetType: 'map',
-      targetId: 'baltic-fishing',
-    },
-    {
-      id: '3',
-      author: 'Data Scientist',
-      content: 'The heatmap shows interesting patterns. Could we get higher resolution data for the coastal areas?',
-      timestamp: new Date('2024-11-18T09:00:00'),
-      targetType: 'layer',
-      targetId: 'fish-stocks',
-    },
-    {
-      id: '4',
-      author: 'Policy Advisor',
-      content: 'This layer is crucial for our upcoming stakeholder meeting. Thanks for including it!',
-      timestamp: new Date('2024-11-19T11:20:00'),
-      targetType: 'layer',
-      targetId: 'fishing-intensity',
-    },
-  ]);
+  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const mapViewRef = useRef<MapViewRef>(null);
+
+  // Initialize comment service
+  const commentService = useCommentService();
+
+  // Load comments when map changes
+  useEffect(() => {
+    if (currentMap?.id) {
+      loadComments(currentMap.id);
+    }
+  }, [currentMap?.id]);
+
+  // Function to load comments from API
+  const loadComments = async (mapId: string) => {
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const data = await commentService.listComments({ map_id: mapId });
+      setComments(data);
+    } catch (error: any) {
+      setCommentsError(error.message);
+      toast.error('Failed to load comments');
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
 
   // Temporal state management
   const [currentTimeRange, setCurrentTimeRange] = useState<[Date, Date]>([
@@ -427,7 +416,7 @@ function AppContent() {
 
   // Get comment count for a specific layer
   const getLayerCommentCount = (layerId: string) => {
-    return comments.filter(c => c.targetId === layerId).length;
+    return comments.filter(c => c.layer_id === layerId).length;
   };
 
   // Open comments for a specific layer
@@ -439,16 +428,40 @@ function AppContent() {
     setShowLayerCreator(false);
   };
 
-  // Add a new comment
-  const handleAddComment = (comment: Omit<typeof comments[0], 'id' | 'timestamp'>) => {
-    setComments(prev => [
-      ...prev,
-      {
-        ...comment,
-        id: Date.now().toString(),
-        timestamp: new Date(),
-      },
-    ]);
+  // Transform API comments to component format
+  const transformedComments = useMemo(() => {
+    return comments.map(comment => ({
+      id: comment.id,
+      author: comment.author_name || 'Unknown User',
+      content: comment.content,
+      timestamp: new Date(comment.created_at),
+      targetType: (comment.map_id && !comment.layer_id ? 'map' : 'layer') as 'map' | 'layer',
+      targetId: comment.layer_id || comment.map_id || '',
+      parentId: comment.parent_id || undefined,
+    }));
+  }, [comments]);
+
+  // Add a new comment - adapter between component and API
+  const handleAddComment = async (commentData: {
+    author: string;
+    content: string;
+    targetType: 'map' | 'layer';
+    targetId: string;
+    parentId?: string;
+  }) => {
+    try {
+      const apiCommentData = {
+        content: commentData.content,
+        map_id: commentData.targetType === 'map' ? commentData.targetId : currentMap.id,
+        layer_id: commentData.targetType === 'layer' ? commentData.targetId : undefined,
+        parent_id: commentData.parentId,
+      };
+      const newComment = await commentService.createComment(apiCommentData);
+      setComments([...comments, newComment]);
+      toast.success('Comment added');
+    } catch (error: any) {
+      toast.error('Failed to add comment: ' + error.message);
+    }
   };
 
   const updateLayer = (layerId: string, updates: Partial<Layer>) => {
@@ -802,7 +815,7 @@ function AppContent() {
             mapName={currentMap.name}
             layers={currentMap.layers}
             initialLayerId={selectedLayerIdForComments}
-            comments={comments}
+            comments={transformedComments}
             onAddComment={handleAddComment}
             onClose={() => {
               setShowComments(false);

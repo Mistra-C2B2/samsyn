@@ -6,17 +6,18 @@ Provides endpoints for:
 - Collaborator management (list, add, update, remove)
 - Layer management within maps (add, remove, update, reorder)
 
-All endpoints require authentication via Clerk JWT tokens.
+Read endpoints (GET) are public and allow unauthenticated access.
+Modification endpoints (POST/PUT/DELETE) require authentication via Clerk JWT tokens.
 Authorization is enforced based on map permissions (private/collaborators/public).
 """
 
 from uuid import UUID
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.map import (
     MapCreate,
@@ -43,21 +44,25 @@ router = APIRouter(prefix="/maps", tags=["maps"])
 
 @router.get("", response_model=List[MapListResponse])
 async def list_user_maps(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
     List all maps accessible to the current user.
 
-    Returns maps where user is:
+    Public endpoint - authentication optional.
+
+    For authenticated users, returns maps where user is:
     - The creator/owner
     - A collaborator (viewer or editor)
+
+    For unauthenticated users, returns only public maps.
 
     Returns:
         List of maps with summary information (without full nested data)
     """
     service = MapService(db)
-    maps = service.list_user_maps(current_user.id)
+    maps = service.list_user_maps(current_user.id if current_user else None)
 
     # Convert to list response with counts
     result = []
@@ -73,11 +78,13 @@ async def list_user_maps(
 @router.get("/{map_id}", response_model=MapResponse)
 async def get_map(
     map_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
     Get detailed map information by ID.
+
+    Public endpoint - authentication optional.
 
     Includes:
     - All map properties
@@ -94,7 +101,7 @@ async def get_map(
         404: Map not found or user doesn't have view access
     """
     service = MapService(db)
-    map_obj = service.get_map(map_id, current_user.id)
+    map_obj = service.get_map(map_id, current_user.id if current_user else None)
 
     if not map_obj:
         raise HTTPException(
@@ -218,11 +225,13 @@ async def delete_map(
 @router.get("/{map_id}/collaborators", response_model=List[MapCollaboratorResponse])
 async def list_collaborators(
     map_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
     List all collaborators for a map.
+
+    Public endpoint - authentication optional.
 
     Requires view access to the map.
 
@@ -236,7 +245,7 @@ async def list_collaborators(
         404: Map not found or user doesn't have view access
     """
     service = MapService(db)
-    collaborators = service.list_collaborators(map_id, current_user.id)
+    collaborators = service.list_collaborators(map_id, current_user.id if current_user else None)
 
     if collaborators is None:
         raise HTTPException(

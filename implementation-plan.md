@@ -466,21 +466,333 @@ AWS_REGION=eu-north-1
 
 ---
 
-### Phase 7: Frontend Integration
+### Phase 7: Frontend Integration - Comments (✅ COMPLETED)
 
-**Goal**: Connect React frontend to backend API
+**Goal**: Connect React frontend to backend API for comments
+
+**Status**: ✅ **COMPLETED** (December 2, 2025)
 
 **Tasks**:
-1. Create API client service in frontend
-2. Replace mock data with API calls
-3. Add loading states
-4. Add error handling
-5. Update environment configuration
+1. ✅ Create API client service in frontend
+2. ✅ Replace mock comment data with API calls
+3. ✅ Add loading states
+4. ✅ Add error handling
+5. ✅ Update environment configuration
+
+**Frontend files created**:
+- `src/services/api.ts` - Base API client with Clerk auth (142 lines)
+- `src/services/commentService.ts` - Comment API operations (101 lines)
+- `src/types/api.ts` - TypeScript type definitions (554 lines)
+
+**Frontend files modified**:
+- `src/App.tsx` - Integrated comment service with data transformation
+- `src/components/CommentSection.tsx` - Added loading/error props
+- `vite.config.ts` - Added API proxy for development
+
+**See**: `PHASE7_IMPLEMENTATION_SUMMARY.md` for complete details
+
+---
+
+### Phase 8: Frontend Integration - Maps
+
+**Goal**: Connect map CRUD operations to backend API
+
+**Status**: 🔄 **PENDING**
+
+**Tasks**:
+1. Create `src/services/mapService.ts` with all map API operations
+2. Replace mock map data in `App.tsx` with API calls
+3. Fetch user maps on app load
+4. Implement create/update/delete map with API persistence
+5. Add collaborator management UI and API calls
+6. Implement map permissions (private/collaborators/public)
+7. Add loading states during map operations
+8. Add error handling with user-friendly messages
+9. Update MapSelector component to use real data
+
+**API Endpoints to integrate**:
+- `GET /api/v1/maps` - List user's accessible maps
+- `GET /api/v1/maps/{id}` - Get map details
+- `POST /api/v1/maps` - Create new map
+- `PUT /api/v1/maps/{id}` - Update map
+- `DELETE /api/v1/maps/{id}` - Delete map
+- `GET /api/v1/maps/{id}/collaborators` - List collaborators
+- `POST /api/v1/maps/{id}/collaborators` - Add collaborator
+- `PUT /api/v1/maps/{id}/collaborators/{user_id}` - Update collaborator role
+- `DELETE /api/v1/maps/{id}/collaborators/{user_id}` - Remove collaborator
+
+**Frontend files to create**:
+- `src/services/mapService.ts` - Map service class with hooks (~150 lines)
 
 **Frontend files to modify**:
-- `src/App.tsx` - Replace mock data with API calls
-- `src/services/api.ts` - New API client
-- `vite.config.ts` - Add API proxy for development
+- `src/App.tsx` - Replace `createNewMap`, `editMap`, `deleteMap` with API calls
+- `src/components/MapSelector.tsx` - Add loading states, refresh on updates
+- `src/types/api.ts` - Already has map types from Phase 7
+
+**Key Features**:
+- Maps persist to database immediately on creation
+- Real-time map list updates after CRUD operations
+- Permission checks before allowing edits
+- Collaborator email validation
+- Toast notifications for all operations
+
+**Data Flow**:
+```
+User creates map → MapSelector.createNewMap()
+  → mapService.createMap(data)
+  → POST /api/v1/maps
+  → Database insert
+  → Return MapResponse
+  → Update maps state
+  → Switch to new map
+  → Toast success
+```
+
+**Success Criteria**:
+- ✅ Maps persist to database (no more mock data)
+- ✅ Map list loads from API on app start
+- ✅ Create/edit/delete operations work via API
+- ✅ Loading spinner shows during operations
+- ✅ Error messages display on failures
+- ✅ Current map auto-saves changes
+- ✅ Collaborators can be added/removed
+- ✅ Permission checks work (private/public visibility)
+
+---
+
+### Phase 9: Frontend Integration - Layers
+
+**Goal**: Connect layer management to backend API
+
+**Status**: 🔄 **PENDING** (Requires Phase 8 completion)
+
+**Tasks**:
+1. Create `src/services/layerService.ts` with layer API operations
+2. Replace mock layer data in `App.tsx` with API calls
+3. Fetch global layer library on app load
+4. Implement create/update/delete layer with API persistence
+5. Connect layer-to-map associations (add/remove from map)
+6. Implement layer reordering API calls
+7. Update layer visibility/opacity with optimistic updates
+8. Add layer permission checks (creator-only vs everyone)
+9. Update LayerManager and LayerCreator components
+
+**API Endpoints to integrate**:
+- `GET /api/v1/layers` - Get global layer library (with filters)
+- `GET /api/v1/layers/{id}` - Get layer details
+- `POST /api/v1/layers` - Create new layer
+- `PUT /api/v1/layers/{id}` - Update layer properties
+- `DELETE /api/v1/layers/{id}` - Delete layer
+- `POST /api/v1/maps/{map_id}/layers` - Add layer to map
+- `DELETE /api/v1/maps/{map_id}/layers/{layer_id}` - Remove from map
+- `PUT /api/v1/maps/{map_id}/layers/reorder` - Reorder layers
+
+**Frontend files to create**:
+- `src/services/layerService.ts` - Layer service class with hooks (~200 lines)
+
+**Frontend files to modify**:
+- `src/App.tsx` - Replace layer state with API calls
+- `src/components/LayerManager.tsx` - Integrate with layer service
+- `src/components/LayerCreator.tsx` - Save to API on creation
+- `src/components/AdminPanel.tsx` - Manage global library via API
+- `src/types/api.ts` - Already has layer types from Phase 7
+
+**Layer Types to Support**:
+- **WMS Layers**: Store URL, layer name, version, dimensions
+- **GeoTIFF Layers**: Store COG URL, tile server URL, temporal config
+- **Vector Layers**: Link to features table, store geometry type
+
+**Key Features**:
+- Global layer library shared across all users
+- User-specific layers (private to creator)
+- Layer search, sort, and filter in library
+- Category-based organization
+- Temporal layer configuration
+- Legend definitions stored in database
+- Layer metadata (author, DOI, description)
+
+**Data Flow**:
+```
+User creates vector layer → LayerCreator.saveLayer()
+  → User draws features on map
+  → featureService.bulkCreate(features)  [Phase 10]
+  → layerService.createLayer(layerData)
+  → POST /api/v1/layers
+  → Database insert (layer + features)
+  → Return LayerResponse
+  → Add to availableLayers state
+  → Add to currentMap.layers
+  → POST /api/v1/maps/{id}/layers
+  → Toast success
+```
+
+**Success Criteria**:
+- ✅ Layers persist to database with source configurations
+- ✅ Global layer library loads from API
+- ✅ WMS, GeoTIFF, and Vector layers all save correctly
+- ✅ Layer library search/filter works with API
+- ✅ Layers can be added/removed from maps
+- ✅ Layer reordering persists via API
+- ✅ Temporal layers save time range configuration
+- ✅ Legend definitions persist correctly
+
+---
+
+### Phase 10: Frontend Integration - Features
+
+**Goal**: Connect vector feature drawing/editing to backend API with PostGIS
+
+**Status**: 🔄 **PENDING** (Requires Phase 9 completion)
+
+**Tasks**:
+1. Create `src/services/featureService.ts` with feature API operations
+2. Implement feature CRUD for vector layers
+3. Convert drawn features to GeoJSON for API
+4. Implement bulk feature import (upload GeoJSON files)
+5. Add feature editing (update geometry/properties)
+6. Implement spatial queries (features within map bounds)
+7. Add pagination for layers with many features
+8. Update MapView to render features from API
+9. Update LayerCreator drawing workflow
+
+**API Endpoints to integrate**:
+- `GET /api/v1/layers/{id}/features` - Get features (paginated, spatial filter)
+- `GET /api/v1/layers/{id}/features/{feature_id}` - Get single feature
+- `POST /api/v1/layers/{id}/features` - Add single feature
+- `POST /api/v1/layers/{id}/features/bulk` - Bulk import GeoJSON
+- `PUT /api/v1/layers/{id}/features/{feature_id}` - Update feature
+- `DELETE /api/v1/layers/{id}/features/{feature_id}` - Delete feature
+- `GET /api/v1/layers/{id}/features/geojson` - Export as FeatureCollection
+
+**Frontend files to create**:
+- `src/services/featureService.ts` - Feature service class (~180 lines)
+- `src/utils/geojson.ts` - GeoJSON conversion utilities
+
+**Frontend files to modify**:
+- `src/App.tsx` - Handle feature drawing with API persistence
+- `src/components/LayerCreator.tsx` - Save features on draw
+- `src/components/MapView.tsx` - Load features from API, render on map
+
+**Feature Types to Support**:
+- **Point**: Markers with custom icons
+- **LineString**: Lines with custom styles
+- **Polygon**: Polygons with fill/stroke styles
+- **Properties**: Custom key-value pairs per feature
+
+**Key Features**:
+- Interactive drawing with MapboxDraw
+- Immediate API persistence on feature completion
+- Spatial queries (only load features in current map bounds)
+- Bulk GeoJSON import (upload files)
+- Feature editing (move points, reshape polygons)
+- Feature property editing (popup forms)
+- Export layer as GeoJSON
+
+**Drawing Workflow**:
+```
+User clicks "Draw Point" → LayerCreator
+  → App.startDrawing('Point')
+  → MapView activates MapboxDraw
+  → User clicks map to place point
+  → MapView.onDrawComplete(feature)
+  → App.drawCallback(feature)
+  → featureService.createFeature(layerId, feature)
+  → POST /api/v1/layers/{id}/features
+  → PostGIS stores geometry
+  → Return FeatureResponse
+  → Update layer.features in state
+  → Feature appears on map
+```
+
+**Bulk Import Workflow**:
+```
+User uploads GeoJSON file → LayerCreator
+  → Parse FeatureCollection
+  → Validate geometries
+  → featureService.bulkCreate(layerId, features)
+  → POST /api/v1/layers/{id}/features/bulk
+  → PostGIS batch insert (efficient)
+  → Return feature count
+  → Reload layer features
+  → Toast success: "Imported 1,245 features"
+```
+
+**Spatial Query Optimization**:
+```
+User pans map to new area → MapView
+  → Get current map bounds
+  → featureService.listFeatures(layerId, { bbox: bounds })
+  → GET /api/v1/layers/{id}/features?bbox=...
+  → PostGIS spatial index query
+  → Return only visible features
+  → Render on map (fast!)
+```
+
+**Success Criteria**:
+- ✅ Drawn features save to PostGIS database
+- ✅ Features load from API when layer is visible
+- ✅ Spatial queries limit features to map bounds
+- ✅ Bulk GeoJSON import works for large files
+- ✅ Feature editing updates geometry in database
+- ✅ Feature properties can be edited
+- ✅ Export layer as GeoJSON FeatureCollection
+- ✅ Pagination works for layers with 10,000+ features
+
+---
+
+### Phase 11: Real-time & Advanced Features
+
+**Goal**: Add real-time updates, optimistic UI, and performance optimizations
+
+**Status**: 🔄 **PENDING** (Post-MVP)
+
+**Tasks**:
+
+**Real-time Updates**:
+1. Implement WebSocket connection to backend
+2. Subscribe to map/layer/comment updates
+3. Live notifications for collaborator changes
+4. Presence indicators (who's viewing the map)
+5. Live cursor positions for collaborators
+
+**Optimistic UI**:
+1. Update UI immediately on user actions
+2. Rollback on API errors
+3. Show loading indicators during sync
+4. Queue offline changes for later sync
+
+**Performance Optimization**:
+1. Implement React Query for caching
+2. Add code splitting by route
+3. Lazy load large components
+4. Virtual scrolling for long lists
+5. Memoize expensive computations
+6. Debounce API calls for slider inputs
+
+**Enhanced Features**:
+1. Markdown support in comments
+2. File attachments in comments
+3. @mentions for collaborators
+4. Email notifications
+5. Comment reactions (👍, ❤️, etc.)
+6. Full-text search across maps/layers
+7. Advanced filtering in layer library
+8. Map templates and presets
+9. Export map as PDF report
+
+**Offline Support** (Optional):
+1. Service workers for offline mode
+2. IndexedDB for local caching
+3. Sync queue for offline changes
+4. Conflict resolution on sync
+
+**Success Criteria**:
+- ✅ Collaborators see live updates
+- ✅ UI feels instant with optimistic updates
+- ✅ App works offline (read-only)
+- ✅ Large layer libraries scroll smoothly
+- ✅ Search is fast and comprehensive
+- ✅ Bundle size optimized with code splitting
 
 ---
 

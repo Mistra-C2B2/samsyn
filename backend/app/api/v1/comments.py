@@ -7,7 +7,8 @@ Provides endpoints for:
 - Threaded comment retrieval with nested replies
 - Resolution status management
 
-All endpoints require authentication via Clerk JWT tokens.
+Read endpoints (GET) are public and allow unauthenticated access.
+Modification endpoints (POST/PUT/DELETE) require authentication via Clerk JWT tokens.
 Authorization is enforced based on comment authorship.
 """
 
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.comment import (
     CommentCreate,
@@ -93,7 +94,7 @@ def populate_thread_fields(comment, service: CommentService) -> CommentWithRepli
 @router.get("", response_model=List[CommentResponse])
 async def list_comments(
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     map_id: Optional[UUID] = Query(None, description="Filter by map ID"),
     layer_id: Optional[UUID] = Query(None, description="Filter by layer ID"),
     parent_id: Optional[UUID] = Query(None, description="Filter by parent comment ID"),
@@ -103,6 +104,8 @@ async def list_comments(
 ):
     """
     List comments with optional filters and pagination.
+
+    Public endpoint - authentication optional.
 
     Query parameters:
     - map_id: Filter comments on a specific map
@@ -139,10 +142,12 @@ async def list_comments(
 async def get_comment(
     comment_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
 ):
     """
     Get a single comment by ID.
+
+    Public endpoint - authentication optional.
 
     Args:
         comment_id: Comment UUID
@@ -169,11 +174,13 @@ async def get_comment(
 async def get_comment_thread(
     comment_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     max_depth: int = Query(10, ge=1, le=20, description="Maximum nesting depth (max 20)"),
 ):
     """
     Get a comment with all nested replies.
+
+    Public endpoint - authentication optional.
 
     Recursively loads replies up to the specified max_depth.
     Each comment and reply includes author_name and reply_count.

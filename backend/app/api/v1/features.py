@@ -6,7 +6,8 @@ Provides endpoints for:
 - Feature CRUD (create, read, update, delete)
 - Bulk import from GeoJSON FeatureCollections
 
-All endpoints require authentication and check layer permissions
+Read endpoints (GET) are public and allow unauthenticated access.
+Modification endpoints (POST/PUT/DELETE) require authentication and check layer permissions
 (user must own layer or layer must be editable by everyone).
 """
 
@@ -16,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.feature import (
     FeatureCreate,
@@ -94,7 +95,7 @@ def convert_feature_to_response(feature, db: Session) -> FeatureResponse:
 async def list_features(
     layer_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     bbox: Optional[str] = Query(
         None,
         description="Bounding box filter: minLon,minLat,maxLon,maxLat",
@@ -114,6 +115,8 @@ async def list_features(
 ):
     """
     List features for a layer with optional bounding box filtering and pagination.
+
+    Public endpoint - authentication optional.
 
     Query parameters:
     - bbox: Optional bounding box as "minLon,minLat,maxLon,maxLat" (comma-separated)
@@ -168,10 +171,12 @@ async def get_feature(
     layer_id: UUID,
     feature_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
 ):
     """
     Get a single feature by ID.
+
+    Public endpoint - authentication optional.
 
     Args:
         layer_id: Layer UUID

@@ -201,3 +201,4 @@ src/
 - Dev server auto-opens on port 3000
 - TypeScript types defined inline in App.tsx for Layer and UserMap
 - No backend currently - all data is mock/in-memory
+- Before starting the frontend or backend server, check if they are already running.

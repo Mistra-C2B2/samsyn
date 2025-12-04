@@ -302,24 +302,36 @@ class MapService:
         return False
 
     def get_user_role_in_map(
-        self, map_id: UUID, user_id: UUID
+        self, map_id: UUID, user_id: Optional[UUID]
     ) -> Optional[str]:
         """
         Get user's role in map.
 
+        Role determination logic:
+        - "owner" if user created the map
+        - "editor" if user is an editor collaborator
+        - "viewer" if user is a viewer collaborator OR map has public view permission
+        - None if user has no access
+
         Args:
             map_id: Map UUID
-            user_id: User UUID
+            user_id: User UUID, or None for unauthenticated users
 
         Returns:
             "owner" if user created the map
             "editor" if user is an editor collaborator
-            "viewer" if user is a viewer collaborator
-            None if user has no special access
+            "viewer" if user is a viewer collaborator or map is public
+            None if user has no access
         """
         map_obj = self.db.query(Map).filter(Map.id == map_id).first()
 
         if not map_obj:
+            return None
+
+        # Unauthenticated users can only be viewers if map is public
+        if user_id is None:
+            if map_obj.view_permission == "public":
+                return "viewer"
             return None
 
         # Check if owner
@@ -338,6 +350,10 @@ class MapService:
 
         if collaborator:
             return collaborator.role
+
+        # If map is public, user is a viewer (even if not a collaborator)
+        if map_obj.view_permission == "public":
+            return "viewer"
 
         return None
 

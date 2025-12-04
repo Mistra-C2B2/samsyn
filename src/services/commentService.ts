@@ -22,13 +22,15 @@ interface ListCommentsParams {
  * Service for comment-related API operations
  */
 export class CommentService {
-  constructor(private client: ApiClient) {}
+  constructor(client) {
+    this.client = client;
+  }
 
   /**
    * List comments with optional filtering
    * GET /api/v1/comments
    */
-  async listComments(params: ListCommentsParams = {}): Promise<CommentResponse[]> {
+  async listComments(params) {
     const queryString = new URLSearchParams(
       Object.entries(params)
         .filter(([_, v]) => v !== undefined)
@@ -43,7 +45,7 @@ export class CommentService {
    * Get a single comment by ID
    * GET /api/v1/comments/{id}
    */
-  async getComment(id: string): Promise<CommentResponse> {
+  async getComment(id: string) {
     return this.client.get<CommentResponse>(`/api/v1/comments/${id}`);
   }
 
@@ -51,7 +53,7 @@ export class CommentService {
    * Get a comment thread (comment with nested replies)
    * GET /api/v1/comments/{id}/thread
    */
-  async getCommentThread(id: string, maxDepth?: number): Promise<CommentWithReplies> {
+  async getCommentThread(id: string, maxDepth?: number) {
     const queryString = maxDepth !== undefined ? `?max_depth=${maxDepth}` : '';
     return this.client.get<CommentWithReplies>(`/api/v1/comments/${id}/thread${queryString}`);
   }
@@ -60,7 +62,7 @@ export class CommentService {
    * Create a new comment
    * POST /api/v1/comments
    */
-  async createComment(data: CommentCreate): Promise<CommentResponse> {
+  async createComment(data: CommentCreate) {
     return this.client.post<CommentResponse, CommentCreate>('/api/v1/comments', data);
   }
 
@@ -68,7 +70,7 @@ export class CommentService {
    * Update a comment
    * PUT /api/v1/comments/{id}
    */
-  async updateComment(id: string, data: CommentUpdate): Promise<CommentResponse> {
+  async updateComment(id: string, data: CommentUpdate) {
     return this.client.put<CommentResponse, CommentUpdate>(`/api/v1/comments/${id}`, data);
   }
 
@@ -76,7 +78,7 @@ export class CommentService {
    * Delete a comment
    * DELETE /api/v1/comments/{id}
    */
-  async deleteComment(id: string): Promise<void> {
+  async deleteComment(id: string) {
     return this.client.delete<void>(`/api/v1/comments/${id}`);
   }
 
@@ -84,7 +86,7 @@ export class CommentService {
    * Resolve or unresolve a comment
    * PUT /api/v1/comments/{id}/resolve
    */
-  async resolveComment(id: string, isResolved: boolean): Promise<CommentResponse> {
+  async resolveComment(id: string, isResolved: boolean) {
     return this.client.put<CommentResponse, { is_resolved: boolean }>(
       `/api/v1/comments/${id}/resolve`,
       { is_resolved: isResolved }

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { UserMap } from "../App";
 import { Button } from "./ui/button";
-import { X, Plus, Map, Pencil, Trash2 } from "lucide-react";
+import { X, Plus, Map, Pencil, Trash2, Loader2 } from "lucide-react";
 import { MapCreationWizard } from "./MapCreationWizard";
+import { useUser } from "@clerk/clerk-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,14 +14,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 interface MapSelectorProps {
   maps: UserMap[];
   currentMapId: string;
+  loading?: boolean;
   onSelectMap: (mapId: string) => void;
-  onCreateMap: (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => void;
-  onEditMap: (mapId: string, name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => void;
-  onDeleteMap: (mapId: string) => void;
+  onCreateMap: (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => Promise<void>;
+  onEditMap: (mapId: string, name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => Promise<void>;
+  onDeleteMap: (mapId: string) => Promise<void>;
   onClose: () => void;
   onOpenLayerManager: () => void;
 }
@@ -28,6 +36,7 @@ interface MapSelectorProps {
 export function MapSelector({
   maps,
   currentMapId,
+  loading = false,
   onSelectMap,
   onCreateMap,
   onEditMap,
@@ -35,18 +44,19 @@ export function MapSelector({
   onClose,
   onOpenLayerManager,
 }: MapSelectorProps) {
+  const { isSignedIn } = useUser();
   const [showCreateWizard, setShowCreateWizard] =
     useState(false);
   const [editingMap, setEditingMap] = useState<UserMap | null>(null);
   const [deletingMap, setDeletingMap] = useState<UserMap | null>(null);
 
-  const handleCreate = (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
-    onCreateMap(name, description, permissions);
+  const handleCreate = async (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
+    await onCreateMap(name, description, permissions);
   };
 
-  const handleEdit = (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
+  const handleEdit = async (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
     if (editingMap) {
-      onEditMap(editingMap.id, name, description, permissions);
+      await onEditMap(editingMap.id, name, description, permissions);
       setEditingMap(null);
     }
   };
@@ -61,10 +71,16 @@ export function MapSelector({
     setDeletingMap(map);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingMap) {
-      onDeleteMap(deletingMap.id);
-      setDeletingMap(null);
+      try {
+        await onDeleteMap(deletingMap.id);
+        setDeletingMap(null);
+      } catch (error) {
+        // Error is already shown in toast by App.tsx
+        // Just close the dialog so user can see the error
+        setDeletingMap(null);
+      }
     }
   };
 
@@ -79,8 +95,18 @@ export function MapSelector({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {maps.map((map) => (
-            <div
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+            </div>
+          ) : maps.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">
+              <p>No maps yet</p>
+              <p className="text-sm mt-2">Create your first map to get started</p>
+            </div>
+          ) : (
+            maps.map((map) => (
+              <div
               key={map.id}
               className={`w-full text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
                 map.id === currentMapId
@@ -112,36 +138,53 @@ export function MapSelector({
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => handleEditClick(e, map)}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => handleDeleteClick(e, map)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                {isSignedIn && (
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleEditClick(e, map)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDeleteClick(e, map)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
 
         <div className="p-4 border-t border-slate-200">
-          <Button
-            onClick={() => setShowCreateWizard(true)}
-            className="w-full"
-          >
-            <Plus className="w-4 h-4" />
-            Create New Map
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-full inline-block">
+                  <Button
+                    onClick={() => setShowCreateWizard(true)}
+                    className="w-full"
+                    disabled={!isSignedIn}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create New Map
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isSignedIn && (
+                <TooltipContent>
+                  <p>Please sign in to create a new map</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 

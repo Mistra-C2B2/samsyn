@@ -45,10 +45,13 @@ class MapCreate(MapBase):
     """
     Schema for creating a new map.
 
-    Includes permission level which defaults to private.
+    Includes permission levels which default to private.
+    - view_permission: Controls who can VIEW the map
+    - edit_permission: Controls who can EDIT the map
     """
 
-    permission: MapPermissionEnum = MapPermissionEnum.private
+    view_permission: MapPermissionEnum = MapPermissionEnum.private  # View access
+    edit_permission: MapPermissionEnum = MapPermissionEnum.private  # Edit access
 
 
 class MapUpdate(BaseModel):
@@ -56,6 +59,8 @@ class MapUpdate(BaseModel):
     Schema for updating a map.
 
     All fields are optional to support partial updates.
+    - view_permission: Controls who can VIEW the map
+    - edit_permission: Controls who can EDIT the map
     """
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -63,7 +68,8 @@ class MapUpdate(BaseModel):
     center_lat: Optional[float] = Field(None, ge=-90, le=90)
     center_lng: Optional[float] = Field(None, ge=-180, le=180)
     zoom: Optional[float] = Field(None, ge=0, le=22)
-    permission: Optional[MapPermissionEnum] = None
+    view_permission: Optional[MapPermissionEnum] = None  # View access
+    edit_permission: Optional[MapPermissionEnum] = None  # Edit access
     map_metadata: Optional[dict[str, Any]] = None
 
 
@@ -109,7 +115,8 @@ class MapResponse(BaseModel):
     name: str
     description: Optional[str]
     created_by: UUID
-    permission: str
+    view_permission: str  # View access
+    edit_permission: str  # Edit access
     center_lat: float
     center_lng: float
     zoom: float
@@ -138,7 +145,8 @@ class MapListResponse(BaseModel):
     name: str
     description: Optional[str]
     created_by: UUID
-    permission: str
+    view_permission: str  # View access
+    edit_permission: str  # Edit access
     center_lat: float
     center_lng: float
     zoom: float

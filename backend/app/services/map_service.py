@@ -48,7 +48,7 @@ class MapService:
         """
         # Unauthenticated users only see public maps
         if user_id is None:
-            return self.db.query(Map).filter(Map.permission == "public").all()
+            return self.db.query(Map).filter(Map.view_permission == "public").all()
 
         # Get maps owned by user
         owned_maps = self.db.query(Map).filter(Map.created_by == user_id).all()
@@ -111,7 +111,8 @@ class MapService:
             name=map_data.name,
             description=map_data.description,
             created_by=creator_id,
-            permission=map_data.permission.value,
+            view_permission=map_data.view_permission.value,
+            edit_permission=map_data.edit_permission.value,
             center_lat=map_data.center_lat,
             center_lng=map_data.center_lng,
             zoom=map_data.zoom,
@@ -152,8 +153,8 @@ class MapService:
         # Update only provided fields
         update_dict = map_data.model_dump(exclude_unset=True)
         for field, value in update_dict.items():
-            # Handle enum conversion for permission
-            if field == "permission" and value is not None:
+            # Handle enum conversion for permission fields
+            if field in ("view_permission", "edit_permission") and value is not None:
                 value = value.value
             setattr(map_obj, field, value)
 
@@ -218,7 +219,7 @@ class MapService:
             return False
 
         # Public maps can be viewed by anyone
-        if map_obj.permission == "public":
+        if map_obj.view_permission == "public":
             return True
 
         # Unauthenticated users can only view public maps
@@ -230,7 +231,7 @@ class MapService:
             return True
 
         # For private and collaborators, check if user is a collaborator
-        if map_obj.permission in ["private", "collaborators"]:
+        if map_obj.view_permission in ["private", "collaborators"]:
             is_collaborator = (
                 self.db.query(MapCollaborator)
                 .filter(
@@ -241,11 +242,11 @@ class MapService:
             )
 
             # Private: only owner (already checked above)
-            if map_obj.permission == "private":
+            if map_obj.view_permission == "private":
                 return False
 
             # Collaborators: owner or collaborator
-            if map_obj.permission == "collaborators":
+            if map_obj.view_permission == "collaborators":
                 return is_collaborator is not None
 
         return False
@@ -254,11 +255,10 @@ class MapService:
         """
         Check if user can edit map.
 
-        Permission logic:
-        - Owner can always edit
-        - Editor collaborators can edit
-        - Viewer collaborators cannot edit
-        - Non-collaborators cannot edit (even on public maps)
+        Permission logic based on edit_permission field:
+        - private: Only owner can edit
+        - collaborators: Owner + editor collaborators can edit
+        - public: Anyone can edit (if they can view it)
 
         Args:
             map_id: Map UUID
@@ -276,18 +276,28 @@ class MapService:
         if map_obj.created_by == user_id:
             return True
 
-        # Check if user is an editor collaborator
-        collaborator = (
-            self.db.query(MapCollaborator)
-            .filter(
-                MapCollaborator.map_id == map_id,
-                MapCollaborator.user_id == user_id,
-            )
-            .first()
-        )
+        # Check edit_permission field
+        edit_perm = getattr(map_obj, 'edit_permission', 'private')
 
-        if collaborator and collaborator.role == "editor":
-            return True
+        if edit_perm == "public":
+            # Anyone who can view can edit
+            return self.can_view_map(map_id, user_id)
+
+        if edit_perm in ["private", "collaborators"]:
+            # Check if user is an editor collaborator
+            collaborator = (
+                self.db.query(MapCollaborator)
+                .filter(
+                    MapCollaborator.map_id == map_id,
+                    MapCollaborator.user_id == user_id,
+                )
+                .first()
+            )
+
+            # For 'private', only owner can edit (already checked above)
+            # For 'collaborators', editor collaborators can edit
+            if edit_perm == "collaborators" and collaborator and collaborator.role == "editor":
+                return True
 
         return False
 

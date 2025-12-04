@@ -33,6 +33,7 @@ from app.schemas.map import (
     MapLayerResponse,
 )
 from app.services.map_service import MapService
+from app.services.auth_service import auth_service
 
 router = APIRouter(prefix="/maps", tags=["maps"])
 
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/maps", tags=["maps"])
 # ============================================================================
 
 
-def serialize_map_to_dict(map_obj):
+def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
     """
     Convert SQLAlchemy Map object to dict for Pydantic serialization.
 
@@ -51,6 +52,7 @@ def serialize_map_to_dict(map_obj):
 
     Args:
         map_obj: SQLAlchemy Map instance
+        user_role: User's role in the map (owner/editor/viewer/None)
 
     Returns:
         Dict with properly serialized map data
@@ -88,6 +90,7 @@ def serialize_map_to_dict(map_obj):
             }
             for ml in map_obj.map_layers
         ],
+        "user_role": user_role,
     }
 
 
@@ -163,6 +166,12 @@ async def list_user_maps(
     # Convert to list response with counts
     result = []
     for map_obj in maps:
+        # Calculate user role for this map
+        user_role = service.get_user_role_in_map(
+            map_obj.id,
+            current_user.id if current_user else None
+        )
+
         map_dict = {
             "id": map_obj.id,
             "name": map_obj.name,
@@ -177,6 +186,7 @@ async def list_user_maps(
             "updated_at": map_obj.updated_at,
             "collaborator_count": len(map_obj.collaborators),
             "layer_count": len(map_obj.map_layers),
+            "user_role": user_role,
         }
         result.append(MapListResponse(**map_dict))
 
@@ -217,7 +227,13 @@ async def get_map(
             detail="Map not found or access denied",
         )
 
-    return MapResponse(**serialize_map_to_dict(map_obj))
+    # Calculate user role for this map
+    user_role = service.get_user_role_in_map(
+        map_id,
+        current_user.id if current_user else None
+    )
+
+    return MapResponse(**serialize_map_to_dict(map_obj, user_role))
 
 
 @router.post("", response_model=MapResponse, status_code=status.HTTP_201_CREATED)
@@ -241,7 +257,10 @@ async def create_map(
     service = MapService(db)
     map_obj = service.create_map(map_data, current_user.id)
 
-    return MapResponse(**serialize_map_to_dict(map_obj))
+    # Creator is always the owner
+    user_role = "owner"
+
+    return MapResponse(**serialize_map_to_dict(map_obj, user_role))
 
 
 @router.put("/{map_id}", response_model=MapResponse)
@@ -285,7 +304,10 @@ async def update_map(
                 detail="Not authorized to edit this map",
             )
 
-    return MapResponse(**serialize_map_to_dict(map_obj))
+    # Calculate user role for this map
+    user_role = service.get_user_role_in_map(map_id, current_user.id)
+
+    return MapResponse(**serialize_map_to_dict(map_obj, user_role))
 
 
 @router.delete("/{map_id}", status_code=status.HTTP_200_OK)
@@ -376,7 +398,7 @@ async def add_collaborator(
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    Add a collaborator to a map.
+    Add a collaborator to a map by email.
 
     Permission rules:
     - Owner and editors can add viewers
@@ -385,20 +407,38 @@ async def add_collaborator(
 
     Args:
         map_id: Map UUID
-        collaborator_data: User ID and role to add
+        collaborator_data: Email and role to add
 
     Returns:
         Created collaborator details
 
     Raises:
-        404: Map not found
+        404: Map not found or user not found in Clerk
         403: Not authorized to add collaborators
-        400: User is already a collaborator or invalid user_id
+        400: User is already a collaborator, invalid email, or user not found in database
     """
     service = MapService(db)
+
+    # Step 1: Validate that the email exists in Clerk
+    email_exists = await auth_service.validate_user_email(collaborator_data.email)
+    if not email_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{collaborator_data.email}' not found in Clerk. Please ensure the user has signed up.",
+        )
+
+    # Step 2: Look up the user in our database by email
+    user_to_add = db.query(User).filter(User.email == collaborator_data.email).first()
+    if not user_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{collaborator_data.email}' exists in Clerk but has not logged into this application yet. Please ask them to sign in first.",
+        )
+
+    # Step 3: Add the collaborator using the user ID
     collaborator = service.add_collaborator(
         map_id=map_id,
-        user_id_to_add=collaborator_data.user_id,
+        user_id_to_add=user_to_add.id,
         role=collaborator_data.role.value,
         requester_id=current_user.id,
     )
@@ -431,7 +471,7 @@ async def add_collaborator(
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is already a collaborator or cannot be added",
+            detail=f"User '{collaborator_data.email}' is already a collaborator or cannot be added to this map",
         )
 
     return MapCollaboratorResponse(**serialize_collaborator_to_dict(collaborator))

@@ -15,6 +15,8 @@ from fastapi import HTTPException, status
 from typing import Dict, Any, Optional
 from functools import lru_cache
 
+from app.config import settings
+
 
 class ClerkAuthService:
     """Service for Clerk JWT verification using JWKS"""
@@ -141,6 +143,61 @@ class ClerkAuthService:
                 detail=f"Invalid token: {str(e)}",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+    async def validate_user_email(self, email: str) -> bool:
+        """
+        Validate if user exists in Clerk by email.
+
+        Calls Clerk API to check if a user with the given email exists.
+
+        Args:
+            email: Email address to validate
+
+        Returns:
+            True if user exists in Clerk, False otherwise
+
+        Raises:
+            HTTPException: If unable to communicate with Clerk API
+        """
+        if not settings.CLERK_SECRET_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Clerk authentication is not configured",
+            )
+
+        # Clerk API endpoint for user search by email
+        clerk_api_url = f"https://api.clerk.com/v1/users?email_address[]={email}"
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    clerk_api_url,
+                    headers={
+                        "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Clerk returns a list of users matching the email
+                # If list is not empty, user exists
+                return len(data) > 0
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    # User not found
+                    return False
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Unable to validate user with Clerk: {str(e)}",
+                )
+            except httpx.HTTPError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Unable to communicate with Clerk API: {str(e)}",
+                )
 
 
 # Factory function to create singleton instance

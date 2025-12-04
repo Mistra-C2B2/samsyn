@@ -131,6 +131,9 @@ class MapResponse(BaseModel):
     # Optional creator info
     creator: Optional[Any] = None  # Can be UserResponse if needed
 
+    # User's role in this map
+    user_role: Optional[str] = None  # "owner", "editor", "viewer", or None
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -157,6 +160,9 @@ class MapListResponse(BaseModel):
     collaborator_count: Optional[int] = 0
     layer_count: Optional[int] = 0
 
+    # User's role in this map
+    user_role: Optional[str] = None  # "owner", "editor", "viewer", or None
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -164,7 +170,7 @@ class MapListResponse(BaseModel):
 class MapCollaboratorCreate(BaseModel):
     """Schema for adding a collaborator to a map"""
 
-    user_id: UUID
+    email: str = Field(..., description="Email address of the user to add as collaborator")
     role: CollaboratorRoleEnum = CollaboratorRoleEnum.viewer
 
 

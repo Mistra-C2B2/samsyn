@@ -29,6 +29,87 @@ router = APIRouter(prefix="/layers", tags=["layers"])
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def serialize_layer_to_dict(layer):
+    """
+    Convert SQLAlchemy Layer object to dict for Pydantic serialization.
+
+    This prevents serialization errors when SQLAlchemy relationship objects
+    (like User in creator field) are included in the response.
+
+    Args:
+        layer: SQLAlchemy Layer instance
+
+    Returns:
+        Dict with properly serialized layer data
+    """
+    return {
+        "id": layer.id,
+        "name": layer.name,
+        "source_type": layer.source_type,
+        "description": layer.description,
+        "category": layer.category,
+        "created_by": layer.created_by,
+        "editable": layer.editable,
+        "is_global": layer.is_global,
+        "source_config": layer.source_config or {},
+        "style_config": layer.style_config or {},
+        "legend_config": layer.legend_config or {},
+        "layer_metadata": layer.layer_metadata or {},
+        "created_at": layer.created_at,
+        "updated_at": layer.updated_at,
+        "features": [
+            {
+                "id": feat.id,
+                "geometry_type": feat.geometry_type,
+                "properties": feat.properties or {},
+                "created_at": feat.created_at,
+            }
+            for feat in (layer.features if hasattr(layer, 'features') else [])
+        ],
+        "map_layers": [
+            {
+                "id": ml.id,
+                "map_id": ml.map_id,
+                "order": ml.order,
+                "visible": ml.visible,
+                "opacity": ml.opacity,
+                "created_at": ml.created_at,
+            }
+            for ml in (layer.map_layers if hasattr(layer, 'map_layers') else [])
+        ],
+    }
+
+
+def serialize_layer_list_to_dict(layer):
+    """
+    Convert SQLAlchemy Layer object to dict for LayerListResponse.
+
+    Simplified version without full nested relationships.
+
+    Args:
+        layer: SQLAlchemy Layer instance
+
+    Returns:
+        Dict with properly serialized layer list data
+    """
+    return {
+        "id": layer.id,
+        "name": layer.name,
+        "source_type": layer.source_type,
+        "category": layer.category,
+        "is_global": layer.is_global,
+        "created_by": layer.created_by,
+        "created_at": layer.created_at,
+        "feature_count": len(layer.features) if hasattr(layer, 'features') else 0,
+        "map_count": len(layer.map_layers) if hasattr(layer, 'map_layers') else 0,
+    }
+
+
+# ============================================================================
 # Layer CRUD Endpoints
 # ============================================================================
 
@@ -66,7 +147,7 @@ async def list_layers(
         search=search,
     )
 
-    return [LayerListResponse.model_validate(layer) for layer in layers]
+    return [LayerListResponse(**serialize_layer_list_to_dict(layer)) for layer in layers]
 
 
 @router.get("/{layer_id}", response_model=LayerResponse)
@@ -99,7 +180,7 @@ async def get_layer(
             detail="Layer not found",
         )
 
-    return LayerResponse.model_validate(layer)
+    return LayerResponse(**serialize_layer_to_dict(layer))
 
 
 @router.post("", response_model=LayerResponse, status_code=status.HTTP_201_CREATED)
@@ -123,7 +204,7 @@ async def create_layer(
     service = LayerService(db)
     layer = service.create_layer(layer_data, current_user.id)
 
-    return LayerResponse.model_validate(layer)
+    return LayerResponse(**serialize_layer_to_dict(layer))
 
 
 @router.put("/{layer_id}", response_model=LayerResponse)
@@ -170,7 +251,7 @@ async def update_layer(
                 detail="Not authorized to edit this layer",
             )
 
-    return LayerResponse.model_validate(layer)
+    return LayerResponse(**serialize_layer_to_dict(layer))
 
 
 @router.delete("/{layer_id}", status_code=status.HTTP_200_OK)

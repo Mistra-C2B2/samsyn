@@ -60,7 +60,8 @@ export interface MapCreate {
   center_lng?: number; // default: 0.0, range: -180 to 180
   zoom?: number; // default: 2.0, range: 0 to 22
   map_metadata?: Record<string, any>;
-  permission?: MapPermission; // default: "private"
+  view_permission?: MapPermission; // default: "private" - controls VIEW access
+  edit_permission?: MapPermission; // default: "private" - controls EDIT access
 }
 
 /**
@@ -72,7 +73,8 @@ export interface MapUpdate {
   center_lat?: number;
   center_lng?: number;
   zoom?: number;
-  permission?: MapPermission;
+  view_permission?: MapPermission; // Controls VIEW access
+  edit_permission?: MapPermission; // Controls EDIT access
   map_metadata?: Record<string, any>;
 }
 
@@ -108,7 +110,8 @@ export interface MapResponse {
   name: string;
   description: string | null;
   created_by: string; // UUID
-  permission: string;
+  view_permission: string; // Controls VIEW access
+  edit_permission: string; // Controls EDIT access
   center_lat: number;
   center_lng: number;
   zoom: number;
@@ -128,7 +131,8 @@ export interface MapListResponse {
   name: string;
   description: string | null;
   created_by: string; // UUID
-  permission: string;
+  view_permission: string; // Controls VIEW access
+  edit_permission: string; // Controls EDIT access
   center_lat: number;
   center_lng: number;
   zoom: number;

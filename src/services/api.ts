@@ -4,10 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
  * HTTP Client for SamSyn API with Clerk authentication
  */
 export class ApiClient {
-  private baseURL: string;
-  private getToken: () => Promise<string | null>;
-
-  constructor(baseURL: string, getToken: () => Promise<string | null>) {
+  constructor(baseURL, getToken) {
     this.baseURL = baseURL;
     this.getToken = getToken;
   }
@@ -15,8 +12,8 @@ export class ApiClient {
   /**
    * Build headers with authentication and content type
    */
-  private async buildHeaders(): Promise<HeadersInit> {
-    const headers: HeadersInit = {
+  async buildHeaders() {
+    const headers = {
       'Content-Type': 'application/json',
     };
 
@@ -31,10 +28,10 @@ export class ApiClient {
   /**
    * Handle HTTP response and parse JSON or handle no content
    */
-  private async handleResponse<T>(response: Response): Promise<T> {
+  async handleResponse(response) {
     // Handle 204 No Content
     if (response.status === 204) {
-      return undefined as T;
+      return undefined;
     }
 
     // Parse response body
@@ -72,26 +69,26 @@ export class ApiClient {
     }
 
     // Return empty object for non-JSON responses
-    return {} as T;
+    return {};
   }
 
   /**
    * GET request
    */
-  async get<T>(path: string): Promise<T> {
+  async get(path: string) {
     const headers = await this.buildHeaders();
     const response = await fetch(`${this.baseURL}${path}`, {
       method: 'GET',
       headers,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse(response);
   }
 
   /**
    * POST request
    */
-  async post<T, D = unknown>(path: string, data?: D): Promise<T> {
+  async post(path: string, data?: D) {
     const headers = await this.buildHeaders();
     const response = await fetch(`${this.baseURL}${path}`, {
       method: 'POST',
@@ -99,13 +96,13 @@ export class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse(response);
   }
 
   /**
    * PUT request
    */
-  async put<T, D = unknown>(path: string, data?: D): Promise<T> {
+  async put(path: string, data?: D) {
     const headers = await this.buildHeaders();
     const response = await fetch(`${this.baseURL}${path}`, {
       method: 'PUT',
@@ -113,20 +110,20 @@ export class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse(response);
   }
 
   /**
    * DELETE request
    */
-  async delete<T>(path: string): Promise<T> {
+  async delete(path: string) {
     const headers = await this.buildHeaders();
     const response = await fetch(`${this.baseURL}${path}`, {
       method: 'DELETE',
       headers,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse(response);
   }
 }
 

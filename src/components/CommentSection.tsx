@@ -9,9 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
 import { Layer } from '../App';
 import { CommentResponse } from '../types/api';
 import { X, Send, Loader2 } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
 
 interface CommentSectionProps {
   mapId: string;
@@ -120,6 +127,7 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
   const [commentTarget, setCommentTarget] = useState<string>(initialLayerId || mapId);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isSignedIn } = useUser();
 
   // Loading state
   if (loading) {
@@ -355,20 +363,34 @@ export function CommentSection({ mapId, mapName, layers, initialLayerId, comment
               handleSubmit();
             }
           }}
+          disabled={!isSignedIn}
         />
-        <Button onClick={handleSubmit} className="w-full" disabled={!newComment.trim() || isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Posting...
-            </>
-          ) : (
-            <>
-              <Send className="w-4 h-4" />
-              {replyingToComment ? 'Post Reply' : 'Post Comment'}
-            </>
-          )}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="w-full inline-block">
+                <Button onClick={handleSubmit} className="w-full" disabled={!newComment.trim() || isSubmitting || !isSignedIn}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Posting...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      {replyingToComment ? 'Post Reply' : 'Post Comment'}
+                    </>
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!isSignedIn && (
+              <TooltipContent>
+                <p>Please sign in to comment.</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   );

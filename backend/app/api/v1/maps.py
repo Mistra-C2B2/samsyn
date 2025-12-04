@@ -14,7 +14,7 @@ Authorization is enforced based on map permissions (private/collaborators/public
 from uuid import UUID
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload
 
 from app.database import get_db
 from app.api.deps import get_current_user, get_current_user_optional
@@ -35,6 +35,102 @@ from app.schemas.map import (
 from app.services.map_service import MapService
 
 router = APIRouter(prefix="/maps", tags=["maps"])
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def serialize_map_to_dict(map_obj):
+    """
+    Convert SQLAlchemy Map object to dict for Pydantic serialization.
+
+    This prevents serialization errors when SQLAlchemy relationship objects
+    (like User, MapCollaborator.user, etc.) are included in the response.
+
+    Args:
+        map_obj: SQLAlchemy Map instance
+
+    Returns:
+        Dict with properly serialized map data
+    """
+    return {
+        "id": map_obj.id,
+        "name": map_obj.name,
+        "description": map_obj.description,
+        "created_by": map_obj.created_by,
+        "view_permission": map_obj.view_permission,
+        "edit_permission": map_obj.edit_permission,
+        "center_lat": map_obj.center_lat,
+        "center_lng": map_obj.center_lng,
+        "zoom": map_obj.zoom,
+        "map_metadata": map_obj.map_metadata or {},
+        "created_at": map_obj.created_at,
+        "updated_at": map_obj.updated_at,
+        "collaborators": [
+            {
+                "id": collab.id,
+                "user_id": collab.user_id,
+                "role": collab.role,
+                "created_at": collab.created_at,
+            }
+            for collab in map_obj.collaborators
+        ],
+        "map_layers": [
+            {
+                "id": ml.id,
+                "layer_id": ml.layer_id,
+                "order": ml.order,
+                "visible": ml.visible,
+                "opacity": ml.opacity,
+                "created_at": ml.created_at,
+            }
+            for ml in map_obj.map_layers
+        ],
+    }
+
+
+def serialize_collaborator_to_dict(collaborator):
+    """
+    Convert SQLAlchemy MapCollaborator object to dict for Pydantic serialization.
+
+    This prevents serialization errors when SQLAlchemy User objects are included.
+
+    Args:
+        collaborator: SQLAlchemy MapCollaborator instance
+
+    Returns:
+        Dict with properly serialized collaborator data
+    """
+    return {
+        "id": collaborator.id,
+        "user_id": collaborator.user_id,
+        "role": collaborator.role,
+        "created_at": collaborator.created_at,
+    }
+
+
+def serialize_map_layer_to_dict(map_layer):
+    """
+    Convert SQLAlchemy MapLayer object to dict for Pydantic serialization.
+
+    This prevents serialization errors when SQLAlchemy Layer objects are included.
+
+    Args:
+        map_layer: SQLAlchemy MapLayer instance
+
+    Returns:
+        Dict with properly serialized map-layer data
+    """
+    return {
+        "id": map_layer.id,
+        "layer_id": map_layer.layer_id,
+        "order": map_layer.order,
+        "visible": map_layer.visible,
+        "opacity": map_layer.opacity,
+        "created_at": map_layer.created_at,
+    }
 
 
 # ============================================================================
@@ -67,9 +163,21 @@ async def list_user_maps(
     # Convert to list response with counts
     result = []
     for map_obj in maps:
-        map_dict = MapListResponse.model_validate(map_obj).model_dump()
-        map_dict["collaborator_count"] = len(map_obj.collaborators)
-        map_dict["layer_count"] = len(map_obj.map_layers)
+        map_dict = {
+            "id": map_obj.id,
+            "name": map_obj.name,
+            "description": map_obj.description,
+            "created_by": map_obj.created_by,
+            "view_permission": map_obj.view_permission,
+            "edit_permission": map_obj.edit_permission,
+            "center_lat": map_obj.center_lat,
+            "center_lng": map_obj.center_lng,
+            "zoom": map_obj.zoom,
+            "created_at": map_obj.created_at,
+            "updated_at": map_obj.updated_at,
+            "collaborator_count": len(map_obj.collaborators),
+            "layer_count": len(map_obj.map_layers),
+        }
         result.append(MapListResponse(**map_dict))
 
     return result
@@ -109,7 +217,7 @@ async def get_map(
             detail="Map not found or access denied",
         )
 
-    return MapResponse.model_validate(map_obj)
+    return MapResponse(**serialize_map_to_dict(map_obj))
 
 
 @router.post("", response_model=MapResponse, status_code=status.HTTP_201_CREATED)
@@ -133,7 +241,7 @@ async def create_map(
     service = MapService(db)
     map_obj = service.create_map(map_data, current_user.id)
 
-    return MapResponse.model_validate(map_obj)
+    return MapResponse(**serialize_map_to_dict(map_obj))
 
 
 @router.put("/{map_id}", response_model=MapResponse)
@@ -177,7 +285,7 @@ async def update_map(
                 detail="Not authorized to edit this map",
             )
 
-    return MapResponse.model_validate(map_obj)
+    return MapResponse(**serialize_map_to_dict(map_obj))
 
 
 @router.delete("/{map_id}", status_code=status.HTTP_200_OK)
@@ -253,7 +361,7 @@ async def list_collaborators(
             detail="Map not found or access denied",
         )
 
-    return [MapCollaboratorResponse.model_validate(c) for c in collaborators]
+    return [MapCollaboratorResponse(**serialize_collaborator_to_dict(c)) for c in collaborators]
 
 
 @router.post(
@@ -326,7 +434,7 @@ async def add_collaborator(
             detail="User is already a collaborator or cannot be added",
         )
 
-    return MapCollaboratorResponse.model_validate(collaborator)
+    return MapCollaboratorResponse(**serialize_collaborator_to_dict(collaborator))
 
 
 @router.put(
@@ -387,7 +495,7 @@ async def update_collaborator(
             detail="Collaborator not found",
         )
 
-    return MapCollaboratorResponse.model_validate(collaborator)
+    return MapCollaboratorResponse(**serialize_collaborator_to_dict(collaborator))
 
 
 @router.delete("/{map_id}/collaborators/{user_id}", status_code=status.HTTP_200_OK)
@@ -510,7 +618,7 @@ async def add_layer_to_map(
             detail="Layer not found or already in map",
         )
 
-    return MapLayerResponse.model_validate(map_layer)
+    return MapLayerResponse(**serialize_map_layer_to_dict(map_layer))
 
 
 @router.delete("/{map_id}/layers/{layer_id}", status_code=status.HTTP_200_OK)
@@ -625,7 +733,7 @@ async def update_map_layer(
             detail="Layer not found in map",
         )
 
-    return MapLayerResponse.model_validate(map_layer)
+    return MapLayerResponse(**serialize_map_layer_to_dict(map_layer))
 
 
 @router.put("/{map_id}/layers/reorder", response_model=List[MapLayerResponse])
@@ -692,4 +800,4 @@ async def reorder_map_layers(
         .all()
     )
 
-    return [MapLayerResponse.model_validate(ml) for ml in updated_layers]
+    return [MapLayerResponse(**serialize_map_layer_to_dict(ml)) for ml in updated_layers]

@@ -95,8 +95,8 @@ def populate_thread_fields(comment, service: CommentService) -> CommentWithRepli
 async def list_comments(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
-    map_id: Optional[UUID] = Query(None, description="Filter by map ID"),
-    layer_id: Optional[UUID] = Query(None, description="Filter by layer ID"),
+    map_id: Optional[str] = Query(None, description="Filter by map ID (UUID or string slug)"),
+    layer_id: Optional[str] = Query(None, description="Filter by layer ID (UUID or string slug)"),
     parent_id: Optional[UUID] = Query(None, description="Filter by parent comment ID"),
     include_resolved: bool = Query(True, description="Include resolved comments"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum comments to return (max 1000)"),

@@ -14,6 +14,7 @@ import { Toaster } from './components/ui/sonner';
 import { ClerkProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { CommentResponse } from './types/api';
 import { useCommentService } from './services/commentService';
+import { useMapService } from './services/mapService';
 
 // Get Clerk publishable key from environment variables
 // Make sure to set VITE_CLERK_PUBLISHABLE_KEY in your .env file
@@ -75,266 +76,19 @@ export interface UserMap {
   };
 }
 
-// Mock data for demonstration
-const mockLayers: Layer[] = [
-  {
-    id: 'fish-stocks',
-    name: 'Fish Stocks Density',
-    type: 'heatmap',
-    visible: true,
-    opacity: 0.6,
-    category: 'Marine Biology',
-    description: 'Spatial distribution of commercial fish stock density in the Baltic Sea, derived from acoustic surveys and catch data from 2023.',
-    author: 'Baltic Marine Research Institute',
-    doi: '10.1234/fishstocks.2023.v1',
-    temporal: true,
-    timeRange: {
-      start: new Date('2023-01-01'),
-      end: new Date('2023-12-31'),
-    },
-    temporalData: [
-      {
-        timestamp: new Date('2023-01-01'),
-        data: [
-          { lat: 59.3293, lng: 18.0686, intensity: 0.5 },
-          { lat: 59.5, lng: 19.0, intensity: 0.4 },
-          { lat: 58.5, lng: 17.5, intensity: 0.6 },
-        ],
-      },
-      {
-        timestamp: new Date('2023-04-01'),
-        data: [
-          { lat: 59.3293, lng: 18.0686, intensity: 0.7 },
-          { lat: 59.5, lng: 19.0, intensity: 0.6 },
-          { lat: 58.5, lng: 17.5, intensity: 0.8 },
-        ],
-      },
-      {
-        timestamp: new Date('2023-07-01'),
-        data: [
-          { lat: 59.3293, lng: 18.0686, intensity: 0.9 },
-          { lat: 59.5, lng: 19.0, intensity: 0.7 },
-          { lat: 58.5, lng: 17.5, intensity: 0.9 },
-          { lat: 60.0, lng: 19.5, intensity: 0.8 },
-        ],
-      },
-      {
-        timestamp: new Date('2023-10-01'),
-        data: [
-          { lat: 59.3293, lng: 18.0686, intensity: 0.6 },
-          { lat: 59.5, lng: 19.0, intensity: 0.5 },
-          { lat: 58.5, lng: 17.5, intensity: 0.7 },
-        ],
-      },
-      {
-        timestamp: new Date('2023-12-31'),
-        data: [
-          { lat: 59.3293, lng: 18.0686, intensity: 0.4 },
-          { lat: 59.5, lng: 19.0, intensity: 0.3 },
-          { lat: 58.5, lng: 17.5, intensity: 0.5 },
-        ],
-      },
-    ],
-    data: [
-      { lat: 59.3293, lng: 18.0686, intensity: 0.8 },
-      { lat: 59.5, lng: 19.0, intensity: 0.6 },
-      { lat: 58.5, lng: 17.5, intensity: 0.9 },
-      { lat: 60.0, lng: 19.5, intensity: 0.7 },
-    ],
-    legend: {
-      type: 'gradient',
-      items: [
-        { color: '#fee5d9', label: 'Low', value: 0 },
-        { color: '#fcae91', label: 'Medium', value: 0.5 },
-        { color: '#fb6a4a', label: 'High', value: 1 },
-      ],
-    },
-  },
-  {
-    id: 'fishing-intensity',
-    name: 'Fishing Intensity',
-    type: 'geojson',
-    visible: true,
-    opacity: 0.5,
-    color: '#3388ff',
-    category: 'Fisheries',
-    description: 'Commercial fishing activity intensity zones based on vessel monitoring system (VMS) data and reported fishing effort from 2022-2023.',
-    author: 'Nordic Fisheries Management Council',
-    doi: '10.1234/fishing.intensity.2023',
-    data: {
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: { name: 'High Activity Zone', intensity: 'high' },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [18.5, 59.8],
-              [19.5, 59.8],
-              [19.5, 60.5],
-              [18.5, 60.5],
-              [18.5, 59.8],
-            ]],
-          },
-        },
-        {
-          type: 'Feature',
-          properties: { name: 'Medium Activity Zone', intensity: 'medium' },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [17.0, 58.5],
-              [18.0, 58.5],
-              [18.0, 59.2],
-              [17.0, 59.2],
-              [17.0, 58.5],
-            ]],
-          },
-        },
-      ],
-    },
-    legend: {
-      type: 'categories',
-      items: [
-        { color: '#d73027', label: 'High Intensity' },
-        { color: '#fee08b', label: 'Medium Intensity' },
-        { color: '#1a9850', label: 'Low Intensity' },
-      ],
-    },
-  },
-  {
-    id: 'aquaculture-sites',
-    name: 'Aquaculture Sites',
-    type: 'geojson',
-    visible: true,
-    opacity: 0.7,
-    color: '#3b82f6',
-    category: 'Aquaculture',
-    description: 'User-created layer showing proposed aquaculture sites with different features.',
-    createdBy: 'user-123',
-    editable: 'everyone',
-    data: {
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {
-            name: 'Main Fish Farm',
-            description: 'Primary salmon farming location with optimal water conditions',
-            featureType: 'Polygon',
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [18.2, 59.5],
-              [18.4, 59.5],
-              [18.4, 59.6],
-              [18.2, 59.6],
-              [18.2, 59.5],
-            ]],
-          },
-        },
-        {
-          type: 'Feature',
-          properties: {
-            name: 'Monitoring Station Alpha',
-            description: 'Water quality monitoring point',
-            featureType: 'Point',
-            icon: 'anchor',
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [18.3, 59.55],
-          },
-        },
-        {
-          type: 'Feature',
-          properties: {
-            name: 'Supply Route',
-            description: 'Main supply and transport route from shore to farm',
-            featureType: 'LineString',
-            lineStyle: 'dashed',
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: [
-              [18.1, 59.45],
-              [18.2, 59.5],
-              [18.3, 59.55],
-            ],
-          },
-        },
-        {
-          type: 'Feature',
-          properties: {
-            name: 'Secondary Farm',
-            description: 'Expansion area for mussel cultivation',
-            featureType: 'Polygon',
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [18.6, 59.4],
-              [18.8, 59.4],
-              [18.8, 59.5],
-              [18.6, 59.5],
-              [18.6, 59.4],
-            ]],
-          },
-        },
-        {
-          type: 'Feature',
-          properties: {
-            name: 'Warning Buoy',
-            description: 'Safety marker for navigation',
-            featureType: 'Point',
-            icon: 'warning',
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [18.5, 59.45],
-          },
-        },
-      ],
-    },
-    legend: {
-      type: 'categories',
-      items: [
-        { color: '#3b82f6', label: 'Aquaculture Sites' },
-      ],
-    },
-  },
-];
 
-const mockMaps: UserMap[] = [
-  {
-    id: 'baltic-fishing',
-    name: 'Baltic Sea Fishing',
-    description: 'Fishing activity and fish stocks in the Baltic Sea region',
-    layers: mockLayers,
-    center: [59.3293, 18.0686],
-    zoom: 7,
-  },
-  {
-    id: 'marine-protected',
-    name: 'Marine Protected Areas',
-    description: 'Protected zones and conservation areas',
-    layers: [],
-    center: [59.0, 18.5],
-    zoom: 6,
-  },
-];
 
 function AppContent() {
-  const [currentMap, setCurrentMap] = useState<UserMap>(mockMaps[0]);
-  const [maps, setMaps] = useState<UserMap[]>(mockMaps);
+  const [currentMap, setCurrentMap] = useState<UserMap | null>(null);
+  const [maps, setMaps] = useState<UserMap[]>([]);
+  const [mapsLoading, setMapsLoading] = useState(false);
+  const [mapsError, setMapsError] = useState<string | null>(null);
   const [showLayerManager, setShowLayerManager] = useState(true);
   const [showMapSelector, setShowMapSelector] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showLayerCreator, setShowLayerCreator] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [availableLayers, setAvailableLayers] = useState<Layer[]>(mockLayers);
+  const [availableLayers, setAvailableLayers] = useState<Layer[]>([]);
   const [basemap, setBasemap] = useState<string>('osm');
   const [drawingMode, setDrawingMode] = useState<'Point' | 'LineString' | 'Polygon' | null>(null);
   const [drawCallback, setDrawCallback] = useState<((feature: any) => void) | null>(null);
@@ -346,8 +100,14 @@ function AppContent() {
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const mapViewRef = useRef<MapViewRef>(null);
 
-  // Initialize comment service
+  // Initialize services
   const commentService = useCommentService();
+  const mapService = useMapService();
+
+  // Load maps on component mount
+  useEffect(() => {
+    loadMaps();
+  }, []);
 
   // Load comments when map changes
   useEffect(() => {
@@ -355,6 +115,41 @@ function AppContent() {
       loadComments(currentMap.id);
     }
   }, [currentMap?.id]);
+
+  // Function to load maps from API
+  const loadMaps = async () => {
+    setMapsLoading(true);
+    setMapsError(null);
+    try {
+      const mapList = await mapService.listMaps();
+
+      // Transform map list responses to UserMap format
+      const userMaps = await Promise.all(
+        mapList.map(async (mapListItem) => {
+          // Fetch full map details to get layers
+          const fullMap = await mapService.getMap(mapListItem.id);
+          return mapService.transformToUserMap(fullMap);
+        })
+      );
+
+      if (userMaps.length > 0) {
+        setMaps(userMaps);
+        setCurrentMap(userMaps[0]);
+      } else {
+        // If no maps exist, set to null
+        setMaps([]);
+        setCurrentMap(null);
+      }
+    } catch (error: any) {
+      setMapsError(error.message);
+      toast.error('Failed to load maps');
+      // Set to empty state on error
+      setMaps([]);
+      setCurrentMap(null);
+    } finally {
+      setMapsLoading(false);
+    }
+  };
 
   // Function to load comments from API
   const loadComments = async (mapId: string) => {
@@ -379,11 +174,13 @@ function AppContent() {
 
   // Check if any temporal layers are visible
   const hasTemporalLayers = useMemo(() => {
+    if (!currentMap) return false;
     return currentMap.layers.some(layer => layer.temporal && layer.visible && layer.timeRange);
-  }, [currentMap.layers]);
+  }, [currentMap?.layers]);
 
   // Calculate overall time range from all temporal layers
   const globalTimeRange = useMemo(() => {
+    if (!currentMap) return null;
     const temporalLayers = currentMap.layers.filter(layer => layer.temporal && layer.visible && layer.timeRange);
     if (temporalLayers.length === 0) return null;
 
@@ -396,23 +193,24 @@ function AppContent() {
     });
 
     return { start: minStart, end: maxEnd };
-  }, [currentMap.layers]);
+  }, [currentMap?.layers]);
 
   // Update layers with temporal data based on current time
   const layersWithTemporalData = useMemo(() => {
+    if (!currentMap) return [];
     return currentMap.layers.map(layer => {
       if (!layer.temporal || !layer.temporalData) return layer;
 
       // Find the closest temporal data point to current time
       const sortedData = [...layer.temporalData].sort(
-        (a, b) => Math.abs(a.timestamp.getTime() - currentTimeRange[0].getTime()) - 
+        (a, b) => Math.abs(a.timestamp.getTime() - currentTimeRange[0].getTime()) -
                   Math.abs(b.timestamp.getTime() - currentTimeRange[0].getTime())
       );
 
       const closestData = sortedData[0];
       return { ...layer, data: closestData.data };
     });
-  }, [currentMap.layers, currentTimeRange]);
+  }, [currentMap?.layers, currentTimeRange]);
 
   // Get comment count for a specific layer
   const getLayerCommentCount = (layerId: string) => {
@@ -449,6 +247,10 @@ function AppContent() {
     targetId: string;
     parentId?: string;
   }) => {
+    if (!currentMap) {
+      toast.error('No map selected');
+      return;
+    }
     try {
       const apiCommentData = {
         content: commentData.content,
@@ -465,16 +267,20 @@ function AppContent() {
   };
 
   const updateLayer = (layerId: string, updates: Partial<Layer>) => {
-    setCurrentMap(prev => ({
-      ...prev,
-      layers: prev.layers.map(layer =>
-        layer.id === layerId ? { ...layer, ...updates } : layer
-      ),
-    }));
+    setCurrentMap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        layers: prev.layers.map(layer =>
+          layer.id === layerId ? { ...layer, ...updates } : layer
+        ),
+      };
+    });
   };
 
   const reorderLayers = (startIndex: number, endIndex: number) => {
     setCurrentMap(prev => {
+      if (!prev) return prev;
       const newLayers = Array.from(prev.layers);
       const [removed] = newLayers.splice(startIndex, 1);
       newLayers.splice(endIndex, 0, removed);
@@ -482,74 +288,105 @@ function AppContent() {
     });
   };
 
-  const createNewMap = (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
-    const newMap: UserMap = {
-      id: `map-${Date.now()}`,
-      name,
-      description,
-      layers: [],
-      center: [59.3293, 18.0686],
-      zoom: 7,
-      permissions,
-    };
-    setMaps(prev => [...prev, newMap]);
-    setCurrentMap(newMap);
+  const createNewMap = async (name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
+    try {
+      const mapData = mapService.transformToMapCreate({
+        name,
+        description,
+        center: [59.3293, 18.0686],
+        zoom: 7,
+        permissions,
+      });
+
+      const createdMap = await mapService.createMap(mapData);
+      const userMap = mapService.transformToUserMap(createdMap);
+
+      setMaps(prev => [...prev, userMap]);
+      setCurrentMap(userMap);
+      toast.success('Map created successfully');
+    } catch (error: any) {
+      toast.error('Failed to create map: ' + error.message);
+      console.error('Create map error:', error);
+      throw error; // Re-throw so MapCreationWizard knows it failed
+    }
   };
 
-  const editMap = (mapId: string, name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
-    setMaps(prev => prev.map(map => 
-      map.id === mapId 
-        ? { ...map, name, description, permissions }
-        : map
-    ));
-    // Update current map if it's the one being edited
-    setCurrentMap(prev => 
-      prev.id === mapId 
-        ? { ...prev, name, description, permissions }
-        : prev
-    );
-  };
+  const editMap = async (mapId: string, name: string, description: string, permissions: { editAccess: 'private' | 'collaborators' | 'public'; collaborators: string[]; visibility: 'private' | 'public' }) => {
+    try {
+      const mapUpdate = mapService.transformToMapUpdate({
+        name,
+        description,
+        permissions,
+      });
 
-  const deleteMap = (mapId: string) => {
-    // Remove the map from the list
-    setMaps(prev => prev.filter(map => map.id !== mapId));
-    
-    // If the deleted map was the current map, switch to the default map or first available map
-    if (currentMap.id === mapId) {
-      const remainingMaps = maps.filter(map => map.id !== mapId);
-      if (remainingMaps.length > 0) {
-        setCurrentMap(remainingMaps[0]);
-      } else {
-        // Create a new default map if no maps remain
-        const defaultMap: UserMap = {
-          id: 'default',
-          name: 'My Map',
-          description: 'A new map for marine spatial planning',
-          layers: [],
-          center: [59.3293, 18.0686],
-          zoom: 7,
-          permissions: {
-            editAccess: 'private',
-            collaborators: [],
-            visibility: 'private',
-          },
-        };
-        setMaps([defaultMap]);
-        setCurrentMap(defaultMap);
+      console.log('🔍 Updating map:', mapId);
+      console.log('🔍 Update payload:', mapUpdate);
+
+      const updatedMap = await mapService.updateMap(mapId, mapUpdate);
+
+      console.log('✅ Backend response:', updatedMap);
+      console.log('✅ Updated permission:', updatedMap.permission);
+
+      const userMap = mapService.transformToUserMap(updatedMap);
+
+      setMaps(prev => prev.map(map =>
+        map.id === mapId ? userMap : map
+      ));
+
+      // Update current map if it's the one being edited
+      if (currentMap?.id === mapId) {
+        setCurrentMap(userMap);
       }
+
+      toast.success('Map updated successfully');
+    } catch (error: any) {
+      console.error('❌ Update map error:', error);
+      toast.error('Failed to update map: ' + error.message);
+      throw error; // Re-throw so MapCreationWizard knows it failed
+    }
+  };
+
+  const deleteMap = async (mapId: string) => {
+    try {
+      await mapService.deleteMap(mapId);
+
+      // Remove the map from the list
+      const remainingMaps = maps.filter(map => map.id !== mapId);
+      setMaps(remainingMaps);
+
+      // If the deleted map was the current map, switch to first available map or null
+      if (currentMap?.id === mapId) {
+        if (remainingMaps.length > 0) {
+          setCurrentMap(remainingMaps[0]);
+        } else {
+          // Set to null if no maps remain
+          setCurrentMap(null);
+        }
+      }
+
+      toast.success('Map deleted successfully');
+    } catch (error: any) {
+      toast.error('Failed to delete map: ' + error.message);
+      console.error('Delete map error:', error);
+      throw error; // Re-throw so calling components know it failed
     }
   };
 
   const addLayerToMap = (layer: Layer) => {
+    if (!currentMap) return;
+
     // Check if layer already exists in the current map
     const layerExists = currentMap.layers.some(l => l.id === layer.id);
     if (layerExists) return;
-    
-    setCurrentMap(prev => ({
-      ...prev,
-      layers: [...prev.layers, { ...layer, visible: true }],
-    }));
-    
+
+    setCurrentMap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        layers: [...prev.layers, { ...layer, visible: true }],
+      };
+    });
+
     // Add to available layers if it's a new custom layer
     const existsInAvailable = availableLayers.some(l => l.id === layer.id);
     if (!existsInAvailable) {
@@ -558,10 +395,13 @@ function AppContent() {
   };
 
   const removeLayerFromMap = (layerId: string) => {
-    setCurrentMap(prev => ({
-      ...prev,
-      layers: prev.layers.filter(layer => layer.id !== layerId),
-    }));
+    setCurrentMap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        layers: prev.layers.filter(layer => layer.id !== layerId),
+      };
+    });
   };
 
   const handleStartDrawing = (type: 'Point' | 'LineString' | 'Polygon', callback: (feature: any) => void) => {
@@ -585,13 +425,17 @@ function AppContent() {
   };
 
   const handleShareMap = async () => {
+    if (!currentMap) {
+      toast.error('No map selected to share');
+      return;
+    }
     try {
       // Create a shareable URL with the map ID
       const shareUrl = `${window.location.origin}${window.location.pathname}?map=${currentMap.id}`;
-      
+
       // Copy to clipboard
       await navigator.clipboard.writeText(shareUrl);
-      
+
       toast.success('Map link copied to clipboard!');
     } catch (error) {
       toast.error('Failed to copy link');
@@ -605,7 +449,7 @@ function AppContent() {
         <div className="flex items-center gap-3">
           <h1 className="text-teal-500 tracking-tight" style={{ fontWeight: 700 }}>SAMSYN</h1>
           <div className="h-4 w-px bg-slate-300" />
-          <p className="text-slate-500 text-sm">{currentMap.name}</p>
+          <p className="text-slate-500 text-sm">{currentMap?.name || 'No Map Selected'}</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -729,22 +573,32 @@ function AppContent() {
       <div className="flex-1 flex relative">
         {/* Map */}
         <div className="flex-1">
-          <MapView
-            ref={mapViewRef}
-            center={currentMap.center}
-            zoom={currentMap.zoom}
-            layers={layersWithTemporalData}
-            onDrawComplete={handleDrawComplete}
-            drawingMode={drawingMode}
-            basemap={basemap}
-          />
+          {currentMap ? (
+            <MapView
+              ref={mapViewRef}
+              center={currentMap.center}
+              zoom={currentMap.zoom}
+              layers={layersWithTemporalData}
+              onDrawComplete={handleDrawComplete}
+              drawingMode={drawingMode}
+              basemap={basemap}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full bg-slate-100">
+              <div className="text-center">
+                <p className="text-slate-500 text-lg font-medium">No Maps available</p>
+                <p className="text-slate-400 text-sm mt-2">Create a new map to get started</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Side Panels */}
         {showMapSelector && (
           <MapSelector
             maps={maps}
-            currentMapId={currentMap.id}
+            currentMapId={currentMap?.id || ''}
+            loading={mapsLoading}
             onSelectMap={(mapId) => {
               const map = maps.find(m => m.id === mapId);
               if (map) setCurrentMap(map);
@@ -760,7 +614,7 @@ function AppContent() {
           />
         )}
 
-        {showLayerManager && (
+        {showLayerManager && currentMap && (
           <LayerManager
             layers={currentMap.layers}
             availableLayers={availableLayers}
@@ -809,7 +663,7 @@ function AppContent() {
           />
         )}
 
-        {showComments && (
+        {showComments && currentMap && (
           <CommentSection
             mapId={currentMap.id}
             mapName={currentMap.name}
@@ -836,13 +690,15 @@ function AppContent() {
               removeLayerFromMap(layerId);
             }}
             onUpdateLayer={(layerId, updates) => {
-              setAvailableLayers(prev => prev.map(l => 
+              setAvailableLayers(prev => prev.map(l =>
                 l.id === layerId ? { ...l, ...updates } : l
               ));
               // Also update in current map if it's there
-              const layerInMap = currentMap.layers.find(l => l.id === layerId);
-              if (layerInMap) {
-                updateLayer(layerId, updates);
+              if (currentMap) {
+                const layerInMap = currentMap.layers.find(l => l.id === layerId);
+                if (layerInMap) {
+                  updateLayer(layerId, updates);
+                }
               }
             }}
             onClose={() => setShowAdminPanel(false)}

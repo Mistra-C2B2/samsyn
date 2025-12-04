@@ -129,8 +129,8 @@ class CommentService:
 
     def list_comments(
         self,
-        map_id: Optional[UUID] = None,
-        layer_id: Optional[UUID] = None,
+        map_id: Optional[str] = None,
+        layer_id: Optional[str] = None,
         parent_id: Optional[UUID] = None,
         include_resolved: bool = True,
         limit: int = 100,
@@ -140,14 +140,14 @@ class CommentService:
         List comments with filtering and pagination.
 
         Supports filtering by:
-        - map_id: Comments on a specific map
-        - layer_id: Comments on a specific layer
+        - map_id: Comments on a specific map (UUID or string slug)
+        - layer_id: Comments on a specific layer (UUID or string slug)
         - parent_id: Direct replies to a specific comment
         - include_resolved: Whether to include resolved comments
 
         Args:
-            map_id: Optional map UUID filter
-            layer_id: Optional layer UUID filter
+            map_id: Optional map ID filter (UUID or string slug)
+            layer_id: Optional layer ID filter (UUID or string slug)
             parent_id: Optional parent comment UUID filter (for replies)
             include_resolved: Include resolved comments (default True)
             limit: Maximum number of comments to return (default 100)
@@ -182,8 +182,8 @@ class CommentService:
 
     def count_comments(
         self,
-        map_id: Optional[UUID] = None,
-        layer_id: Optional[UUID] = None,
+        map_id: Optional[str] = None,
+        layer_id: Optional[str] = None,
         parent_id: Optional[UUID] = None,
         include_resolved: bool = True,
     ) -> int:
@@ -191,8 +191,8 @@ class CommentService:
         Count comments matching the same filters as list_comments.
 
         Args:
-            map_id: Optional map UUID filter
-            layer_id: Optional layer UUID filter
+            map_id: Optional map ID filter (UUID or string slug)
+            layer_id: Optional layer ID filter (UUID or string slug)
             parent_id: Optional parent comment UUID filter
             include_resolved: Include resolved comments (default True)
 
@@ -425,7 +425,7 @@ class CommentService:
     # Bulk Operations
     # ========================================================================
 
-    def delete_comments_by_map(self, map_id: UUID) -> int:
+    def delete_comments_by_map(self, map_id: str) -> int:
         """
         Delete all comments on a map.
 
@@ -433,7 +433,7 @@ class CommentService:
         Cascades to all replies.
 
         Args:
-            map_id: Map UUID
+            map_id: Map ID (UUID or string slug)
 
         Returns:
             Number of comments deleted (top-level only, not including cascaded replies)
@@ -445,7 +445,7 @@ class CommentService:
 
         return count
 
-    def delete_comments_by_layer(self, layer_id: UUID) -> int:
+    def delete_comments_by_layer(self, layer_id: str) -> int:
         """
         Delete all comments on a layer.
 
@@ -453,7 +453,7 @@ class CommentService:
         Cascades to all replies.
 
         Args:
-            layer_id: Layer UUID
+            layer_id: Layer ID (UUID or string slug)
 
         Returns:
             Number of comments deleted (top-level only, not including cascaded replies)
@@ -465,12 +465,12 @@ class CommentService:
 
         return count
 
-    def get_comment_count_by_map(self, map_id: UUID) -> int:
+    def get_comment_count_by_map(self, map_id: str) -> int:
         """
         Get total number of comments on a map.
 
         Args:
-            map_id: Map UUID
+            map_id: Map ID (UUID or string slug)
 
         Returns:
             Comment count
@@ -481,12 +481,12 @@ class CommentService:
             .scalar() or 0
         )
 
-    def get_comment_count_by_layer(self, layer_id: UUID) -> int:
+    def get_comment_count_by_layer(self, layer_id: str) -> int:
         """
         Get total number of comments on a layer.
 
         Args:
-            layer_id: Layer UUID
+            layer_id: Layer ID (UUID or string slug)
 
         Returns:
             Comment count

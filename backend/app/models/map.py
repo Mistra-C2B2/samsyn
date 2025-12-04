@@ -21,7 +21,8 @@ class Map(Base):
     name = Column(String, nullable=False)
     description = Column(String)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    permission = Column(String, default="private")
+    view_permission = Column(String, default="private")  # Controls VIEW access
+    edit_permission = Column(String, default="private")  # Controls EDIT access
 
     # Map viewport state
     center_lat = Column(Float, default=0.0)

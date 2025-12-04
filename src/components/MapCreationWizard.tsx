@@ -41,7 +41,7 @@ interface MapCreationWizardProps {
     name: string,
     description: string,
     permissions: MapPermissions,
-  ) => void;
+  ) => Promise<void>;
   onOpenLayerManager: () => void;
   editMode?: boolean;
   existingMap?: UserMap;
@@ -110,7 +110,7 @@ export function MapCreationWizard({
     setCollaborators(collaborators.filter((c) => c !== email));
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (mapName.trim()) {
       const permissions: MapPermissions = {
         editAccess,
@@ -118,11 +118,19 @@ export function MapCreationWizard({
           editAccess === "collaborators" ? collaborators : [],
         visibility,
       };
-      onCreate(mapName, mapDescription, permissions);
-      if (!editMode) {
-        setStep("success");
-      } else {
-        handleClose();
+
+      try {
+        await onCreate(mapName, mapDescription, permissions);
+        // Only show success if the API call succeeded
+        if (!editMode) {
+          setStep("success");
+        } else {
+          handleClose();
+        }
+      } catch (error) {
+        // Error is already handled by App.tsx (toast shown)
+        // Just stay on the create form so user can try again
+        console.error('Map creation failed:', error);
       }
     }
   };

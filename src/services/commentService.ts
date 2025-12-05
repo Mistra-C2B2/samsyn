@@ -2,21 +2,8 @@ import type {
 	CommentCreate,
 	CommentResponse,
 	CommentUpdate,
-	CommentWithReplies,
 } from "../types/api";
-import { ApiClient, useApiClient } from "./api";
-
-/**
- * Query parameters for listing comments
- */
-interface ListCommentsParams {
-	map_id?: string;
-	layer_id?: string;
-	parent_id?: string;
-	include_resolved?: boolean;
-	limit?: number;
-	offset?: number;
-}
+import { useApiClient } from "./api";
 
 /**
  * Service for comment-related API operations
@@ -30,7 +17,14 @@ export class CommentService {
 	 * List comments with optional filtering
 	 * GET /api/v1/comments
 	 */
-	async listComments(params) {
+	async listComments(params: {
+		map_id?: string;
+		layer_id?: string;
+		parent_id?: string;
+		include_resolved?: boolean;
+		limit?: number;
+		offset?: number;
+	}) {
 		const queryString = new URLSearchParams(
 			Object.entries(params)
 				.filter(([_, v]) => v !== undefined)
@@ -57,7 +51,7 @@ export class CommentService {
 	 */
 	async getCommentThread(id: string, maxDepth?: number) {
 		const queryString = maxDepth !== undefined ? `?max_depth=${maxDepth}` : "";
-		return this.client.get<CommentWithReplies>(
+		return this.client.get<CommentResponse>(
 			`/api/v1/comments/${id}/thread${queryString}`,
 		);
 	}

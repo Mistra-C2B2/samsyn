@@ -328,11 +328,14 @@ export function LayerManager({
 					<div className="flex-1 overflow-y-auto p-4 space-y-2">
 						{/* Basemap Selector */}
 						<div className="flex items-center gap-2 px-2 py-1.5">
-							<label className="text-xs text-slate-600 whitespace-nowrap">
+							<label
+								htmlFor="basemap"
+								className="text-xs text-slate-600 whitespace-nowrap"
+							>
 								Basemap:
 							</label>
 							<Select value={basemap} onValueChange={onChangeBasemap}>
-								<SelectTrigger className="h-7 text-xs flex-1">
+								<SelectTrigger id="basemap" className="h-7 text-xs flex-1">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -399,7 +402,10 @@ export function LayerManager({
 							layers.map((layer, index) => (
 								<div
 									key={layer.id}
+									role="application"
 									draggable
+									aria-grabbed={draggedIndex === index}
+									aria-label={`Layer ${layer.name}, draggable`}
 									onDragStart={() => handleDragStart(index)}
 									onDragOver={(e) => handleDragOver(e, index)}
 									onDragEnd={handleDragEnd}
@@ -505,12 +511,18 @@ export function LayerManager({
 
 									<div className="space-y-2">
 										<div className="flex items-center justify-between">
-											<label className="text-xs text-slate-600">Opacity</label>
+											<label
+												htmlFor={`opacity-${layer.id}`}
+												className="text-xs text-slate-600"
+											>
+												Opacity
+											</label>
 											<span className="text-xs text-slate-500">
 												{Math.round(layer.opacity * 100)}%
 											</span>
 										</div>
 										<Slider
+											id={`opacity-${layer.id}`}
 											value={[layer.opacity * 100]}
 											onValueChange={(values) =>
 												onUpdateLayer(layer.id, {
@@ -649,7 +661,10 @@ export function LayerManager({
 								) : (
 									<div className="space-y-2">
 										{selectedLayerInfo.legend.items.map((item, idx) => (
-											<div key={idx} className="flex items-center gap-2">
+											<div
+												key={`legend-${item.label}-${item.color}-${idx}`}
+												className="flex items-center gap-2"
+											>
 												<div
 													className="w-4 h-4 rounded border border-slate-300"
 													style={{

@@ -14,13 +14,6 @@ import {
 } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
@@ -448,7 +441,10 @@ export function AdminPanel({
 									<Label>Legend Items</Label>
 									<div className="space-y-2 mt-2">
 										{legendItems.map((item, index) => (
-											<div key={index} className="flex items-center gap-2">
+											<div
+												key={`legend-item-${item.label}-${index}`}
+												className="flex items-center gap-2"
+											>
 												<Input
 													value={item.label}
 													onChange={(e) =>

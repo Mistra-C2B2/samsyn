@@ -97,15 +97,12 @@ export function CategorySelector({
 					<SelectItem value="__none__">
 						<span className="text-slate-400">No category</span>
 					</SelectItem>
-					{existingCategories.length > 0 && (
-						<>
-							{existingCategories.map((cat) => (
-								<SelectItem key={cat} value={cat}>
-									{cat}
-								</SelectItem>
-							))}
-						</>
-					)}
+					{existingCategories.length > 0 &&
+						existingCategories.map((cat) => (
+							<SelectItem key={cat} value={cat}>
+								{cat}
+							</SelectItem>
+						))}
 					<SelectItem value="__add_new__">
 						<div className="flex items-center gap-2 text-teal-600">
 							<Plus className="w-3 h-3" />

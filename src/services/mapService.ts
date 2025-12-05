@@ -1,4 +1,3 @@
-import { UserMap } from "../App";
 import type {
 	MapCollaboratorCreate,
 	MapCollaboratorResponse,
@@ -8,7 +7,7 @@ import type {
 	MapResponse,
 	MapUpdate,
 } from "../types/api";
-import { ApiClient, useApiClient } from "./api";
+import { useApiClient } from "./api";
 
 /**
  * Service for map-related API operations

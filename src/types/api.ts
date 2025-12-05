@@ -13,7 +13,7 @@
  * Standard API error response structure
  */
 export interface APIError {
-	detail: string | Record<string, any>;
+	detail: string | Record<string, unknown>;
 	status_code?: number;
 }
 
@@ -59,7 +59,7 @@ export interface MapCreate {
 	center_lat?: number; // default: 0.0, range: -90 to 90
 	center_lng?: number; // default: 0.0, range: -180 to 180
 	zoom?: number; // default: 2.0, range: 0 to 22
-	map_metadata?: Record<string, any>;
+	map_metadata?: Record<string, unknown>;
 	view_permission?: MapPermission; // default: "private" - controls VIEW access
 	edit_permission?: MapPermission; // default: "private" - controls EDIT access
 }
@@ -75,7 +75,7 @@ export interface MapUpdate {
 	zoom?: number;
 	view_permission?: MapPermission; // Controls VIEW access
 	edit_permission?: MapPermission; // Controls EDIT access
-	map_metadata?: Record<string, any>;
+	map_metadata?: Record<string, unknown>;
 }
 
 /**
@@ -115,7 +115,7 @@ export interface MapResponse {
 	center_lat: number;
 	center_lng: number;
 	zoom: number;
-	map_metadata: Record<string, any>;
+	map_metadata: Record<string, unknown>;
 	created_at: string; // ISO datetime
 	updated_at: string; // ISO datetime
 	collaborators: MapCollaboratorResponse[];
@@ -237,8 +237,8 @@ export interface GeoTIFFSourceConfig {
 	tileServer?: string | null; // for tiles delivery
 	bounds?: number[] | null; // [west, south, east, north]
 	temporal?: boolean | null;
-	tileParams?: Record<string, any> | null;
-	processing?: Record<string, any> | null; // color ramps, scaling, etc.
+	tileParams?: Record<string, unknown> | null;
+	processing?: Record<string, unknown> | null; // color ramps, scaling, etc.
 }
 
 /**
@@ -268,10 +268,10 @@ export interface LayerCreate {
 	category?: string | null;
 	editable?: LayerEditability; // default: "creator-only"
 	is_global?: boolean; // default: false
-	source_config: Record<string, any>;
-	style_config?: Record<string, any>;
-	legend_config?: Record<string, any>;
-	layer_metadata?: Record<string, any>;
+	source_config: Record<string, unknown>;
+	style_config?: Record<string, unknown>;
+	legend_config?: Record<string, unknown>;
+	layer_metadata?: Record<string, unknown>;
 }
 
 /**
@@ -284,10 +284,10 @@ export interface LayerUpdate {
 	category?: string | null;
 	editable?: LayerEditability;
 	is_global?: boolean;
-	source_config?: Record<string, any>;
-	style_config?: Record<string, any>;
-	legend_config?: Record<string, any>;
-	layer_metadata?: Record<string, any>;
+	source_config?: Record<string, unknown>;
+	style_config?: Record<string, unknown>;
+	legend_config?: Record<string, unknown>;
+	layer_metadata?: Record<string, unknown>;
 }
 
 /**
@@ -296,7 +296,7 @@ export interface LayerUpdate {
 export interface LayerFeatureResponse {
 	id: string; // UUID
 	geometry_type: string;
-	properties: Record<string, any>;
+	properties: Record<string, unknown>;
 	created_at: string; // ISO datetime
 }
 
@@ -325,10 +325,10 @@ export interface LayerResponse {
 	created_by: string; // UUID
 	editable: string;
 	is_global: boolean;
-	source_config: Record<string, any>;
-	style_config: Record<string, any>;
-	legend_config: Record<string, any>;
-	layer_metadata: Record<string, any>;
+	source_config: Record<string, unknown>;
+	style_config: Record<string, unknown>;
+	legend_config: Record<string, unknown>;
+	layer_metadata: Record<string, unknown>;
 	created_at: string; // ISO datetime
 	updated_at: string; // ISO datetime
 	features: LayerFeatureResponse[];
@@ -356,16 +356,16 @@ export interface LayerListResponse {
  */
 export interface LayerFeatureCreate {
 	geometry_type: GeometryType;
-	geometry: Record<string, any>; // GeoJSON geometry object
-	properties?: Record<string, any>;
+	geometry: Record<string, unknown>; // GeoJSON geometry object
+	properties?: Record<string, unknown>;
 }
 
 /**
  * Schema for updating a feature in a vector layer
  */
 export interface LayerFeatureUpdate {
-	geometry?: Record<string, any>;
-	properties?: Record<string, any>;
+	geometry?: Record<string, unknown>;
+	properties?: Record<string, unknown>;
 }
 
 /**
@@ -380,7 +380,7 @@ export interface LayerBulkDelete {
  */
 export interface LayerBulkUpdate {
 	layer_ids: string[]; // UUIDs, min length: 1
-	updates: Record<string, any>;
+	updates: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -403,8 +403,8 @@ export interface FeatureGeometry {
  * Schema for creating a new feature
  */
 export interface FeatureCreate {
-	geometry: Record<string, any>; // GeoJSON geometry object
-	properties?: Record<string, any>;
+	geometry: Record<string, unknown>; // GeoJSON geometry object
+	properties?: Record<string, unknown>;
 	feature_type?: string | null;
 }
 
@@ -412,8 +412,8 @@ export interface FeatureCreate {
  * Schema for updating a feature
  */
 export interface FeatureUpdate {
-	geometry?: Record<string, any>;
-	properties?: Record<string, any>;
+	geometry?: Record<string, unknown>;
+	properties?: Record<string, unknown>;
 	feature_type?: string | null;
 }
 
@@ -423,8 +423,8 @@ export interface FeatureUpdate {
 export interface FeatureResponse {
 	id: string; // UUID
 	layer_id: string; // UUID
-	geometry: Record<string, any>; // GeoJSON geometry object
-	properties: Record<string, any>;
+	geometry: Record<string, unknown>; // GeoJSON geometry object
+	properties: Record<string, unknown>;
 	feature_type: string | null;
 	created_at: string; // ISO datetime
 	updated_at: string; // ISO datetime
@@ -436,8 +436,8 @@ export interface FeatureResponse {
 export interface FeatureGeoJSONResponse {
 	type: "Feature";
 	id: string; // UUID
-	geometry: Record<string, any>;
-	properties: Record<string, any>;
+	geometry: Record<string, unknown>;
+	properties: Record<string, unknown>;
 }
 
 /**
@@ -445,8 +445,8 @@ export interface FeatureGeoJSONResponse {
  */
 export interface GeoJSONFeature {
 	type: "Feature";
-	geometry: Record<string, any>;
-	properties?: Record<string, any>;
+	geometry: Record<string, unknown>;
+	properties?: Record<string, unknown>;
 	id?: string | number | null;
 }
 
@@ -463,7 +463,7 @@ export interface FeatureCollection {
  */
 export interface BulkFeatureCreate {
 	type: "FeatureCollection";
-	features: Record<string, any>[]; // min length: 1
+	features: Record<string, unknown>[]; // min length: 1
 	feature_type?: string | null;
 }
 
@@ -475,7 +475,7 @@ export interface BulkFeatureResponse {
 	created_count: number;
 	failed_count: number;
 	feature_ids: string[]; // UUIDs
-	errors: Array<Record<string, any>>;
+	errors: Array<Record<string, unknown>>;
 }
 
 /**
@@ -492,7 +492,7 @@ export interface BulkFeatureDeleteResponse {
 	success: boolean;
 	deleted_count: number;
 	failed_count: number;
-	errors: Array<Record<string, any>>;
+	errors: Array<Record<string, unknown>>;
 }
 
 /**

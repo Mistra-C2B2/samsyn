@@ -8,13 +8,13 @@ import {
 } from "@clerk/clerk-react";
 import {
 	Layers,
-	Map,
+	Map as MapIcon,
 	MessageSquare,
 	Settings,
 	Share2,
 	Shield,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminPanel } from "./components/AdminPanel";
 import { CommentSection } from "./components/CommentSection";
 import { LayerCreator } from "./components/LayerCreator";
@@ -38,7 +38,7 @@ const clerkPubKey =
 	"";
 
 // Check if Clerk is properly configured
-const isClerkConfigured = clerkPubKey && clerkPubKey.startsWith("pk_");
+const isClerkConfigured = clerkPubKey?.startsWith("pk_");
 
 export interface Layer {
 	id: string;
@@ -46,7 +46,7 @@ export interface Layer {
 	type: "geojson" | "heatmap" | "markers" | "raster" | "vector";
 	visible: boolean;
 	opacity: number;
-	data?: any;
+	data?: unknown;
 	color?: string;
 	description?: string;
 	author?: string;
@@ -61,7 +61,7 @@ export interface Layer {
 	// GeoTIFF properties
 	geotiffUrl?: string;
 	// Vector properties
-	features?: any[];
+	features?: unknown[];
 	legend?: {
 		type: "gradient" | "categories";
 		items: Array<{ color: string; label: string; value?: number }>;
@@ -74,7 +74,7 @@ export interface Layer {
 	};
 	temporalData?: Array<{
 		timestamp: Date;
-		data: any;
+		data: unknown;
 	}>;
 }
 
@@ -98,7 +98,6 @@ function AppContent() {
 	const [currentMap, setCurrentMap] = useState<UserMap | null>(null);
 	const [maps, setMaps] = useState<UserMap[]>([]);
 	const [mapsLoading, setMapsLoading] = useState(false);
-	const [mapsError, setMapsError] = useState<string | null>(null);
 	const [showLayerManager, setShowLayerManager] = useState(true);
 	const [showMapSelector, setShowMapSelector] = useState(false);
 	const [showComments, setShowComments] = useState(false);
@@ -110,7 +109,7 @@ function AppContent() {
 		"Point" | "LineString" | "Polygon" | null
 	>(null);
 	const [drawCallback, setDrawCallback] = useState<
-		((feature: any) => void) | null
+		((feature: unknown) => void) | null
 	>(null);
 	const [selectedLayerIdForComments, setSelectedLayerIdForComments] = useState<
 		string | null
@@ -118,30 +117,15 @@ function AppContent() {
 	const [editingLayer, setEditingLayer] = useState<Layer | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
-	const [commentsLoading, setCommentsLoading] = useState(false);
-	const [commentsError, setCommentsError] = useState<string | null>(null);
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
 	const commentService = useCommentService();
 	const mapService = useMapService();
 
-	// Load maps on component mount
-	useEffect(() => {
-		loadMaps();
-	}, []);
-
-	// Load comments when map changes
-	useEffect(() => {
-		if (currentMap?.id) {
-			loadComments(currentMap.id);
-		}
-	}, [currentMap?.id]);
-
 	// Function to load maps from API
-	const loadMaps = async () => {
+	const loadMaps = useCallback(async () => {
 		setMapsLoading(true);
-		setMapsError(null);
 		try {
 			const mapList = await mapService.listMaps();
 
@@ -162,8 +146,7 @@ function AppContent() {
 				setMaps([]);
 				setCurrentMap(null);
 			}
-		} catch (error: any) {
-			setMapsError(error.message);
+		} catch {
 			toast.error("Failed to load maps");
 			// Set to empty state on error
 			setMaps([]);
@@ -171,22 +154,32 @@ function AppContent() {
 		} finally {
 			setMapsLoading(false);
 		}
-	};
+	}, [mapService]);
 
 	// Function to load comments from API
-	const loadComments = async (mapId: string) => {
-		setCommentsLoading(true);
-		setCommentsError(null);
-		try {
-			const data = await commentService.listComments({ map_id: mapId });
-			setComments(data);
-		} catch (error: any) {
-			setCommentsError(error.message);
-			toast.error("Failed to load comments");
-		} finally {
-			setCommentsLoading(false);
+	const loadComments = useCallback(
+		async (mapId: string) => {
+			try {
+				const data = await commentService.listComments({ map_id: mapId });
+				setComments(data);
+			} catch {
+				toast.error("Failed to load comments");
+			}
+		},
+		[commentService],
+	);
+
+	// Load maps on component mount
+	useEffect(() => {
+		loadMaps();
+	}, [loadMaps]);
+
+	// Load comments when map changes
+	useEffect(() => {
+		if (currentMap?.id) {
+			loadComments(currentMap.id);
 		}
-	};
+	}, [currentMap?.id, loadComments]);
 
 	// Temporal state management
 	const [currentTimeRange, setCurrentTimeRange] = useState<[Date, Date]>([
@@ -200,7 +193,7 @@ function AppContent() {
 		return currentMap.layers.some(
 			(layer) => layer.temporal && layer.visible && layer.timeRange,
 		);
-	}, [currentMap?.layers]);
+	}, [currentMap]);
 
 	// Calculate overall time range from all temporal layers
 	const globalTimeRange = useMemo(() => {
@@ -210,16 +203,20 @@ function AppContent() {
 		);
 		if (temporalLayers.length === 0) return null;
 
-		let minStart = temporalLayers[0].timeRange!.start;
-		let maxEnd = temporalLayers[0].timeRange!.end;
+		const firstRange = temporalLayers[0].timeRange;
+		if (!firstRange) return null;
 
-		temporalLayers.forEach((layer) => {
-			if (layer.timeRange!.start < minStart) minStart = layer.timeRange!.start;
-			if (layer.timeRange!.end > maxEnd) maxEnd = layer.timeRange!.end;
-		});
+		let minStart = firstRange.start;
+		let maxEnd = firstRange.end;
+
+		for (const layer of temporalLayers) {
+			if (!layer.timeRange) continue;
+			if (layer.timeRange.start < minStart) minStart = layer.timeRange.start;
+			if (layer.timeRange.end > maxEnd) maxEnd = layer.timeRange.end;
+		}
 
 		return { start: minStart, end: maxEnd };
-	}, [currentMap?.layers]);
+	}, [currentMap]);
 
 	// Update layers with temporal data based on current time
 	const layersWithTemporalData = useMemo(() => {
@@ -237,7 +234,7 @@ function AppContent() {
 			const closestData = sortedData[0];
 			return { ...layer, data: closestData.data };
 		});
-	}, [currentMap?.layers, currentTimeRange]);
+	}, [currentMap, currentTimeRange]);
 
 	// Get comment count for a specific layer
 	const getLayerCommentCount = (layerId: string) => {
@@ -294,8 +291,10 @@ function AppContent() {
 			const newComment = await commentService.createComment(apiCommentData);
 			setComments([...comments, newComment]);
 			toast.success("Comment added");
-		} catch (error: any) {
-			toast.error("Failed to add comment: " + error.message);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Failed to add comment: ${errorMessage}`);
 		}
 	};
 
@@ -354,11 +353,13 @@ function AppContent() {
 						console.log(`➕ Adding collaborator: ${email}`);
 						await mapService.addCollaborator(createdMap.id, email, "viewer");
 						toast.success(`Added ${email} as collaborator`);
-					} catch (error: any) {
+					} catch (error) {
 						console.error(`❌ Failed to add ${email}:`, error);
 						// Throw with a user-friendly message - error will be shown in form
+						const errorMessage =
+							error instanceof Error ? error.message : "Unknown error";
 						throw new Error(
-							`Failed to add collaborator "${email}": ${error.message}`,
+							`Failed to add collaborator "${email}": ${errorMessage}`,
 						);
 					}
 				}
@@ -369,7 +370,7 @@ function AppContent() {
 			setMaps((prev) => [...prev, userMap]);
 			setCurrentMap(userMap);
 			toast.success("Map created successfully");
-		} catch (error: any) {
+		} catch (error) {
 			console.error("🔴 createNewMap outer catch - error:", error);
 			toast.error("Failed to save changes");
 			console.error("Create map error:", error);
@@ -417,11 +418,13 @@ function AppContent() {
 						console.log(`➕ Adding collaborator: ${email}`);
 						await mapService.addCollaborator(mapId, email, "viewer");
 						toast.success(`Added ${email} as collaborator`);
-					} catch (error: any) {
+					} catch (error) {
 						console.error(`❌ Failed to add ${email}:`, error);
 						// Re-throw with a user-friendly message - error will be shown in form
+						const errorMessage =
+							error instanceof Error ? error.message : "Unknown error";
 						throw new Error(
-							`Failed to add collaborator "${email}": ${error.message}`,
+							`Failed to add collaborator "${email}": ${errorMessage}`,
 						);
 					}
 				}
@@ -435,7 +438,7 @@ function AppContent() {
 						console.log(`➖ Removing collaborator: ${email}`);
 						await mapService.removeCollaborator(mapId, collab.user_id);
 						toast.success(`Removed ${email} from collaborators`);
-					} catch (error: any) {
+					} catch (error) {
 						console.error(`❌ Failed to remove ${email}:`, error);
 						// Don't throw on removal errors, just log
 					}
@@ -454,7 +457,7 @@ function AppContent() {
 			}
 
 			toast.success("Map updated successfully");
-		} catch (error: any) {
+		} catch (error) {
 			console.error("🔴 editMap outer catch - error:", error);
 			toast.error("Failed to save changes");
 			throw error; // Re-throw so MapCreationWizard knows it failed
@@ -480,8 +483,10 @@ function AppContent() {
 			}
 
 			toast.success("Map deleted successfully");
-		} catch (error: any) {
-			toast.error("Failed to delete map: " + error.message);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Failed to delete map: ${errorMessage}`);
 			console.error("Delete map error:", error);
 			throw error; // Re-throw so calling components know it failed
 		}
@@ -521,14 +526,14 @@ function AppContent() {
 
 	const handleStartDrawing = (
 		type: "Point" | "LineString" | "Polygon",
-		callback: (feature: any) => void,
+		callback: (feature: unknown) => void,
 	) => {
 		setDrawingMode(type);
 		setDrawCallback(() => callback);
 		mapViewRef.current?.startDrawing(type);
 	};
 
-	const handleDrawComplete = (feature: any) => {
+	const handleDrawComplete = (feature: unknown) => {
 		if (drawCallback) {
 			drawCallback(feature);
 		}
@@ -555,7 +560,7 @@ function AppContent() {
 			await navigator.clipboard.writeText(shareUrl);
 
 			toast.success("Map link copied to clipboard!");
-		} catch (error) {
+		} catch {
 			toast.error("Failed to copy link");
 		}
 	};
@@ -596,7 +601,7 @@ function AppContent() {
 							}
 						}}
 					>
-						<Map className="w-4 h-4" />
+						<MapIcon className="w-4 h-4" />
 						Maps
 					</Button>
 					<Button

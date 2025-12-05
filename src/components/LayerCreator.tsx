@@ -20,7 +20,6 @@ import { CategorySelector } from "./CategorySelector";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
 
@@ -29,7 +28,7 @@ interface LayerCreatorProps {
 	onClose: () => void;
 	onStartDrawing?: (
 		type: "Point" | "LineString" | "Polygon",
-		callback: (feature: any) => void,
+		callback: (feature: unknown) => void,
 	) => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
@@ -43,7 +42,7 @@ interface Feature {
 	type: GeometryType;
 	name: string;
 	description: string;
-	coordinates: any;
+	coordinates: unknown;
 	icon?: IconType;
 	lineStyle?: LineStyle;
 }
@@ -63,13 +62,19 @@ export function LayerCreator({
 	const [features, setFeatures] = useState<Feature[]>(() => {
 		// If editing, populate features from the layer's GeoJSON data
 		if (editingLayer?.data?.features) {
-			return editingLayer.data.features.map((feature: any) => ({
-				type: feature.geometry.type as GeometryType,
-				name: feature.properties.name || "",
-				description: feature.properties.description || "",
-				coordinates: feature.geometry.coordinates,
-				icon: (feature.properties.icon as IconType) || "default",
-				lineStyle: (feature.properties.lineStyle as LineStyle) || "solid",
+			return editingLayer.data.features.map((feature: unknown) => ({
+				type: (feature as Record<string, unknown>).geometry
+					?.type as GeometryType,
+				name: (feature as Record<string, unknown>).properties?.name || "",
+				description:
+					(feature as Record<string, unknown>).properties?.description || "",
+				coordinates: (feature as Record<string, unknown>).geometry?.coordinates,
+				icon:
+					((feature as Record<string, unknown>).properties?.icon as IconType) ||
+					"default",
+				lineStyle:
+					((feature as Record<string, unknown>).properties
+						?.lineStyle as LineStyle) || "solid",
 			}));
 		}
 		return [];
@@ -102,11 +107,12 @@ export function LayerCreator({
 		if (!onStartDrawing) return;
 
 		onStartDrawing(type, (drawnFeature) => {
+			const feature = drawnFeature as Record<string, unknown>;
 			const newFeature: Feature = {
 				type,
 				name: "",
 				description: "",
-				coordinates: drawnFeature.geometry.coordinates,
+				coordinates: feature.geometry?.coordinates,
 				icon: type === "Point" ? "default" : undefined,
 				lineStyle: type === "LineString" ? "solid" : undefined,
 			};
@@ -118,7 +124,11 @@ export function LayerCreator({
 		setFeatures(features.filter((_, i) => i !== index));
 	};
 
-	const updateFeature = (index: number, field: keyof Feature, value: any) => {
+	const updateFeature = (
+		index: number,
+		field: keyof Feature,
+		value: unknown,
+	) => {
 		setFeatures(
 			features.map((f, i) => (i === index ? { ...f, [field]: value } : f)),
 		);
@@ -218,19 +228,22 @@ export function LayerCreator({
 				throw new Error("Invalid GeoJSON: Must be a FeatureCollection");
 			}
 			const newFeatures: Feature[] = geoJsonData.features.map(
-				(feature: any) => ({
-					type: feature.geometry.type as GeometryType,
-					name: feature.properties.name || "",
-					description: feature.properties.description || "",
-					coordinates: feature.geometry.coordinates,
-					icon: (feature.properties.icon as IconType) || "default",
-					lineStyle: (feature.properties.lineStyle as LineStyle) || "solid",
-				}),
+				(feature: unknown) => {
+					const f = feature as Record<string, unknown>;
+					return {
+						type: f.geometry?.type as GeometryType,
+						name: f.properties?.name || "",
+						description: f.properties?.description || "",
+						coordinates: f.geometry?.coordinates,
+						icon: (f.properties?.icon as IconType) || "default",
+						lineStyle: (f.properties?.lineStyle as LineStyle) || "solid",
+					};
+				},
 			);
 			setFeatures(newFeatures);
 			setGeoJsonError("");
-		} catch (error: any) {
-			setGeoJsonError(error.message);
+		} catch (error: unknown) {
+			setGeoJsonError((error as Error).message);
 		}
 	};
 
@@ -308,6 +321,7 @@ export function LayerCreator({
 					<TabsContent value="draw" className="space-y-3 mt-3">
 						<div className="grid grid-cols-3 gap-2">
 							<button
+								type="button"
 								onClick={() => addFeatureByDrawing("Point")}
 								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
 							>
@@ -315,6 +329,7 @@ export function LayerCreator({
 								<span className="text-xs">Add Point</span>
 							</button>
 							<button
+								type="button"
 								onClick={() => addFeatureByDrawing("LineString")}
 								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
 							>
@@ -322,6 +337,7 @@ export function LayerCreator({
 								<span className="text-xs">Add Line</span>
 							</button>
 							<button
+								type="button"
 								onClick={() => addFeatureByDrawing("Polygon")}
 								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
 							>
@@ -377,7 +393,7 @@ export function LayerCreator({
 						</div>
 						{features.map((feature, index) => (
 							<div
-								key={index}
+								key={`feature-${feature.type}-${feature.name}-${index}`}
 								className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2"
 							>
 								<div className="flex items-center justify-between">
@@ -425,6 +441,7 @@ export function LayerCreator({
 												] as IconType[]
 											).map((iconType) => (
 												<button
+													type="button"
 													key={iconType}
 													onClick={() => updateFeature(index, "icon", iconType)}
 													className={`p-2 rounded border transition-colors flex items-center justify-center ${
@@ -447,6 +464,7 @@ export function LayerCreator({
 											{(["solid", "dashed", "dotted"] as LineStyle[]).map(
 												(style) => (
 													<button
+														type="button"
 														key={style}
 														onClick={() =>
 															updateFeature(index, "lineStyle", style)
@@ -485,6 +503,7 @@ export function LayerCreator({
 					<Label>Who Can Edit This Layer?</Label>
 					<div className="space-y-2">
 						<button
+							type="button"
 							onClick={() => setEditableBy("creator-only")}
 							className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
 								editableBy === "creator-only"
@@ -508,6 +527,7 @@ export function LayerCreator({
 						</button>
 
 						<button
+							type="button"
 							onClick={() => setEditableBy("everyone")}
 							className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
 								editableBy === "everyone"

@@ -23,14 +23,19 @@ export function Legend({ layer }: LegendProps) {
 					/>
 					<div className="flex justify-between text-xs text-slate-600">
 						{layer.legend.items.map((item, index) => (
-							<span key={index}>{item.label}</span>
+							<span key={`legend-label-${item.label}-${index}`}>
+								{item.label}
+							</span>
 						))}
 					</div>
 				</div>
 			) : (
 				<div className="space-y-1.5">
 					{layer.legend.items.map((item, index) => (
-						<div key={index} className="flex items-center gap-2">
+						<div
+							key={`legend-item-${item.label}-${item.color}-${index}`}
+							className="flex items-center gap-2"
+						>
 							<div
 								className="w-4 h-4 rounded border border-slate-300"
 								style={{ backgroundColor: item.color }}

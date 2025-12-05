@@ -166,12 +166,13 @@ class ClerkAuthService:
             )
 
         # Clerk API endpoint for user search by email
-        clerk_api_url = f"https://api.clerk.com/v1/users?email_address[]={email}"
+        clerk_api_url = "https://api.clerk.com/v1/users"
 
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
                     clerk_api_url,
+                    params={"email_address": [email]},  # httpx handles proper URL encoding
                     headers={
                         "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}",
                         "Content-Type": "application/json",
@@ -181,9 +182,9 @@ class ClerkAuthService:
                 response.raise_for_status()
                 data = response.json()
 
-                # Clerk returns a list of users matching the email
-                # If list is not empty, user exists
-                return len(data) > 0
+                # Clerk API returns an array of users directly
+                # An empty array [] means no users found
+                return isinstance(data, list) and len(data) > 0
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 404:
@@ -198,6 +199,78 @@ class ClerkAuthService:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=f"Unable to communicate with Clerk API: {str(e)}",
                 )
+
+    async def get_user_by_clerk_id(self, clerk_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch user details from Clerk by their Clerk user ID.
+
+        This is useful when JWT doesn't contain email (Clerk's default behavior)
+        and we need to fetch user details to create a local user record.
+
+        Args:
+            clerk_id: Clerk user ID (e.g., "user_abc123")
+
+        Returns:
+            Dict with user details including email, or None if not found:
+            - id: Clerk user ID
+            - email: Primary email address
+            - username: Username (if set)
+            - first_name: First name
+            - last_name: Last name
+            - profile_image_url: Profile picture URL
+
+        Raises:
+            HTTPException: If unable to communicate with Clerk API
+        """
+        if not settings.CLERK_SECRET_KEY:
+            return None
+
+        clerk_api_url = f"https://api.clerk.com/v1/users/{clerk_id}"
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    clerk_api_url,
+                    headers={
+                        "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract primary email from email_addresses array
+                email = None
+                email_addresses = data.get("email_addresses", [])
+                primary_email_id = data.get("primary_email_address_id")
+
+                for email_obj in email_addresses:
+                    if email_obj.get("id") == primary_email_id:
+                        email = email_obj.get("email_address")
+                        break
+
+                # Fall back to first email if primary not found
+                if not email and email_addresses:
+                    email = email_addresses[0].get("email_address")
+
+                return {
+                    "id": data.get("id"),
+                    "email": email,
+                    "username": data.get("username"),
+                    "first_name": data.get("first_name"),
+                    "last_name": data.get("last_name"),
+                    "profile_image_url": data.get("image_url"),
+                }
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    return None
+                # Log but don't fail - we can still create user with placeholder
+                return None
+            except httpx.HTTPError:
+                # Network error - don't fail, just return None
+                return None
 
 
 # Factory function to create singleton instance

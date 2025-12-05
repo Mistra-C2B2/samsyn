@@ -351,7 +351,7 @@ function AppContent() {
 				for (const email of permissions.collaborators) {
 					try {
 						console.log(`➕ Adding collaborator: ${email}`);
-						await mapService.addCollaborator(createdMap.id, email, "viewer");
+						await mapService.addCollaborator(createdMap.id, email, "editor");
 						toast.success(`Added ${email} as collaborator`);
 					} catch (error) {
 						console.error(`❌ Failed to add ${email}:`, error);
@@ -416,7 +416,7 @@ function AppContent() {
 				if (!currentEmails.has(email)) {
 					try {
 						console.log(`➕ Adding collaborator: ${email}`);
-						await mapService.addCollaborator(mapId, email, "viewer");
+						await mapService.addCollaborator(mapId, email, "editor");
 						toast.success(`Added ${email} as collaborator`);
 					} catch (error) {
 						console.error(`❌ Failed to add ${email}:`, error);

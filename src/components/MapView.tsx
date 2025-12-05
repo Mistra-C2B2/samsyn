@@ -1,5 +1,3 @@
-import { MaplibreTerradrawControl } from "@watergis/maplibre-gl-terradraw";
-import "@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css";
 import maplibregl from "maplibre-gl";
 import {
 	forwardRef,
@@ -11,6 +9,10 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
 import { Legend } from "./Legend";
+
+// TerraDraw is loaded dynamically to avoid bundling issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let TerradrawControlClass: any = null;
 
 interface MapViewProps {
 	center: [number, number];
@@ -30,7 +32,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 	({ center, zoom, layers, basemap, onDrawComplete, drawingMode }, ref) => {
 		const mapContainerRef = useRef<HTMLDivElement>(null);
 		const mapRef = useRef<maplibregl.Map | null>(null);
-		const drawRef = useRef<MaplibreTerradrawControl | null>(null);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const drawRef = useRef<any>(null);
 		const onDrawCompleteRef = useRef(onDrawComplete);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
@@ -177,34 +180,47 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			// Add attribution control to bottom-left
 			map.addControl(new maplibregl.AttributionControl(), "bottom-left");
 
-			const initializeDrawControl = () => {
+			const initializeDrawControl = async () => {
 				if (mapLoadedRef.current) return; // Already initialized
 				mapLoadedRef.current = true;
 				setMapLoaded(true);
 
-				// Initialize terradraw control after map style is loaded
-				const draw = new MaplibreTerradrawControl({
-					modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
-					open: false,
-				});
+				try {
+					// Dynamically import TerraDraw to avoid bundling issues
+					if (!TerradrawControlClass) {
+						const module = await import("@watergis/maplibre-gl-terradraw");
+						TerradrawControlClass = module.MaplibreTerradrawControl;
+						// @ts-expect-error dynamic CSS import
+						await import("@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css");
+					}
 
-				map.addControl(draw, "top-right");
-				drawRef.current = draw;
-
-				// Handle draw events via TerraDraw instance
-				const terraDraw = draw.getTerraDrawInstance();
-				if (terraDraw) {
-					terraDraw.on("finish", (id: string | number) => {
-						if (onDrawCompleteRef.current) {
-							const snapshot = terraDraw.getSnapshot();
-							const feature = snapshot.find((f) => f.id === id);
-							if (feature) {
-								onDrawCompleteRef.current(feature);
-								// Clear the drawing after completion
-								terraDraw.clear();
-							}
-						}
+					// Initialize terradraw control after map style is loaded
+					const draw = new TerradrawControlClass({
+						modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+						open: false,
 					});
+
+					map.addControl(draw, "top-right");
+					drawRef.current = draw;
+
+					// Handle draw events via TerraDraw instance
+					const terraDraw = draw.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.on("finish", (id: string | number) => {
+							if (onDrawCompleteRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								const feature = snapshot.find((f: any) => f.id === id);
+								if (feature) {
+									onDrawCompleteRef.current(feature);
+									// Clear the drawing after completion
+									terraDraw.clear();
+								}
+							}
+						});
+					}
+				} catch (error) {
+					console.error("Failed to load TerraDraw:", error);
 				}
 			};
 
@@ -319,31 +335,34 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			map.setStyle(getBasemapStyle(basemap));
 
 			// Wait for style to load before re-adding layers and terradraw
-			map.once("style.load", () => {
+			map.once("style.load", async () => {
 				setMapLoaded(true);
 
-				// Re-add terradraw control after style change
-				const draw = new MaplibreTerradrawControl({
-					modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
-					open: false,
-				});
-
-				map.addControl(draw, "top-right");
-				drawRef.current = draw;
-
-				// Re-attach draw event handler
-				const terraDraw = draw.getTerraDrawInstance();
-				if (terraDraw) {
-					terraDraw.on("finish", (id: string | number) => {
-						if (onDrawCompleteRef.current) {
-							const snapshot = terraDraw.getSnapshot();
-							const feature = snapshot.find((f) => f.id === id);
-							if (feature) {
-								onDrawCompleteRef.current(feature);
-								terraDraw.clear();
-							}
-						}
+				// Re-add terradraw control after style change (class should already be loaded)
+				if (TerradrawControlClass) {
+					const draw = new TerradrawControlClass({
+						modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+						open: false,
 					});
+
+					map.addControl(draw, "top-right");
+					drawRef.current = draw;
+
+					// Re-attach draw event handler
+					const terraDraw = draw.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.on("finish", (id: string | number) => {
+							if (onDrawCompleteRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								const feature = snapshot.find((f: any) => f.id === id);
+								if (feature) {
+									onDrawCompleteRef.current(feature);
+									terraDraw.clear();
+								}
+							}
+						});
+					}
 				}
 			});
 		}, [basemap, mapLoaded]);

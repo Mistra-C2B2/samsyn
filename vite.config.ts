@@ -5,6 +5,11 @@
 
   export default defineConfig({
     plugins: [react()],
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'esnext',
+      },
+    },
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {

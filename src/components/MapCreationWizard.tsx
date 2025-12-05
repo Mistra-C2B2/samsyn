@@ -249,7 +249,7 @@ export function MapCreationWizard({
 
 									<Select
 										value={editAccess}
-										onValueChange={(value) =>
+										onValueChange={(value: string) =>
 											setEditAccess(
 												value as "private" | "collaborators" | "public",
 											)
@@ -399,7 +399,7 @@ export function MapCreationWizard({
 
 									<Select
 										value={visibility}
-										onValueChange={(value) =>
+										onValueChange={(value: string) =>
 											setVisibility(value as "private" | "public")
 										}
 									>

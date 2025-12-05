@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type {
 	CommentCreate,
 	CommentResponse,
@@ -103,5 +104,5 @@ export class CommentService {
  */
 export function useCommentService(): CommentService {
 	const client = useApiClient();
-	return new CommentService(client);
+	return useMemo(() => new CommentService(client), [client]);
 }

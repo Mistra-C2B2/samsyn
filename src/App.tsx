@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 import {
 	ClerkProvider,
 	SignedIn,
@@ -15,6 +14,7 @@ import {
 	Shield,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { AdminPanel } from "./components/AdminPanel";
 import { CommentSection } from "./components/CommentSection";
 import { LayerCreator } from "./components/LayerCreator";
@@ -533,13 +533,16 @@ function AppContent() {
 		mapViewRef.current?.startDrawing(type);
 	};
 
-	const handleDrawComplete = (feature: unknown) => {
-		if (drawCallback) {
-			drawCallback(feature);
-		}
-		setDrawingMode(null);
-		setDrawCallback(null);
-	};
+	const handleDrawComplete = useCallback(
+		(feature: unknown) => {
+			if (drawCallback) {
+				drawCallback(feature);
+			}
+			setDrawingMode(null);
+			setDrawCallback(null);
+		},
+		[drawCallback],
+	);
 
 	const handleEditLayer = (layer: Layer) => {
 		setEditingLayer(layer);

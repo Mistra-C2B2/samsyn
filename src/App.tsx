@@ -728,7 +728,7 @@ function AppContent() {
 			{/* Main Content */}
 			<div className="flex-1 flex relative">
 				{/* Map */}
-				<div className="flex-1">
+				<div className="flex-1 h-full">
 					{currentMap ? (
 						<MapView
 							ref={mapViewRef}

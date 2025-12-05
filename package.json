@@ -4,7 +4,6 @@
       "private": true,
       "dependencies": {
             "@clerk/clerk-react": "*",
-            "@mapbox/mapbox-gl-draw": "^1.5.1",
             "@radix-ui/react-accordion": "^1.2.3",
             "@radix-ui/react-alert-dialog": "^1.1.6",
             "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -47,6 +46,8 @@
             "recharts": "^2.15.2",
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
+            "terra-draw": "^1.20.0",
+            "terra-draw-maplibre-gl-adapter": "^1.2.3",
             "vaul": "^1.1.2"
       },
       "devDependencies": {
@@ -56,6 +57,7 @@
             "@types/react-dom": "^19.2.3",
             "@vitejs/plugin-react": "^5.1.1",
             "@vitejs/plugin-react-swc": "^3.10.2",
+            "@watergis/maplibre-gl-terradraw": "^1.9.6",
             "vite": "6.3.5"
       },
       "scripts": {

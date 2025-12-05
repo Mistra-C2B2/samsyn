@@ -1,4 +1,5 @@
-import MapboxDraw from "@mapbox/mapbox-gl-draw";
+import { MaplibreTerradrawControl } from "@watergis/maplibre-gl-terradraw";
+import "@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css";
 import maplibregl from "maplibre-gl";
 import {
 	forwardRef,
@@ -8,7 +9,6 @@ import {
 	useState,
 } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import type { Layer } from "../App";
 import { Legend } from "./Legend";
 
@@ -30,10 +30,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 	({ center, zoom, layers, basemap, onDrawComplete, drawingMode }, ref) => {
 		const mapContainerRef = useRef<HTMLDivElement>(null);
 		const mapRef = useRef<maplibregl.Map | null>(null);
-		const drawRef = useRef<MapboxDraw | null>(null);
+		const drawRef = useRef<MaplibreTerradrawControl | null>(null);
 		const onDrawCompleteRef = useRef(onDrawComplete);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
+		const mapLoadedRef = useRef(false);
 
 		// Keep the ref updated with the latest callback
 		useEffect(() => {
@@ -42,24 +43,36 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 		useImperativeHandle(ref, () => ({
 			startDrawing: (type: "Point" | "LineString" | "Polygon") => {
-				if (!drawRef.current) return;
+				if (!drawRef.current || !mapLoaded) return;
 
-				// Clear any existing drawings
-				drawRef.current.deleteAll();
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				// Only clear if there are existing features
+				const snapshot = terraDraw.getSnapshot();
+				if (snapshot.length > 0) {
+					terraDraw.clear();
+				}
 
 				// Start drawing based on type
 				if (type === "Point") {
-					drawRef.current.changeMode("draw_point");
+					terraDraw.setMode("point");
 				} else if (type === "LineString") {
-					drawRef.current.changeMode("draw_line_string");
+					terraDraw.setMode("linestring");
 				} else if (type === "Polygon") {
-					drawRef.current.changeMode("draw_polygon");
+					terraDraw.setMode("polygon");
 				}
 			},
 			cancelDrawing: () => {
-				if (drawRef.current) {
-					drawRef.current.changeMode("simple_select");
-					drawRef.current.deleteAll();
+				if (drawRef.current && mapLoaded) {
+					const terraDraw = drawRef.current.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.setMode("select");
+						const snapshot = terraDraw.getSnapshot();
+						if (snapshot.length > 0) {
+							terraDraw.clear();
+						}
+					}
 				}
 			},
 		}));
@@ -68,46 +81,84 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			if (!mapContainerRef.current || mapRef.current) return;
 
 			// Create basemap style based on basemap prop
-			const getBasemapStyle = (basemapType: string) => {
-				const basemaps: Record<string, { url: string; attribution: string }> = {
+			const getBasemapStyle = (basemapType: string): maplibregl.StyleSpecification => {
+				// Use raster tile sources for better compatibility
+				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
 					osm: {
-						url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors",
+						version: 8,
+						sources: {
+							osm: {
+								type: "raster",
+								tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [
+							{
+								id: "osm",
+								type: "raster",
+								source: "osm",
+							},
+						],
 					},
 					"carto-light": {
-						url: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
 					},
 					"carto-dark": {
-						url: "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
 					},
 					voyager: {
-						url: "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
 					},
 				};
 
-				const basemap = basemaps[basemapType] || basemaps.osm;
-
-				return {
-					version: 8,
-					sources: {
-						"raster-tiles": {
-							type: "raster",
-							tiles: [basemap.url],
-							tileSize: 256,
-							attribution: basemap.attribution,
-						},
-					},
-					layers: [
-						{
-							id: "background",
-							type: "raster",
-							source: "raster-tiles",
-						},
-					],
-				};
+				return rasterStyles[basemapType] || rasterStyles.osm;
 			};
 
 			const {
@@ -126,85 +177,61 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			// Add attribution control to bottom-left
 			map.addControl(new maplibregl.AttributionControl(), "bottom-left");
 
-			// Initialize draw control
-			const draw = new MapboxDraw({
-				displayControlsDefault: false,
-				controls: {},
-				styles: [
-					// Polygon fill
-					{
-						id: "gl-draw-polygon-fill",
-						type: "fill",
-						paint: {
-							"fill-color": "#3b82f6",
-							"fill-opacity": 0.3,
-						},
-					},
-					// Polygon outline
-					{
-						id: "gl-draw-polygon-stroke-active",
-						type: "line",
-						paint: {
-							"line-color": "#3b82f6",
-							"line-width": 2,
-						},
-					},
-					// Line
-					{
-						id: "gl-draw-line",
-						type: "line",
-						paint: {
-							"line-color": "#3b82f6",
-							"line-width": 2,
-						},
-					},
-					// Point
-					{
-						id: "gl-draw-point",
-						type: "circle",
-						paint: {
-							"circle-radius": 6,
-							"circle-color": "#3b82f6",
-						},
-					},
-					// Vertex points
-					{
-						id: "gl-draw-polygon-and-line-vertex-active",
-						type: "circle",
-						paint: {
-							"circle-radius": 5,
-							"circle-color": "#ffffff",
-							"circle-stroke-width": 2,
-							"circle-stroke-color": "#3b82f6",
-						},
-					},
-				],
-			});
-
-			map.addControl(draw);
-			drawRef.current = draw;
-
-			// Handle draw create event
-			map.on("draw.create", (e: unknown) => {
-				const event = e as Record<string, unknown>;
-				if (
-					onDrawCompleteRef.current &&
-					event.features &&
-					(event.features as unknown[])[0]
-				) {
-					onDrawCompleteRef.current((event.features as unknown[])[0]);
-					// Clear the drawing after completion
-					draw.deleteAll();
-				}
-			});
-
-			map.on("load", () => {
+			const initializeDrawControl = () => {
+				if (mapLoadedRef.current) return; // Already initialized
+				mapLoadedRef.current = true;
 				setMapLoaded(true);
-			});
+
+				// Initialize terradraw control after map style is loaded
+				const draw = new MaplibreTerradrawControl({
+					modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+					open: false,
+				});
+
+				map.addControl(draw, "top-right");
+				drawRef.current = draw;
+
+				// Handle draw events via TerraDraw instance
+				const terraDraw = draw.getTerraDrawInstance();
+				if (terraDraw) {
+					terraDraw.on("finish", (id: string | number) => {
+						if (onDrawCompleteRef.current) {
+							const snapshot = terraDraw.getSnapshot();
+							const feature = snapshot.find((f) => f.id === id);
+							if (feature) {
+								onDrawCompleteRef.current(feature);
+								// Clear the drawing after completion
+								terraDraw.clear();
+							}
+						}
+					});
+				}
+			};
+
+			// Listen for map load event
+			map.on("load", initializeDrawControl);
+
+			// Fallback: poll for style loaded state in case load event is missed
+			const checkLoaded = () => {
+				if (map.isStyleLoaded() && !mapLoadedRef.current) {
+					initializeDrawControl();
+				}
+			};
+
+			const timeoutId = setTimeout(checkLoaded, 100);
+			const intervalId = setInterval(() => {
+				if (mapLoadedRef.current) {
+					clearInterval(intervalId);
+				} else {
+					checkLoaded();
+				}
+			}, 500);
 
 			mapRef.current = map;
 
 			return () => {
+				clearTimeout(timeoutId);
+				clearInterval(intervalId);
 				map.remove();
 				mapRef.current = null;
 				drawRef.current = null;
@@ -227,53 +254,97 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 			const map = mapRef.current;
 
-			const getBasemapStyle = (basemapType: string) => {
-				const basemaps: Record<string, { url: string; attribution: string }> = {
+			// Use raster tile sources for better compatibility
+			const getBasemapStyle = (basemapType: string): maplibregl.StyleSpecification => {
+				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
 					osm: {
-						url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors",
+						version: 8,
+						sources: {
+							osm: {
+								type: "raster",
+								tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [{ id: "osm", type: "raster", source: "osm" }],
 					},
 					"carto-light": {
-						url: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
 					},
 					"carto-dark": {
-						url: "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
 					},
 					voyager: {
-						url: "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-						attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
 					},
 				};
 
-				const basemap = basemaps[basemapType] || basemaps.osm;
-
-				return {
-					version: 8,
-					sources: {
-						"raster-tiles": {
-							type: "raster",
-							tiles: [basemap.url],
-							tileSize: 256,
-							attribution: basemap.attribution,
-						},
-					},
-					layers: [
-						{
-							id: "background",
-							type: "raster",
-							source: "raster-tiles",
-						},
-					],
-				};
+				return rasterStyles[basemapType] || rasterStyles.osm;
 			};
+
+			// Remove existing terradraw control before style change
+			if (drawRef.current) {
+				map.removeControl(drawRef.current);
+				drawRef.current = null;
+			}
 
 			map.setStyle(getBasemapStyle(basemap));
 
-			// Wait for style to load before re-adding layers
+			// Wait for style to load before re-adding layers and terradraw
 			map.once("style.load", () => {
 				setMapLoaded(true);
+
+				// Re-add terradraw control after style change
+				const draw = new MaplibreTerradrawControl({
+					modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+					open: false,
+				});
+
+				map.addControl(draw, "top-right");
+				drawRef.current = draw;
+
+				// Re-attach draw event handler
+				const terraDraw = draw.getTerraDrawInstance();
+				if (terraDraw) {
+					terraDraw.on("finish", (id: string | number) => {
+						if (onDrawCompleteRef.current) {
+							const snapshot = terraDraw.getSnapshot();
+							const feature = snapshot.find((f) => f.id === id);
+							if (feature) {
+								onDrawCompleteRef.current(feature);
+								terraDraw.clear();
+							}
+						}
+					});
+				}
 			});
 		}, [basemap, mapLoaded]);
 

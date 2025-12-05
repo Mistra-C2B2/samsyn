@@ -31,7 +31,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const mapContainerRef = useRef<HTMLDivElement>(null);
 		const mapRef = useRef<maplibregl.Map | null>(null);
 		const drawRef = useRef<MapboxDraw | null>(null);
+		const onDrawCompleteRef = useRef(onDrawComplete);
+		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
+
+		// Keep the ref updated with the latest callback
+		useEffect(() => {
+			onDrawCompleteRef.current = onDrawComplete;
+		}, [onDrawComplete]);
 
 		useImperativeHandle(ref, () => ({
 			startDrawing: (type: "Point" | "LineString" | "Polygon") => {
@@ -103,11 +110,16 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				};
 			};
 
+			const {
+				center: initCenter,
+				zoom: initZoom,
+				basemap: initBasemap,
+			} = initialPropsRef.current;
 			const map = new maplibregl.Map({
 				container: mapContainerRef.current,
-				style: getBasemapStyle(basemap),
-				center: [center[1], center[0]], // uses [lng, lat]
-				zoom: zoom - 1,
+				style: getBasemapStyle(initBasemap),
+				center: [initCenter[1], initCenter[0]], // uses [lng, lat]
+				zoom: initZoom - 1,
 				attributionControl: false, // Disable default attribution
 			});
 
@@ -176,11 +188,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			map.on("draw.create", (e: unknown) => {
 				const event = e as Record<string, unknown>;
 				if (
-					onDrawComplete &&
+					onDrawCompleteRef.current &&
 					event.features &&
 					(event.features as unknown[])[0]
 				) {
-					onDrawComplete((event.features as unknown[])[0]);
+					onDrawCompleteRef.current((event.features as unknown[])[0]);
 					// Clear the drawing after completion
 					draw.deleteAll();
 				}
@@ -197,7 +209,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				mapRef.current = null;
 				drawRef.current = null;
 			};
-		}, [center, zoom, onDrawComplete, basemap]);
+			// eslint-disable-next-line react-hooks/exhaustive-deps
+		}, []);
+
+		// Handle center/zoom changes when switching maps
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+			map.setCenter([center[1], center[0]]);
+			map.setZoom(zoom - 1);
+		}, [center, zoom, mapLoaded]);
 
 		// Handle basemap changes
 		useEffect(() => {

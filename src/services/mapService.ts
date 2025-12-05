@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type {
 	MapCollaboratorCreate,
 	MapCollaboratorResponse,
@@ -204,5 +205,5 @@ export class MapService {
  */
 export function useMapService(): MapService {
 	const client = useApiClient();
-	return new MapService(client);
+	return useMemo(() => new MapService(client), [client]);
 }

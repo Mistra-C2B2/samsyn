@@ -19,7 +19,7 @@ export class ApiClient {
 
 		const token = await this.getToken();
 		if (token) {
-			headers["Authorization"] = `Bearer ${token}`;
+			headers.Authorization = `Bearer ${token}`;
 		}
 
 		return headers;

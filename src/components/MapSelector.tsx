@@ -1,5 +1,13 @@
 import { useUser } from "@clerk/clerk-react";
-import { Loader2, Lock, Map, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+	Loader2,
+	Lock,
+	Map as MapIcon,
+	Pencil,
+	Plus,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useState } from "react";
 import type { UserMap } from "../App";
 import { MapCreationWizard } from "./MapCreationWizard";
@@ -108,7 +116,7 @@ export function MapSelector({
 			try {
 				await onDeleteMap(deletingMap.id);
 				setDeletingMap(null);
-			} catch (error) {
+			} catch {
 				// Error is already shown in toast by App.tsx
 				// Just close the dialog so user can see the error
 				setDeletingMap(null);
@@ -156,8 +164,9 @@ export function MapSelector({
 									}`}
 								>
 									<div className="flex items-start gap-3">
-										<div
-											className="flex-1 flex items-start gap-3"
+										<button
+											type="button"
+											className="flex-1 flex items-start gap-3 bg-transparent border-0 p-0 text-left cursor-pointer"
 											onClick={() => {
 												onSelectMap(map.id);
 												onOpenLayerManager();
@@ -166,7 +175,7 @@ export function MapSelector({
 											<div
 												className={`p-2 rounded ${map.id === currentMapId ? "bg-teal-100" : "bg-slate-100"}`}
 											>
-												<Map className="w-4 h-4" />
+												<MapIcon className="w-4 h-4" />
 											</div>
 											<div className="flex-1 min-w-0">
 												<div className="flex items-center gap-2">
@@ -188,7 +197,7 @@ export function MapSelector({
 													{map.layers.length !== 1 ? "s" : ""}
 												</p>
 											</div>
-										</div>
+										</button>
 										{isSignedIn && (canEdit || canDelete) && (
 											<div className="flex flex-col gap-1">
 												{canEdit && (

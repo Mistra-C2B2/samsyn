@@ -5,8 +5,7 @@ import {
 	Layers,
 	Lock,
 	Mail,
-	Map,
-	MapPin,
+	Map as MapIcon,
 	Plus,
 	Users,
 	X,
@@ -93,7 +92,7 @@ export function MapCreationWizard({
 			setCollaborators([]);
 			setVisibility("private");
 		}
-	}, [editMode, existingMap, isOpen]);
+	}, [editMode, existingMap]);
 
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [formError, setFormError] = useState<string | null>(null);
@@ -144,11 +143,11 @@ export function MapCreationWizard({
 				} else {
 					handleClose();
 				}
-			} catch (error: any) {
+			} catch (error: unknown) {
 				// Display error in the form instead of relying on toast
 				console.error("❌ MapCreationWizard: Caught error:", error);
 				const errorMessage =
-					error?.message || "An error occurred while saving the map";
+					(error as Error)?.message || "An error occurred while saving the map";
 				console.log("📝 Setting formError to:", errorMessage);
 				setFormError(errorMessage);
 			}
@@ -181,7 +180,7 @@ export function MapCreationWizard({
 						<DialogHeader>
 							<div className="flex items-center gap-3 mb-2">
 								<div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center bg-[rgba(255,255,255,0.1)]">
-									<Map className="w-6 h-6" />
+									<MapIcon className="w-6 h-6" />
 								</div>
 								<div>
 									<DialogTitle>

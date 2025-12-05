@@ -430,10 +430,14 @@ function SettingsDialogContent({
 								depend on will be preserved in an anonymized state.
 							</p>
 							<div className="pt-2">
-								<label className="text-sm text-slate-700 block mb-2">
+								<label
+									htmlFor="deleteConfirm"
+									className="text-sm text-slate-700 block mb-2"
+								>
 									Type <span className="font-semibold">DELETE</span> to confirm:
 								</label>
 								<Input
+									id="deleteConfirm"
 									value={deleteConfirmText}
 									onChange={(e) => setDeleteConfirmText(e.target.value)}
 									placeholder="DELETE"
@@ -465,15 +469,15 @@ export function SettingsDialog({
 	onOpenChange,
 	isClerkConfigured = false,
 }: SettingsDialogProps) {
+	// Fallback state when Clerk is not configured - must be declared at top level
+	const [language, setLanguage] = useState("en");
+	const [textSize, setTextSize] = useState("medium");
+	const [darkMode, setDarkMode] = useState(false);
+
 	// Only use Clerk hook if Clerk is configured
 	if (isClerkConfigured) {
 		return <SettingsDialogContent open={open} onOpenChange={onOpenChange} />;
 	}
-
-	// Fallback when Clerk is not configured
-	const [language, setLanguage] = useState("en");
-	const [textSize, setTextSize] = useState("medium");
-	const [darkMode, setDarkMode] = useState(false);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

@@ -17,7 +17,7 @@ interface MapViewProps {
 	zoom: number;
 	layers: Layer[];
 	basemap: string;
-	onDrawComplete?: (feature: any) => void;
+	onDrawComplete?: (feature: unknown) => void;
 	drawingMode?: "Point" | "LineString" | "Polygon" | null;
 }
 
@@ -29,8 +29,8 @@ export interface MapViewRef {
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
 	({ center, zoom, layers, basemap, onDrawComplete, drawingMode }, ref) => {
 		const mapContainerRef = useRef<HTMLDivElement>(null);
-		const mapRef = useRef<any>(null);
-		const drawRef = useRef<any>(null);
+		const mapRef = useRef<maplibregl.Map | null>(null);
+		const drawRef = useRef<MapboxDraw | null>(null);
 		const [mapLoaded, setMapLoaded] = useState(false);
 
 		useImperativeHandle(ref, () => ({
@@ -81,7 +81,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					},
 				};
 
-				const basemap = basemaps[basemapType] || basemaps["osm"];
+				const basemap = basemaps[basemapType] || basemaps.osm;
 
 				return {
 					version: 8,
@@ -173,9 +173,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			drawRef.current = draw;
 
 			// Handle draw create event
-			map.on("draw.create", (e: any) => {
-				if (onDrawComplete && e.features && e.features[0]) {
-					onDrawComplete(e.features[0]);
+			map.on("draw.create", (e: unknown) => {
+				const event = e as Record<string, unknown>;
+				if (
+					onDrawComplete &&
+					event.features &&
+					(event.features as unknown[])[0]
+				) {
+					onDrawComplete((event.features as unknown[])[0]);
 					// Clear the drawing after completion
 					draw.deleteAll();
 				}
@@ -192,7 +197,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				mapRef.current = null;
 				drawRef.current = null;
 			};
-		}, []);
+		}, [center, zoom, onDrawComplete, basemap]);
 
 		// Handle basemap changes
 		useEffect(() => {
@@ -220,7 +225,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					},
 				};
 
-				const basemap = basemaps[basemapType] || basemaps["osm"];
+				const basemap = basemaps[basemapType] || basemaps.osm;
 
 				return {
 					version: 8,
@@ -248,7 +253,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			map.once("style.load", () => {
 				setMapLoaded(true);
 			});
-		}, [basemap]);
+		}, [basemap, mapLoaded]);
 
 		useEffect(() => {
 			if (!mapRef.current || !mapLoaded) return;
@@ -314,13 +319,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					// Add lines with different styles
 					const features = layer.data.features || [];
 					const hasLineStyles = features.some(
-						(f: any) => f.properties?.lineStyle,
+						(f: unknown) =>
+							(f as Record<string, unknown>).properties?.lineStyle,
 					);
 
 					if (hasLineStyles) {
 						// Create separate layers for each line style
 						["solid", "dashed", "dotted"].forEach((style) => {
-							const paintConfig: any = {
+							const paintConfig: Record<string, unknown> = {
 								"line-color": fillColor,
 								"line-width": 2,
 								"line-opacity": layer.opacity,
@@ -405,8 +411,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					});
 
 					// Add popups on click
-					map.on("click", `${layer.id}-fill`, (e: any) => {
-						if (e.features && e.features[0]) {
+					map.on("click", `${layer.id}-fill`, (e: unknown) => {
+						if (e.features?.[0]) {
 							const feature = e.features[0];
 							const name = feature.properties.name || "Unnamed";
 							const description = feature.properties.description || "";
@@ -419,8 +425,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						}
 					});
 
-					map.on("click", `${layer.id}-circle`, (e: any) => {
-						if (e.features && e.features[0]) {
+					map.on("click", `${layer.id}-circle`, (e: unknown) => {
+						if (e.features?.[0]) {
 							const feature = e.features[0];
 							const name = feature.properties.name || "Unnamed";
 							const description = feature.properties.description || "";
@@ -447,16 +453,19 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						map.getCanvas().style.cursor = "";
 					});
 				} else if (layer.type === "heatmap" && layer.data) {
-					const features = layer.data.map((point: any) => ({
-						type: "Feature",
-						geometry: {
-							type: "Point",
-							coordinates: [point.lng, point.lat],
-						},
-						properties: {
-							intensity: point.intensity,
-						},
-					}));
+					const features = layer.data.map((point: unknown) => {
+						const p = point as Record<string, unknown>;
+						return {
+							type: "Feature",
+							geometry: {
+								type: "Point",
+								coordinates: [p.lng, p.lat],
+							},
+							properties: {
+								intensity: p.intensity,
+							},
+						};
+					});
 
 					map.addSource(layer.id, {
 						type: "geojson",

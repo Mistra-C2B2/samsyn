@@ -42,7 +42,7 @@ export function TimeSlider({
 			Math.max(0, Math.min(100, newStartValue)),
 			Math.max(0, Math.min(100, newEndValue)),
 		]);
-	}, [currentRange, effectiveStartDate, effectiveEndDate, totalDuration]);
+	}, [currentRange, effectiveStartDate, totalDuration]);
 
 	const handleSliderChange = (values: number[]) => {
 		setSliderValues(values);
@@ -94,7 +94,7 @@ export function TimeSlider({
 
 	const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newDate = new Date(e.target.value);
-		if (!isNaN(newDate.getTime()) && newDate < customEndDate) {
+		if (!Number.isNaN(newDate.getTime()) && newDate < customEndDate) {
 			setCustomStartDate(newDate);
 			// Adjust current range if it's outside new bounds
 			if (currentRange[0] < newDate) {
@@ -105,7 +105,7 @@ export function TimeSlider({
 
 	const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newDate = new Date(e.target.value);
-		if (!isNaN(newDate.getTime()) && newDate > customStartDate) {
+		if (!Number.isNaN(newDate.getTime()) && newDate > customStartDate) {
 			setCustomEndDate(newDate);
 			// Adjust current range if it's outside new bounds
 			if (currentRange[1] > newDate) {

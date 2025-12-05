@@ -77,6 +77,7 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 			<div className="flex items-start gap-3">
 				{hasReplies && (
 					<button
+						type="button"
 						onClick={() => setCollapsed(!collapsed)}
 						className="p-0 h-auto hover:bg-transparent flex-shrink-0 mt-1 text-slate-400 hover:text-slate-600"
 					>
@@ -111,7 +112,7 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 			{/* Nested replies */}
 			{hasReplies && !collapsed && (
 				<div className="ml-8 pl-4 border-l-2 border-slate-200 space-y-3">
-					{comment.replies!.map((reply) => (
+					{comment.replies?.map((reply) => (
 						<CommentItem
 							key={reply.id}
 							comment={reply}
@@ -195,6 +196,7 @@ export function CommentSection({
 			strokeLinecap="round"
 			strokeLinejoin="round"
 			className="flex-shrink-0"
+			aria-hidden="true"
 		>
 			<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
 			<line x1="9" y1="3" x2="9" y2="18" />
@@ -214,6 +216,7 @@ export function CommentSection({
 			strokeLinecap="round"
 			strokeLinejoin="round"
 			className="flex-shrink-0"
+			aria-hidden="true"
 		>
 			<polygon points="12 2 2 7 12 12 22 7 12 2" />
 			<polyline points="2 17 12 22 22 17" />
@@ -239,11 +242,13 @@ export function CommentSection({
 
 		// Second pass: organize into tree structure
 		comments.forEach((comment) => {
-			const commentWithReplies = commentMap.get(comment.id)!;
+			const commentWithReplies = commentMap.get(comment.id);
+			if (!commentWithReplies) return;
+
 			if (comment.parent_id) {
 				const parent = commentMap.get(comment.parent_id);
-				if (parent) {
-					parent.replies!.push(commentWithReplies);
+				if (parent?.replies) {
+					parent.replies.push(commentWithReplies);
 				} else {
 					// If parent not found, treat as root comment
 					rootComments.push(commentWithReplies);
@@ -315,9 +320,11 @@ export function CommentSection({
 
 			{/* Context Selector */}
 			<div className="px-4 py-3 border-b border-slate-200 space-y-2">
-				<label className="text-xs text-slate-600">Commenting on:</label>
+				<label htmlFor="commentTarget" className="text-xs text-slate-600">
+					Commenting on:
+				</label>
 				<Select onValueChange={setCommentTarget} value={commentTarget}>
-					<SelectTrigger className="w-full">
+					<SelectTrigger id="commentTarget" className="w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

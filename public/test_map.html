@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TerraDraw Test</title>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.9.6/dist/maplibre-gl-terradraw.umd.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.9.6/dist/maplibre-gl-terradraw.css"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+      const map = new maplibregl.Map({
+        container: "map",
+        style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+        center: [0, 0],
+        zoom: 2,
+      });
+
+      const draw = new MaplibreTerradrawControl.MaplibreTerradrawControl({
+        modes: [
+          "point",
+          "linestring",
+          "polygon",
+          "rectangle",
+          "circle",
+          "freehand",
+          "select",
+          "delete",
+        ],
+        open: true,
+      });
+
+      map.addControl(draw, "top-left");
+    </script>
+  </body>
+</html>

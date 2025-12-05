@@ -51,6 +51,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const terraDraw = drawRef.current.getTerraDrawInstance();
 				if (!terraDraw) return;
 
+				// Enable TerraDraw if not already enabled
+				if (!terraDraw.enabled) {
+					terraDraw.start();
+				}
+
 				// Only clear if there are existing features
 				const snapshot = terraDraw.getSnapshot();
 				if (snapshot.length > 0) {

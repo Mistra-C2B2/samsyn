@@ -202,9 +202,13 @@ class MapService:
         Check if user can view map.
 
         Permission logic:
-        - private: Only creator can view
-        - collaborators: Creator + collaborators can view
+        - private: Only creator and explicitly added collaborators can view
+        - collaborators: Creator + collaborators can view (same as private for viewing)
         - public: Anyone can view (including unauthenticated users)
+
+        Note: Collaborators can ALWAYS view maps they've been added to, regardless
+        of the view_permission setting. The view_permission controls whether
+        non-collaborators can view the map.
 
         Args:
             map_id: Map UUID
@@ -230,24 +234,18 @@ class MapService:
         if map_obj.created_by == user_id:
             return True
 
-        # For private and collaborators, check if user is a collaborator
-        if map_obj.view_permission in ["private", "collaborators"]:
-            is_collaborator = (
-                self.db.query(MapCollaborator)
-                .filter(
-                    MapCollaborator.map_id == map_id,
-                    MapCollaborator.user_id == user_id,
-                )
-                .first()
+        # Check if user is a collaborator - collaborators can always view
+        is_collaborator = (
+            self.db.query(MapCollaborator)
+            .filter(
+                MapCollaborator.map_id == map_id,
+                MapCollaborator.user_id == user_id,
             )
+            .first()
+        )
 
-            # Private: only owner (already checked above)
-            if map_obj.view_permission == "private":
-                return False
-
-            # Collaborators: owner or collaborator
-            if map_obj.view_permission == "collaborators":
-                return is_collaborator is not None
+        if is_collaborator is not None:
+            return True
 
         return False
 

@@ -76,6 +76,17 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                 "user_id": collab.user_id,
                 "role": collab.role,
                 "created_at": collab.created_at,
+                "user": {
+                    "id": collab.user.id,
+                    "clerk_id": collab.user.clerk_id,
+                    "email": collab.user.email,
+                    "username": collab.user.username,
+                    "first_name": collab.user.first_name,
+                    "last_name": collab.user.last_name,
+                    "profile_image_url": collab.user.profile_image_url,
+                    "created_at": collab.user.created_at,
+                    "updated_at": collab.user.updated_at,
+                } if collab.user else None,
             }
             for collab in map_obj.collaborators
         ],
@@ -111,6 +122,17 @@ def serialize_collaborator_to_dict(collaborator):
         "user_id": collaborator.user_id,
         "role": collaborator.role,
         "created_at": collaborator.created_at,
+        "user": {
+            "id": collaborator.user.id,
+            "clerk_id": collaborator.user.clerk_id,
+            "email": collaborator.user.email,
+            "username": collaborator.user.username,
+            "first_name": collaborator.user.first_name,
+            "last_name": collaborator.user.last_name,
+            "profile_image_url": collaborator.user.profile_image_url,
+            "created_at": collaborator.user.created_at,
+            "updated_at": collaborator.user.updated_at,
+        } if collaborator.user else None,
     }
 
 
@@ -419,21 +441,25 @@ async def add_collaborator(
     """
     service = MapService(db)
 
-    # Step 1: Validate that the email exists in Clerk
-    email_exists = await auth_service.validate_user_email(collaborator_data.email)
-    if not email_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email '{collaborator_data.email}' not found in Clerk. Please ensure the user has signed up.",
-        )
-
-    # Step 2: Look up the user in our database by email
+    # Step 1: Look up the user in our database by email first
+    # This is the most common case and avoids unnecessary Clerk API calls
     user_to_add = db.query(User).filter(User.email == collaborator_data.email).first()
+
     if not user_to_add:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email '{collaborator_data.email}' exists in Clerk but has not logged into this application yet. Please ask them to sign in first.",
-        )
+        # Step 2: User not in our database - check if they exist in Clerk
+        # to provide a more helpful error message
+        email_exists_in_clerk = await auth_service.validate_user_email(collaborator_data.email)
+
+        if email_exists_in_clerk:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with email '{collaborator_data.email}' exists in Clerk but has not logged into this application yet. Please ask them to sign in first.",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with email '{collaborator_data.email}' not found. Please ensure the user has signed up.",
+            )
 
     # Step 3: Add the collaborator using the user ID
     collaborator = service.add_collaborator(

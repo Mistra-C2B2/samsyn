@@ -70,15 +70,37 @@ async def get_current_user_or_sync(
     if user:
         return user
 
-    # User not in DB yet - create from JWT claims
+    # User not in DB yet - create from JWT claims or Clerk API
     # This handles the case where webhook hasn't fired yet
+
+    # First, try to get email from JWT payload
+    email = payload.get("email")
+    username = payload.get("username")
+    first_name = payload.get("first_name")
+    last_name = payload.get("last_name")
+    profile_image_url = payload.get("picture")
+
+    # If email not in JWT (Clerk's default), fetch from Clerk API
+    if not email:
+        clerk_user = await auth_service.get_user_by_clerk_id(clerk_id)
+        if clerk_user:
+            email = clerk_user.get("email")
+            username = username or clerk_user.get("username")
+            first_name = first_name or clerk_user.get("first_name")
+            last_name = last_name or clerk_user.get("last_name")
+            profile_image_url = profile_image_url or clerk_user.get("profile_image_url")
+
+    # Fall back to placeholder only if Clerk API also failed
+    if not email:
+        email = f"{clerk_id}@unknown.com"
+
     user_data = UserCreate(
         clerk_id=clerk_id,
-        email=payload.get("email", f"{clerk_id}@unknown.com"),
-        username=payload.get("username"),
-        first_name=payload.get("first_name"),
-        last_name=payload.get("last_name"),
-        profile_image_url=payload.get("picture"),
+        email=email,
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
+        profile_image_url=profile_image_url,
     )
 
     # Use get_or_create to handle race conditions

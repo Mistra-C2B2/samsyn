@@ -128,7 +128,9 @@ export class MapService {
 					| "private"
 					| "collaborators"
 					| "public",
-				collaborators: mapResponse.collaborators.map((c) => c.user_id),
+				collaborators: mapResponse.collaborators
+					.map((c) => c.user?.email)
+					.filter((email): email is string => !!email),
 				visibility:
 					mapResponse.view_permission === "public" ? "public" : "private",
 			},

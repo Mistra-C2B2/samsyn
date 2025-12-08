@@ -86,6 +86,11 @@ export function CategorySelector({
 		);
 	}
 
+	// Include current value if it's not in existingCategories (newly added category)
+	const allCategories = value && !existingCategories.includes(value)
+		? [value, ...existingCategories]
+		: existingCategories;
+
 	return (
 		<div className="space-y-2">
 			<Label htmlFor="category">{label}</Label>
@@ -97,8 +102,8 @@ export function CategorySelector({
 					<SelectItem value="__none__">
 						<span className="text-slate-400">No category</span>
 					</SelectItem>
-					{existingCategories.length > 0 &&
-						existingCategories.map((cat) => (
+					{allCategories.length > 0 &&
+						allCategories.map((cat) => (
 							<SelectItem key={cat} value={cat}>
 								{cat}
 							</SelectItem>

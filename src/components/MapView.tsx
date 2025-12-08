@@ -26,6 +26,7 @@ interface MapViewProps {
 export interface MapViewRef {
 	startDrawing: (type: "Point" | "LineString" | "Polygon") => void;
 	cancelDrawing: () => void;
+	clearDrawings: () => void;
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
@@ -83,13 +84,27 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					}
 				}
 			},
+			clearDrawings: () => {
+				if (drawRef.current && mapLoaded) {
+					const terraDraw = drawRef.current.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.setMode("select");
+						const snapshot = terraDraw.getSnapshot();
+						if (snapshot.length > 0) {
+							terraDraw.clear();
+						}
+					}
+				}
+			},
 		}));
 
 		useEffect(() => {
 			if (!mapContainerRef.current || mapRef.current) return;
 
 			// Create basemap style based on basemap prop
-			const getBasemapStyle = (basemapType: string): maplibregl.StyleSpecification => {
+			const getBasemapStyle = (
+				basemapType: string,
+			): maplibregl.StyleSpecification => {
 				// Use raster tile sources for better compatibility
 				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
 					osm: {
@@ -115,7 +130,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO",
 							},
@@ -133,7 +150,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO",
 							},
@@ -151,7 +170,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
 							},
@@ -196,12 +217,23 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						const module = await import("@watergis/maplibre-gl-terradraw");
 						TerradrawControlClass = module.MaplibreTerradrawControl;
 						// @ts-expect-error dynamic CSS import
-						await import("@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css");
+						await import(
+							"@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css"
+						);
 					}
 
 					// Initialize terradraw control after map style is loaded
 					const draw = new TerradrawControlClass({
-						modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+						modes: [
+							"point",
+							"linestring",
+							"polygon",
+							"rectangle",
+							"circle",
+							"freehand",
+							"select",
+							"delete",
+						],
 						open: false,
 					});
 
@@ -218,8 +250,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								const feature = snapshot.find((f: any) => f.id === id);
 								if (feature) {
 									onDrawCompleteRef.current(feature);
-									// Clear the drawing after completion
-									terraDraw.clear();
+									// Don't clear here - keep the drawing visible until the layer is created
+									// The drawing will be cleared when startDrawing is called again or when cancelDrawing is called
 								}
 							}
 						});
@@ -276,7 +308,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			const map = mapRef.current;
 
 			// Use raster tile sources for better compatibility
-			const getBasemapStyle = (basemapType: string): maplibregl.StyleSpecification => {
+			const getBasemapStyle = (
+				basemapType: string,
+			): maplibregl.StyleSpecification => {
 				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
 					osm: {
 						version: 8,
@@ -295,7 +329,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO",
 							},
@@ -307,7 +343,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO",
 							},
@@ -319,7 +357,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						sources: {
 							carto: {
 								type: "raster",
-								tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
+								tiles: [
+									"https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+								],
 								tileSize: 256,
 								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
 							},
@@ -346,7 +386,16 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				// Re-add terradraw control after style change (class should already be loaded)
 				if (TerradrawControlClass) {
 					const draw = new TerradrawControlClass({
-						modes: ["point", "linestring", "polygon", "rectangle", "circle", "freehand", "select", "delete"],
+						modes: [
+							"point",
+							"linestring",
+							"polygon",
+							"rectangle",
+							"circle",
+							"freehand",
+							"select",
+							"delete",
+						],
 						open: false,
 					});
 
@@ -363,7 +412,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								const feature = snapshot.find((f: any) => f.id === id);
 								if (feature) {
 									onDrawCompleteRef.current(feature);
-									terraDraw.clear();
+									// Don't clear here - keep the drawing visible until the layer is created
 								}
 							}
 						});
@@ -412,6 +461,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						data: layer.data,
 					});
 
+					// Normalize opacity: convert from 0-100 range to 0-1 range
+					// If opacity is already <= 1, use as-is; otherwise divide by 100
+					const normalizedOpacity =
+						layer.opacity > 1 ? layer.opacity / 100 : layer.opacity;
+
 					// Determine fill color based on intensity or use layer color
 					const firstFeature = layer.data.features?.[0];
 					const intensity = firstFeature?.properties?.intensity;
@@ -429,7 +483,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						filter: ["==", ["geometry-type"], "Polygon"],
 						paint: {
 							"fill-color": fillColor,
-							"fill-opacity": layer.opacity * 0.5,
+							"fill-opacity": normalizedOpacity * 0.5,
 						},
 					});
 
@@ -446,7 +500,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							const paintConfig: Record<string, unknown> = {
 								"line-color": fillColor,
 								"line-width": 2,
-								"line-opacity": layer.opacity,
+								"line-opacity": normalizedOpacity,
 							};
 
 							// Only add line-dasharray for non-solid styles
@@ -490,7 +544,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							paint: {
 								"line-color": fillColor,
 								"line-width": 2,
-								"line-opacity": layer.opacity,
+								"line-opacity": normalizedOpacity,
 							},
 						});
 					} else {
@@ -507,7 +561,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							paint: {
 								"line-color": fillColor,
 								"line-width": 2,
-								"line-opacity": layer.opacity,
+								"line-opacity": normalizedOpacity,
 							},
 						});
 					}
@@ -521,7 +575,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						paint: {
 							"circle-radius": 8,
 							"circle-color": fillColor,
-							"circle-opacity": layer.opacity,
+							"circle-opacity": normalizedOpacity,
 							"circle-stroke-width": 2,
 							"circle-stroke-color": "#ffffff",
 						},
@@ -570,6 +624,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						map.getCanvas().style.cursor = "";
 					});
 				} else if (layer.type === "heatmap" && layer.data) {
+					// Normalize opacity for heatmap layers
+					const heatmapOpacity =
+						layer.opacity > 1 ? layer.opacity / 100 : layer.opacity;
+
 					const features = layer.data.map((point: unknown) => {
 						const p = point as Record<string, unknown>;
 						return {
@@ -609,7 +667,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								1,
 								"#fb6a4a",
 							],
-							"circle-opacity": layer.opacity * 0.6,
+							"circle-opacity": heatmapOpacity * 0.6,
 						},
 					});
 				}

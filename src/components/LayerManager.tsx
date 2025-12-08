@@ -6,6 +6,7 @@ import {
 	GripVertical,
 	Info,
 	Library,
+	Loader2,
 	MessageSquare,
 	Pencil,
 	Plus,
@@ -56,6 +57,7 @@ interface LayerManagerProps {
 	onChangeBasemap: (basemap: string) => void;
 	onOpenComments?: (layerId: string) => void;
 	getLayerCommentCount?: (layerId: string) => number;
+	loading?: boolean;
 }
 
 export function LayerManager({
@@ -73,6 +75,7 @@ export function LayerManager({
 	onChangeBasemap,
 	onOpenComments,
 	getLayerCommentCount,
+	loading = false,
 }: LayerManagerProps) {
 	const { isSignedIn } = useUser();
 	const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -200,6 +203,7 @@ export function LayerManager({
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
 								className="w-full pl-9"
+								disabled={loading}
 							/>
 						</div>
 
@@ -210,6 +214,7 @@ export function LayerManager({
 								onValueChange={(v) =>
 									setSortBy(v as "name" | "type" | "category")
 								}
+								disabled={loading}
 							>
 								<SelectTrigger className="flex-1">
 									<div className="flex items-center gap-2">
@@ -224,7 +229,11 @@ export function LayerManager({
 								</SelectContent>
 							</Select>
 
-							<Select value={filterType} onValueChange={setFilterType}>
+							<Select
+								value={filterType}
+								onValueChange={setFilterType}
+								disabled={loading}
+							>
 								<SelectTrigger className="flex-1">
 									<div className="flex items-center gap-2">
 										<SlidersHorizontal className="w-3 h-3" />
@@ -243,7 +252,11 @@ export function LayerManager({
 						</div>
 
 						{uniqueCategories.length > 0 && (
-							<Select value={filterCategory} onValueChange={setFilterCategory}>
+							<Select
+								value={filterCategory}
+								onValueChange={setFilterCategory}
+								disabled={loading}
+							>
 								<SelectTrigger className="w-full">
 									<div className="flex items-center gap-2">
 										<SlidersHorizontal className="w-3 h-3" />
@@ -266,10 +279,17 @@ export function LayerManager({
 
 						{/* Results */}
 						<div className="pt-2 space-y-2">
-							{filteredLayers.length === 0 ? (
+							{loading ? (
+								<div className="text-center py-8 space-y-3">
+									<Loader2 className="w-6 h-6 text-slate-400 animate-spin mx-auto" />
+									<p className="text-slate-500 text-sm">Loading layers...</p>
+								</div>
+							) : filteredLayers.length === 0 ? (
 								<p className="text-slate-500 text-sm text-center py-8">
 									{layersNotInMap.length === 0
-										? "All available layers are already added to this map"
+										? availableLayers.length === 0
+											? "No layers in library"
+											: "All available layers are already added to this map"
 										: "No layers match your search criteria"}
 								</p>
 							) : (

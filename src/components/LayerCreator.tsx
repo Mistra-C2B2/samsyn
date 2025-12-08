@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
 
 interface LayerCreatorProps {
-	onCreateLayer: (layer: Layer) => void;
+	onCreateLayer: (layer: Layer) => void | Promise<void>;
 	onClose: () => void;
 	onStartDrawing?: (
 		type: "Point" | "LineString" | "Polygon",
@@ -61,25 +61,31 @@ export function LayerCreator({
 	);
 	const [features, setFeatures] = useState<Feature[]>(() => {
 		// If editing, populate features from the layer's GeoJSON data
-		if (editingLayer?.data?.features) {
-			return editingLayer.data.features.map((feature: unknown) => ({
-				type: (feature as Record<string, unknown>).geometry
-					?.type as GeometryType,
-				name: (feature as Record<string, unknown>).properties?.name || "",
-				description:
-					(feature as Record<string, unknown>).properties?.description || "",
-				coordinates: (feature as Record<string, unknown>).geometry?.coordinates,
-				icon:
-					((feature as Record<string, unknown>).properties?.icon as IconType) ||
-					"default",
-				lineStyle:
-					((feature as Record<string, unknown>).properties
-						?.lineStyle as LineStyle) || "solid",
+		const layerData = editingLayer?.data as {
+			features?: Array<{
+				geometry?: { type?: string; coordinates?: unknown };
+				properties?: {
+					name?: string;
+					description?: string;
+					icon?: string;
+					lineStyle?: string;
+				};
+			}>;
+		} | undefined;
+		if (layerData?.features) {
+			return layerData.features.map((feature) => ({
+				type: (feature.geometry?.type || "Point") as GeometryType,
+				name: feature.properties?.name || "",
+				description: feature.properties?.description || "",
+				coordinates: feature.geometry?.coordinates,
+				icon: (feature.properties?.icon as IconType) || "default",
+				lineStyle: (feature.properties?.lineStyle as LineStyle) || "solid",
 			}));
 		}
 		return [];
 	});
-	const [isCreating, setIsCreating] = useState(false);
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const [geoJsonInput, setGeoJsonInput] = useState("");
 	const [geoJsonError, setGeoJsonError] = useState("");
 	const [editableBy, setEditableBy] = useState<"creator-only" | "everyone">(
@@ -107,7 +113,9 @@ export function LayerCreator({
 		if (!onStartDrawing) return;
 
 		onStartDrawing(type, (drawnFeature) => {
-			const feature = drawnFeature as Record<string, unknown>;
+			const feature = drawnFeature as {
+				geometry?: { coordinates?: unknown };
+			};
 			const newFeature: Feature = {
 				type,
 				name: "",
@@ -132,10 +140,19 @@ export function LayerCreator({
 		setFeatures(
 			features.map((f, i) => (i === index ? { ...f, [field]: value } : f)),
 		);
+		// Clear error when user makes changes
+		if (error) setError(null);
 	};
 
-	const handleCreate = () => {
-		if (!layerName.trim() || features.length === 0) return;
+	const handleCreate = async () => {
+		if (!layerName.trim()) {
+			setError("Please enter a layer name");
+			return;
+		}
+		if (features.length === 0) {
+			setError("Please add at least one feature to the layer");
+			return;
+		}
 
 		const geoJsonFeatures = features
 			.filter((f) => f.name.trim())
@@ -154,10 +171,13 @@ export function LayerCreator({
 				},
 			}));
 
-		if (geoJsonFeatures.length === 0) return;
+		if (geoJsonFeatures.length === 0) {
+			setError("Please give each feature a name");
+			return;
+		}
 
 		const newLayer: Layer = {
-			id: editingLayer?.id || `layer-${Date.now()}`,
+			id: editingLayer?.id || crypto.randomUUID(),
 			name: layerName,
 			type: "geojson",
 			visible: true,
@@ -177,9 +197,16 @@ export function LayerCreator({
 			createdBy: editingLayer?.createdBy || currentUserId,
 		};
 
-		setIsCreating(true);
-		onCreateLayer(newLayer);
-		setIsCreating(false);
+		setSaving(true);
+		setError(null);
+		try {
+			await onCreateLayer(newLayer);
+			// Success - error will be null
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to save layer");
+		} finally {
+			setSaving(false);
+		}
 	};
 
 	const getIcon = (type: GeometryType) => {
@@ -210,13 +237,14 @@ export function LayerCreator({
 	};
 
 	const getCoordinatesSummary = (feature: Feature) => {
+		const coords = feature.coordinates as number[] | number[][] | number[][][];
 		if (feature.type === "Point") {
-			const [lng, lat] = feature.coordinates;
+			const [lng, lat] = coords as number[];
 			return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 		} else if (feature.type === "LineString") {
-			return `${feature.coordinates.length} points`;
+			return `${(coords as number[][]).length} points`;
 		} else if (feature.type === "Polygon") {
-			return `${feature.coordinates[0].length - 1} vertices`;
+			return `${(coords as number[][][])[0].length - 1} vertices`;
 		}
 		return "";
 	};
@@ -229,9 +257,17 @@ export function LayerCreator({
 			}
 			const newFeatures: Feature[] = geoJsonData.features.map(
 				(feature: unknown) => {
-					const f = feature as Record<string, unknown>;
+					const f = feature as {
+						geometry?: { type?: string; coordinates?: unknown };
+						properties?: {
+							name?: string;
+							description?: string;
+							icon?: string;
+							lineStyle?: string;
+						};
+					};
 					return {
-						type: f.geometry?.type as GeometryType,
+						type: (f.geometry?.type || "Point") as GeometryType,
 						name: f.properties?.name || "",
 						description: f.properties?.description || "",
 						coordinates: f.geometry?.coordinates,
@@ -265,7 +301,10 @@ export function LayerCreator({
 						id="layer-name"
 						placeholder="e.g., Fishing Zones"
 						value={layerName}
-						onChange={(e) => setLayerName(e.target.value)}
+						onChange={(e) => {
+							setLayerName(e.target.value);
+							if (error) setError(null);
+						}}
 					/>
 				</div>
 
@@ -556,20 +595,25 @@ export function LayerCreator({
 				</div>
 			</div>
 
-			<div className="p-4 border-t border-slate-200">
+			<div className="p-4 border-t border-slate-200 space-y-3">
+				{error && (
+					<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+						{error}
+					</div>
+				)}
 				<Button
 					onClick={handleCreate}
 					className="w-full"
-					disabled={!layerName.trim() || features.length === 0 || isCreating}
+					disabled={!layerName.trim() || features.length === 0 || saving}
 				>
-					{isCreating ? (
+					{saving ? (
 						<>
-							<Loader2 className="w-4 h-4 animate-spin" />
+							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
 							{editingLayer ? "Saving..." : "Creating..."}
 						</>
 					) : (
 						<>
-							<Plus className="w-4 h-4" />
+							<Plus className="w-4 h-4 mr-2" />
 							{editingLayer ? "Save Changes" : "Create Layer"}
 						</>
 					)}

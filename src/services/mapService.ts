@@ -114,13 +114,99 @@ export class MapService {
 	 * Transform backend MapResponse to frontend UserMap format
 	 */
 	transformToUserMap(mapResponse: MapResponse) {
+		// Transform map_layers to frontend Layer format
+		const layers = mapResponse.map_layers
+			.filter((ml) => ml.layer) // Only include layers that have full layer data
+			.map((mapLayer) => {
+				const layerResponse = mapLayer.layer!;
+
+				// Determine frontend layer type based on source_type
+				let frontendType: "geojson" | "raster" | "vector" | "heatmap" =
+					"vector";
+				if (layerResponse.source_type === "wms") {
+					frontendType = "raster";
+				} else if (layerResponse.source_type === "geotiff") {
+					frontendType = "raster";
+				} else if (layerResponse.source_type === "vector") {
+					frontendType = "geojson";
+				}
+
+				// Extract style config for color
+				const styleConfig = layerResponse.style_config as {
+					color?: string;
+				};
+
+				// Extract WMS configuration if present
+				const wmsConfig = layerResponse.source_config as {
+					url?: string;
+					layers?: string;
+				};
+
+				// Build GeoJSON data from source_config.geojson or features
+				let data: { type: "FeatureCollection"; features: unknown[] } | undefined;
+				if (layerResponse.source_type === "vector") {
+					// First try to get GeoJSON from source_config (where we store it)
+					const vectorConfig = layerResponse.source_config as {
+						geojson?: { type: string; features: unknown[] };
+					};
+					if (vectorConfig?.geojson) {
+						data = vectorConfig.geojson as {
+							type: "FeatureCollection";
+							features: unknown[];
+						};
+					} else if (layerResponse.features && layerResponse.features.length > 0) {
+						// Fallback: try to construct from features array
+						data = {
+							type: "FeatureCollection",
+							features: layerResponse.features.map((f) => ({
+								type: "Feature",
+								properties: f.properties || {},
+								geometry: f.properties?.geometry || {
+									type: f.geometry_type,
+									coordinates: f.properties?.coordinates,
+								},
+							})),
+						};
+					}
+				}
+
+				// Build legend from legend_config
+				const legendConfig = layerResponse.legend_config as {
+					type?: "gradient" | "categories";
+					items?: Array<{ color: string; label: string; value?: number }>;
+				};
+				const legend =
+					legendConfig?.type && legendConfig?.items
+						? { type: legendConfig.type, items: legendConfig.items }
+						: undefined;
+
+				return {
+					id: layerResponse.id,
+					name: layerResponse.name,
+					type: frontendType,
+					visible: mapLayer.visible,
+					opacity: mapLayer.opacity,
+					description: layerResponse.description || undefined,
+					category: layerResponse.category || undefined,
+					createdBy: layerResponse.created_by,
+					editable: layerResponse.editable as "creator-only" | "everyone",
+					color: styleConfig?.color,
+					data,
+					legend,
+					wmsUrl:
+						layerResponse.source_type === "wms" ? wmsConfig?.url : undefined,
+					wmsLayerName:
+						layerResponse.source_type === "wms" ? wmsConfig?.layers : undefined,
+				};
+			});
+
 		return {
 			id: mapResponse.id,
 			name: mapResponse.name,
 			description: mapResponse.description || "",
 			center: [mapResponse.center_lat, mapResponse.center_lng],
 			zoom: mapResponse.zoom,
-			layers: [], // Layers will be populated separately
+			layers,
 			createdBy: mapResponse.created_by,
 			user_role: mapResponse.user_role,
 			permissions: {

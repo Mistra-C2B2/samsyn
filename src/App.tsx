@@ -27,6 +27,7 @@ import { TimeSlider } from "./components/TimeSlider";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
 import { useCommentService } from "./services/commentService";
+import { useLayerService } from "./services/layerService";
 import { useMapService } from "./services/mapService";
 import type { CommentResponse } from "./types/api";
 
@@ -98,6 +99,7 @@ function AppContent() {
 	const [currentMap, setCurrentMap] = useState<UserMap | null>(null);
 	const [maps, setMaps] = useState<UserMap[]>([]);
 	const [mapsLoading, setMapsLoading] = useState(false);
+	const [_layersLoading, setLayersLoading] = useState(false);
 	const [showLayerManager, setShowLayerManager] = useState(true);
 	const [showMapSelector, setShowMapSelector] = useState(false);
 	const [showComments, setShowComments] = useState(false);
@@ -121,7 +123,29 @@ function AppContent() {
 
 	// Initialize services
 	const commentService = useCommentService();
+	const layerService = useLayerService();
 	const mapService = useMapService();
+
+	// Function to load layers from API
+	const loadLayers = useCallback(async () => {
+		setLayersLoading(true);
+		try {
+			const layerList = await layerService.listLayers();
+			// Transform each layer to frontend format
+			const layers = await Promise.all(
+				layerList.map(async (listItem) => {
+					const fullLayer = await layerService.getLayer(listItem.id);
+					return layerService.transformToLayer(fullLayer);
+				}),
+			);
+			setAvailableLayers(layers);
+		} catch (error) {
+			console.error("Failed to load layers:", error);
+			toast.error("Failed to load layer library");
+		} finally {
+			setLayersLoading(false);
+		}
+	}, [layerService]);
 
 	// Function to load maps from API
 	const loadMaps = useCallback(async () => {
@@ -168,6 +192,11 @@ function AppContent() {
 		},
 		[commentService],
 	);
+
+	// Load layers on component mount
+	useEffect(() => {
+		loadLayers();
+	}, [loadLayers]);
 
 	// Load maps on component mount
 	useEffect(() => {
@@ -310,14 +339,42 @@ function AppContent() {
 		});
 	};
 
-	const reorderLayers = (startIndex: number, endIndex: number) => {
+	const reorderLayers = async (startIndex: number, endIndex: number) => {
+		if (!currentMap) return;
+
+		// Create optimistic update
+		const newLayers = Array.from(currentMap.layers);
+		const [removed] = newLayers.splice(startIndex, 1);
+		newLayers.splice(endIndex, 0, removed);
+
+		// Store previous state for rollback
+		const previousLayers = currentMap.layers;
+
+		// Optimistically update UI
 		setCurrentMap((prev) => {
 			if (!prev) return prev;
-			const newLayers = Array.from(prev.layers);
-			const [removed] = newLayers.splice(startIndex, 1);
-			newLayers.splice(endIndex, 0, removed);
 			return { ...prev, layers: newLayers };
 		});
+
+		try {
+			// Build layer_orders array with layer_id and order
+			const layerOrders = newLayers.map((layer, index) => ({
+				layer_id: layer.id,
+				order: index,
+			}));
+
+			// Call API to reorder layers
+			await layerService.reorderMapLayers(currentMap.id, layerOrders);
+		} catch (error) {
+			console.error("Failed to reorder layers:", error);
+			toast.error("Failed to reorder layers");
+
+			// Rollback on error
+			setCurrentMap((prev) => {
+				if (!prev) return prev;
+				return { ...prev, layers: previousLayers };
+			});
+		}
 	};
 
 	const createNewMap = async (
@@ -492,36 +549,90 @@ function AppContent() {
 		}
 	};
 
-	const addLayerToMap = (layer: Layer) => {
+	const addLayerToMap = async (layer: Layer) => {
 		if (!currentMap) return;
 
 		// Check if layer already exists in the current map
 		const layerExists = currentMap.layers.some((l) => l.id === layer.id);
 		if (layerExists) return;
 
-		setCurrentMap((prev) => {
-			if (!prev) return prev;
-			return {
-				...prev,
-				layers: [...prev.layers, { ...layer, visible: true }],
-			};
-		});
+		try {
+			// If layer doesn't exist in availableLayers, create it first
+			const existsInAvailable = availableLayers.some((l) => l.id === layer.id);
+			let layerId = layer.id;
 
-		// Add to available layers if it's a new custom layer
-		const existsInAvailable = availableLayers.some((l) => l.id === layer.id);
-		if (!existsInAvailable) {
-			setAvailableLayers((prev) => [...prev, layer]);
+			if (!existsInAvailable) {
+				// Create new layer via API
+				const createData = layerService.transformToLayerCreate(layer);
+				const createdLayer = await layerService.createLayer(createData);
+				const transformedLayer = layerService.transformToLayer(createdLayer);
+				layerId = transformedLayer.id;
+
+				// Preserve the original GeoJSON data if present (for drawn layers)
+				// The API may not return features immediately after creation
+				if (layer.data && !transformedLayer.data) {
+					transformedLayer.data = layer.data;
+				}
+
+				// Preserve the color from original layer
+				if (layer.color) {
+					transformedLayer.color = layer.color;
+				}
+
+				// Add to available layers
+				setAvailableLayers((prev) => [...prev, transformedLayer]);
+
+				// Update the layer object with the new ID
+				layer = transformedLayer;
+			}
+
+			// Add layer to map via API
+			const displayOrder = currentMap.layers.length;
+			await layerService.addLayerToMap(
+				currentMap.id,
+				layerId,
+				displayOrder,
+				true,
+				100,
+			);
+
+			// Update local state
+			setCurrentMap((prev) => {
+				if (!prev) return prev;
+				return {
+					...prev,
+					layers: [...prev.layers, { ...layer, visible: true }],
+				};
+			});
+
+			toast.success("Layer added to map");
+		} catch (error) {
+			console.error("Failed to add layer to map:", error);
+			toast.error("Failed to add layer to map");
 		}
 	};
 
-	const removeLayerFromMap = (layerId: string) => {
-		setCurrentMap((prev) => {
-			if (!prev) return prev;
-			return {
-				...prev,
-				layers: prev.layers.filter((layer) => layer.id !== layerId),
-			};
-		});
+	const removeLayerFromMap = async (layerId: string) => {
+		if (!currentMap) return;
+
+		try {
+			// Call API to remove layer from map
+			await layerService.removeLayerFromMap(currentMap.id, layerId);
+
+			// Update local state on success
+			setCurrentMap((prev) => {
+				if (!prev) return prev;
+				return {
+					...prev,
+					layers: prev.layers.filter((layer) => layer.id !== layerId),
+				};
+			});
+
+			toast.success("Layer removed from map");
+		} catch (error) {
+			console.error("Failed to remove layer from map:", error);
+			toast.error("Failed to remove layer from map");
+		}
 	};
 
 	const handleStartDrawing = (
@@ -548,6 +659,44 @@ function AppContent() {
 		setEditingLayer(layer);
 		setShowLayerManager(false);
 		setShowLayerCreator(true);
+	};
+
+	const handleCreateLayer = async (layer: Layer) => {
+		if (!currentMap) {
+			toast.error("Please select a map first before creating a layer");
+			return;
+		}
+
+		try {
+			// If editing existing layer, update it
+			if (editingLayer) {
+				const updateData = layerService.transformToLayerUpdate(layer);
+				await layerService.updateLayer(layer.id, updateData);
+
+				// Update local state
+				updateLayer(layer.id, layer);
+				setAvailableLayers((prev) =>
+					prev.map((l) => (l.id === layer.id ? layer : l)),
+				);
+
+				toast.success("Layer updated");
+			} else {
+				// Create new layer and add to map
+				await addLayerToMap(layer);
+				toast.success("Layer created");
+			}
+
+			setShowLayerCreator(false);
+			setEditingLayer(null);
+			// Clear any TerraDraw drawings after layer is created
+			mapViewRef.current?.clearDrawings();
+		} catch (error) {
+			console.error("Layer operation failed:", error);
+			toast.error(
+				editingLayer ? "Failed to update layer" : "Failed to create layer",
+			);
+			throw error;
+		}
 	};
 
 	const handleShareMap = async () => {
@@ -798,24 +947,12 @@ function AppContent() {
 
 				{showLayerCreator && (
 					<LayerCreator
-						onCreateLayer={(layer) => {
-							if (editingLayer) {
-								// Update existing layer
-								updateLayer(layer.id, layer);
-								// Also update in availableLayers
-								setAvailableLayers((prev) =>
-									prev.map((l) => (l.id === layer.id ? layer : l)),
-								);
-							} else {
-								// Add new layer
-								addLayerToMap(layer);
-							}
-							setShowLayerCreator(false);
-							setEditingLayer(null);
-						}}
+						onCreateLayer={handleCreateLayer}
 						onClose={() => {
 							setShowLayerCreator(false);
 							setEditingLayer(null);
+							// Clear any TerraDraw drawings when layer creator is closed
+							mapViewRef.current?.clearDrawings();
 						}}
 						onStartDrawing={handleStartDrawing}
 						availableLayers={availableLayers}
@@ -841,28 +978,65 @@ function AppContent() {
 				{showAdminPanel && (
 					<AdminPanel
 						availableLayers={availableLayers}
-						onAddLayer={(layer) => {
-							setAvailableLayers((prev) => [...prev, layer]);
+						onAddLayer={async (layer) => {
+							try {
+								// Create layer via API
+								const createData = layerService.transformToLayerCreate(layer);
+								const createdLayer = await layerService.createLayer(createData);
+								const transformedLayer =
+									layerService.transformToLayer(createdLayer);
+
+								// Add to available layers
+								setAvailableLayers((prev) => [...prev, transformedLayer]);
+								toast.success("Layer added to library");
+							} catch (error) {
+								console.error("Failed to add layer:", error);
+								toast.error("Failed to add layer");
+							}
 						}}
-						onRemoveLayer={(layerId) => {
-							setAvailableLayers((prev) =>
-								prev.filter((l) => l.id !== layerId),
-							);
-							// Also remove from current map if it's there
-							removeLayerFromMap(layerId);
-						}}
-						onUpdateLayer={(layerId, updates) => {
-							setAvailableLayers((prev) =>
-								prev.map((l) => (l.id === layerId ? { ...l, ...updates } : l)),
-							);
-							// Also update in current map if it's there
-							if (currentMap) {
-								const layerInMap = currentMap.layers.find(
-									(l) => l.id === layerId,
+						onRemoveLayer={async (layerId) => {
+							try {
+								// Delete layer via API
+								await layerService.deleteLayer(layerId);
+
+								// Remove from available layers
+								setAvailableLayers((prev) =>
+									prev.filter((l) => l.id !== layerId),
 								);
-								if (layerInMap) {
+
+								// Also remove from current map if it's there
+								if (currentMap?.layers.some((l) => l.id === layerId)) {
+									await removeLayerFromMap(layerId);
+								}
+
+								toast.success("Layer removed from library");
+							} catch (error) {
+								console.error("Failed to remove layer:", error);
+								toast.error("Failed to remove layer");
+							}
+						}}
+						onUpdateLayer={async (layerId, updates) => {
+							try {
+								// Update layer via API
+								const updateData = layerService.transformToLayerUpdate(updates);
+								await layerService.updateLayer(layerId, updateData);
+
+								// Update in available layers
+								setAvailableLayers((prev) =>
+									prev.map((l) =>
+										l.id === layerId ? { ...l, ...updates } : l,
+									),
+								);
+
+								// Also update in current map if it's there
+								if (currentMap?.layers.some((l) => l.id === layerId)) {
 									updateLayer(layerId, updates);
 								}
+
+								toast.success("Layer updated");
+							} catch (error) {
+								console.error("Failed to update layer:", error);
+								toast.error("Failed to update layer");
 							}
 						}}
 						onClose={() => setShowAdminPanel(false)}

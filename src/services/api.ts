@@ -46,7 +46,36 @@ export class ApiClient {
 			if (isJson) {
 				try {
 					const errorData = await response.json();
-					errorMessage = errorData.message || errorData.detail || errorMessage;
+					// Log full error response for debugging
+					console.log("API Error Response:", JSON.stringify(errorData, null, 2));
+
+					// Handle various API error response formats
+					if (typeof errorData === "string") {
+						errorMessage = errorData;
+					} else if (errorData.message) {
+						errorMessage = errorData.message;
+					} else if (errorData.detail) {
+						// FastAPI often returns { detail: "message" } or { detail: [...] }
+						if (typeof errorData.detail === "string") {
+							errorMessage = errorData.detail;
+						} else if (Array.isArray(errorData.detail)) {
+							// Pydantic validation errors: [{ loc: [...], msg: "...", type: "..." }]
+							errorMessage = errorData.detail
+								.map((e: { loc?: string[]; msg?: string; message?: string }) => {
+									const location = e.loc ? e.loc.join(".") : "";
+									const msg = e.msg || e.message || JSON.stringify(e);
+									return location ? `${location}: ${msg}` : msg;
+								})
+								.join("; ");
+						} else {
+							errorMessage = JSON.stringify(errorData.detail);
+						}
+					} else if (errorData.error) {
+						errorMessage = errorData.error;
+					} else {
+						// Fallback: stringify the whole object
+						errorMessage = JSON.stringify(errorData);
+					}
 				} catch {
 					// If JSON parsing fails, use default error message
 				}
@@ -105,10 +134,21 @@ export class ApiClient {
 	 */
 	async put(path: string, data?: D) {
 		const headers = await this.buildHeaders();
+		const body = data ? JSON.stringify(data) : undefined;
+
+		// Debug logging for reorder requests
+		if (path.includes("reorder")) {
+			console.log("PUT reorder request:", {
+				url: `${this.baseURL}${path}`,
+				body: body,
+				parsedBody: data,
+			});
+		}
+
 		const response = await fetch(`${this.baseURL}${path}`, {
 			method: "PUT",
 			headers,
-			body: data ? JSON.stringify(data) : undefined,
+			body,
 		});
 
 		return this.handleResponse(response);

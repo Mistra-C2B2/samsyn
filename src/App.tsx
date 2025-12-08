@@ -357,11 +357,40 @@ function AppContent() {
 		});
 
 		try {
-			// Build layer_orders array with layer_id and order
-			const layerOrders = newLayers.map((layer, index) => ({
-				layer_id: layer.id,
-				order: index,
-			}));
+			// UUID validation regex
+			const uuidRegex =
+				/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+			// Log all layer IDs for debugging
+			console.log(
+				"Reorder - All layer IDs:",
+				newLayers.map((l) => ({ id: l.id, name: l.name })),
+			);
+			console.log("Reorder - Map ID:", currentMap.id);
+
+			// Build layer_orders array with layer_id and order, filtering out invalid UUIDs
+			const layerOrders = newLayers
+				.filter((layer) => {
+					const isValidUuid = uuidRegex.test(layer.id);
+					if (!isValidUuid) {
+						console.warn(
+							`Skipping layer with non-UUID id during reorder: ${layer.id}`,
+						);
+					}
+					return isValidUuid;
+				})
+				.map((layer, index) => ({
+					layer_id: layer.id,
+					order: index,
+				}));
+
+			console.log("Reorder - Sending layerOrders:", layerOrders);
+
+			// Only call API if there are layers to reorder
+			if (layerOrders.length === 0) {
+				console.warn("No valid layer IDs to reorder");
+				return;
+			}
 
 			// Call API to reorder layers
 			await layerService.reorderMapLayers(currentMap.id, layerOrders);

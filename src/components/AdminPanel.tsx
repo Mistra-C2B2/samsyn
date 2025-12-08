@@ -150,7 +150,7 @@ export function AdminPanel({
 		setIsSaving(true);
 
 		const newLayer: Layer = {
-			id: `admin-${Date.now()}`,
+			id: crypto.randomUUID(),
 			name,
 			type:
 				layerSource === "wms" || layerSource === "geotiff"

@@ -687,6 +687,73 @@ async def add_layer_to_map(
     return MapLayerResponse(**serialize_map_layer_to_dict(map_layer))
 
 
+@router.put("/{map_id}/layers/reorder", response_model=List[MapLayerResponse])
+async def reorder_map_layers(
+    map_id: UUID,
+    reorder_data: MapLayerReorder,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """
+    Reorder all layers in a map.
+
+    Requires edit access to the map.
+    Provide a list of all layer IDs with their new order positions.
+
+    Args:
+        map_id: Map UUID
+        reorder_data: List of {layer_id, order} objects
+
+    Returns:
+        Updated list of all map-layer associations
+
+    Raises:
+        404: Map not found
+        403: Not authorized to edit map
+        400: Invalid layer order data
+    """
+    service = MapService(db)
+
+    # Check if map exists and user can edit
+    map_obj = service.get_map(map_id, current_user.id)
+    if not map_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    if not service.can_edit_map(map_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to edit this map",
+        )
+
+    # Reorder layers
+    success = service.reorder_layers(
+        map_id=map_id,
+        layer_orders=reorder_data.layer_orders,
+        user_id=current_user.id,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to reorder layers",
+        )
+
+    # Fetch updated map layers to return
+    from app.models.layer import MapLayer
+
+    updated_layers = (
+        db.query(MapLayer)
+        .filter(MapLayer.map_id == map_id)
+        .order_by(MapLayer.order)
+        .all()
+    )
+
+    return [MapLayerResponse(**serialize_map_layer_to_dict(ml)) for ml in updated_layers]
+
+
 @router.delete("/{map_id}/layers/{layer_id}", status_code=status.HTTP_200_OK)
 async def remove_layer_from_map(
     map_id: UUID,
@@ -800,70 +867,3 @@ async def update_map_layer(
         )
 
     return MapLayerResponse(**serialize_map_layer_to_dict(map_layer))
-
-
-@router.put("/{map_id}/layers/reorder", response_model=List[MapLayerResponse])
-async def reorder_map_layers(
-    map_id: UUID,
-    reorder_data: MapLayerReorder,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-):
-    """
-    Reorder all layers in a map.
-
-    Requires edit access to the map.
-    Provide a list of all layer IDs with their new order positions.
-
-    Args:
-        map_id: Map UUID
-        reorder_data: List of {layer_id, order} objects
-
-    Returns:
-        Updated list of all map-layer associations
-
-    Raises:
-        404: Map not found
-        403: Not authorized to edit map
-        400: Invalid layer order data
-    """
-    service = MapService(db)
-
-    # Check if map exists and user can edit
-    map_obj = service.get_map(map_id, current_user.id)
-    if not map_obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Map not found",
-        )
-
-    if not service.can_edit_map(map_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to edit this map",
-        )
-
-    # Reorder layers
-    success = service.reorder_layers(
-        map_id=map_id,
-        layer_orders=reorder_data.layer_orders,
-        user_id=current_user.id,
-    )
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to reorder layers",
-        )
-
-    # Fetch updated map layers to return
-    from app.models.layer import MapLayer
-
-    updated_layers = (
-        db.query(MapLayer)
-        .filter(MapLayer.map_id == map_id)
-        .order_by(MapLayer.order)
-        .all()
-    )
-
-    return [MapLayerResponse(**serialize_map_layer_to_dict(ml)) for ml in updated_layers]

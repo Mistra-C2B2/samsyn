@@ -302,7 +302,8 @@ export class LayerService {
 			sourceConfig.url = layer.geotiffUrl;
 		} else if (sourceType === "vector") {
 			sourceConfig.geometryType = "Polygon"; // Default, should be determined by actual geometry
-			sourceConfig.featureCount = layer.data?.features?.length || layer.features?.length || 0;
+			sourceConfig.featureCount =
+				layer.data?.features?.length || layer.features?.length || 0;
 			// Store the GeoJSON data in source_config for retrieval
 			if (layer.data) {
 				sourceConfig.geojson = layer.data;

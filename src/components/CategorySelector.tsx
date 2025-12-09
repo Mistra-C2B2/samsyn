@@ -87,9 +87,10 @@ export function CategorySelector({
 	}
 
 	// Include current value if it's not in existingCategories (newly added category)
-	const allCategories = value && !existingCategories.includes(value)
-		? [value, ...existingCategories]
-		: existingCategories;
+	const allCategories =
+		value && !existingCategories.includes(value)
+			? [value, ...existingCategories]
+			: existingCategories;
 
 	return (
 		<div className="space-y-2">

@@ -32,7 +32,15 @@ export interface MapViewRef {
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
 	(
-		{ center, zoom, layers, basemap, onDrawComplete, drawingMode, onFeatureClick },
+		{
+			center,
+			zoom,
+			layers,
+			basemap,
+			onDrawComplete,
+			drawingMode,
+			onFeatureClick,
+		},
 		ref,
 	) => {
 		const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -476,7 +484,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			};
 
 			// Helper to update opacity for existing layers
-			const updateLayerOpacity = (layerId: string, opacity: number, layerType?: string) => {
+			const updateLayerOpacity = (
+				layerId: string,
+				opacity: number,
+				layerType?: string,
+			) => {
 				const fillLayerId = `${layerId}-fill`;
 				const lineLayerId = `${layerId}-line`;
 				const circleLayerId = `${layerId}-circle`;
@@ -490,7 +502,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				}
 				if (map.getLayer(circleLayerId)) {
 					// Heatmap circles use different opacity calculation
-					const circleOpacity = layerType === "heatmap" ? opacity * 0.6 : opacity;
+					const circleOpacity =
+						layerType === "heatmap" ? opacity * 0.6 : opacity;
 					map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
 				}
 				// Update styled line layers
@@ -789,6 +802,36 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					});
 				}
 			});
+
+			// Reorder layers on the map to match the layers array order
+			// Layers at the start of the array (top of the UI list) should be rendered on top
+			// MapLibre renders layers in order they appear in the style, later = on top
+			// So we need to ensure layers at index 0 are rendered last (on top)
+			const visibleLayerIds = layers
+				.filter((l) => l.visible && map.getSource(l.id))
+				.map((l) => l.id);
+
+			// Move layers in reverse order - last layer first, so first layer ends up on top
+			for (let i = visibleLayerIds.length - 1; i >= 0; i--) {
+				const layerId = visibleLayerIds[i];
+
+				// Get all map layer IDs for this layer and move them to the top
+				// Order matters: fill first (bottom), then lines, then circles/symbols (top)
+				const mapLayerIds = [
+					`${layerId}-fill`,
+					`${layerId}-line`,
+					`${layerId}-line-solid`,
+					`${layerId}-line-dashed`,
+					`${layerId}-line-dotted`,
+					`${layerId}-circle`,
+					`${layerId}-symbol`,
+				].filter((id) => map.getLayer(id));
+
+				// Move each sublayer to the top (no beforeId = move to top)
+				for (const mapLayerId of mapLayerIds) {
+					map.moveLayer(mapLayerId);
+				}
+			}
 		}, [layers, mapLoaded]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);

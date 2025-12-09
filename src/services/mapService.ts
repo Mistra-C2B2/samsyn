@@ -143,7 +143,9 @@ export class MapService {
 				};
 
 				// Build GeoJSON data from source_config.geojson or features
-				let data: { type: "FeatureCollection"; features: unknown[] } | undefined;
+				let data:
+					| { type: "FeatureCollection"; features: unknown[] }
+					| undefined;
 				if (layerResponse.source_type === "vector") {
 					// First try to get GeoJSON from source_config (where we store it)
 					const vectorConfig = layerResponse.source_config as {
@@ -154,7 +156,10 @@ export class MapService {
 							type: "FeatureCollection";
 							features: unknown[];
 						};
-					} else if (layerResponse.features && layerResponse.features.length > 0) {
+					} else if (
+						layerResponse.features &&
+						layerResponse.features.length > 0
+					) {
 						// Fallback: try to construct from features array
 						data = {
 							type: "FeatureCollection",

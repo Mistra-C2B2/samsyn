@@ -29,6 +29,7 @@ interface LayerCreatorProps {
 	onStartDrawing?: (
 		type: "Point" | "LineString" | "Polygon",
 		callback: (feature: unknown) => void,
+		color?: string,
 	) => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
@@ -127,7 +128,7 @@ export function LayerCreator({
 				lineStyle: type === "LineString" ? "solid" : undefined,
 			};
 			setFeatures([...features, newFeature]);
-		});
+		}, layerColor);
 	};
 
 	const removeFeature = (index: number) => {

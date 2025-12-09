@@ -25,7 +25,7 @@ interface MapViewProps {
 }
 
 export interface MapViewRef {
-	startDrawing: (type: "Point" | "LineString" | "Polygon") => void;
+	startDrawing: (type: "Point" | "LineString" | "Polygon", color?: string) => void;
 	cancelDrawing: () => void;
 	clearDrawings: () => void;
 }
@@ -68,22 +68,54 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		}, [onFeatureClick]);
 
 		useImperativeHandle(ref, () => ({
-			startDrawing: (type: "Point" | "LineString" | "Polygon") => {
+			startDrawing: (type: "Point" | "LineString" | "Polygon", color?: string) => {
 				if (!drawRef.current || !mapLoaded) return;
 
 				const terraDraw = drawRef.current.getTerraDrawInstance();
 				if (!terraDraw) return;
 
-				// Enable TerraDraw if not already enabled
+				// Enable TerraDraw if not already enabled (must be done before updating styles)
 				if (!terraDraw.enabled) {
 					terraDraw.start();
 				}
 
-				// Only clear if there are existing features
-				const snapshot = terraDraw.getSnapshot();
-				if (snapshot.length > 0) {
-					terraDraw.clear();
+				// Update styles with the selected color if provided
+				if (color) {
+					try {
+						// Update point style
+						terraDraw.updateModeOptions("point", {
+							styles: {
+								pointColor: color,
+								pointOutlineColor: "#ffffff",
+							},
+						});
+						// Update linestring style
+						terraDraw.updateModeOptions("linestring", {
+							styles: {
+								lineStringColor: color,
+								lineStringWidth: 3,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+						// Update polygon style
+						terraDraw.updateModeOptions("polygon", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+					} catch (err) {
+						console.warn("Failed to update drawing styles:", err);
+					}
 				}
+
+				// Don't clear existing features - allow users to draw multiple features
+				// Features will be cleared when the layer is created or drawing is cancelled
 
 				// Start drawing based on type
 				if (type === "Point") {

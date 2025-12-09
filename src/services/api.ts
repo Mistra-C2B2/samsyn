@@ -47,7 +47,10 @@ export class ApiClient {
 				try {
 					const errorData = await response.json();
 					// Log full error response for debugging
-					console.log("API Error Response:", JSON.stringify(errorData, null, 2));
+					console.log(
+						"API Error Response:",
+						JSON.stringify(errorData, null, 2),
+					);
 
 					// Handle various API error response formats
 					if (typeof errorData === "string") {
@@ -61,11 +64,13 @@ export class ApiClient {
 						} else if (Array.isArray(errorData.detail)) {
 							// Pydantic validation errors: [{ loc: [...], msg: "...", type: "..." }]
 							errorMessage = errorData.detail
-								.map((e: { loc?: string[]; msg?: string; message?: string }) => {
-									const location = e.loc ? e.loc.join(".") : "";
-									const msg = e.msg || e.message || JSON.stringify(e);
-									return location ? `${location}: ${msg}` : msg;
-								})
+								.map(
+									(e: { loc?: string[]; msg?: string; message?: string }) => {
+										const location = e.loc ? e.loc.join(".") : "";
+										const msg = e.msg || e.message || JSON.stringify(e);
+										return location ? `${location}: ${msg}` : msg;
+									},
+								)
 								.join("; ");
 						} else {
 							errorMessage = JSON.stringify(errorData.detail);

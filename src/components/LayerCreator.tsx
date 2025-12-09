@@ -61,17 +61,19 @@ export function LayerCreator({
 	);
 	const [features, setFeatures] = useState<Feature[]>(() => {
 		// If editing, populate features from the layer's GeoJSON data
-		const layerData = editingLayer?.data as {
-			features?: Array<{
-				geometry?: { type?: string; coordinates?: unknown };
-				properties?: {
-					name?: string;
-					description?: string;
-					icon?: string;
-					lineStyle?: string;
-				};
-			}>;
-		} | undefined;
+		const layerData = editingLayer?.data as
+			| {
+					features?: Array<{
+						geometry?: { type?: string; coordinates?: unknown };
+						properties?: {
+							name?: string;
+							description?: string;
+							icon?: string;
+							lineStyle?: string;
+						};
+					}>;
+			  }
+			| undefined;
 		if (layerData?.features) {
 			return layerData.features.map((feature) => ({
 				type: (feature.geometry?.type || "Point") as GeometryType,

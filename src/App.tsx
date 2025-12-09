@@ -343,7 +343,10 @@ function AppContent() {
 		});
 
 		// Persist visibility/opacity changes to backend
-		if (currentMap && (updates.visible !== undefined || updates.opacity !== undefined)) {
+		if (
+			currentMap &&
+			(updates.visible !== undefined || updates.opacity !== undefined)
+		) {
 			const apiUpdates: { visible?: boolean; opacity?: number } = {};
 			if (updates.visible !== undefined) {
 				apiUpdates.visible = updates.visible;
@@ -354,9 +357,11 @@ function AppContent() {
 			}
 
 			// Fire and forget - don't block UI for this
-			layerService.updateMapLayer(currentMap.id, layerId, apiUpdates).catch((error) => {
-				console.error("Failed to persist layer update:", error);
-			});
+			layerService
+				.updateMapLayer(currentMap.id, layerId, apiUpdates)
+				.catch((error) => {
+					console.error("Failed to persist layer update:", error);
+				});
 		}
 	};
 

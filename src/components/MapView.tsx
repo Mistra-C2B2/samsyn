@@ -22,6 +22,7 @@ interface MapViewProps {
 	onDrawComplete?: (feature: unknown) => void;
 	drawingMode?: "Point" | "LineString" | "Polygon" | null;
 	onFeatureClick?: (layerId: string) => void;
+	highlightedLayerId?: string | null;
 }
 
 export interface MapViewRef {
@@ -40,6 +41,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			onDrawComplete,
 			drawingMode,
 			onFeatureClick,
+			highlightedLayerId,
 		},
 		ref,
 	) => {
@@ -865,6 +867,74 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				}
 			}
 		}, [layers, mapLoaded]);
+
+		// Handle layer highlighting when a layer is selected
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+
+			// Reset all layers to normal style, then highlight the selected one
+			layers.forEach((layer) => {
+				if (!layer.visible || !map.getSource(layer.id)) return;
+
+				const isHighlighted = layer.id === highlightedLayerId;
+				const baseColor = layer.color || "#3388ff";
+
+				// Update fill layer
+				const fillLayerId = `${layer.id}-fill`;
+				if (map.getLayer(fillLayerId)) {
+					map.setPaintProperty(
+						fillLayerId,
+						"fill-outline-color",
+						isHighlighted ? "#14b8a6" : baseColor,
+					);
+				}
+
+				// Update line layers with highlight effect (thicker stroke)
+				const lineLayerIds = [
+					`${layer.id}-line`,
+					`${layer.id}-line-solid`,
+					`${layer.id}-line-dashed`,
+					`${layer.id}-line-dotted`,
+				];
+
+				lineLayerIds.forEach((lineLayerId) => {
+					if (map.getLayer(lineLayerId)) {
+						map.setPaintProperty(
+							lineLayerId,
+							"line-width",
+							isHighlighted ? 5 : 2,
+						);
+						map.setPaintProperty(
+							lineLayerId,
+							"line-color",
+							isHighlighted ? "#14b8a6" : baseColor,
+						);
+					}
+				});
+
+				// Update circle layer (points)
+				const circleLayerId = `${layer.id}-circle`;
+				if (map.getLayer(circleLayerId)) {
+					map.setPaintProperty(
+						circleLayerId,
+						"circle-radius",
+						isHighlighted ? 12 : 8,
+					);
+					map.setPaintProperty(
+						circleLayerId,
+						"circle-stroke-width",
+						isHighlighted ? 4 : 2,
+					);
+					map.setPaintProperty(
+						circleLayerId,
+						"circle-stroke-color",
+						isHighlighted ? "#14b8a6" : "#ffffff",
+					);
+				}
+			});
+		}, [highlightedLayerId, layers, mapLoaded]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
 		const activeLegend = visibleLayers.find((layer) => layer.legend);

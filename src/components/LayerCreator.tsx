@@ -7,6 +7,7 @@ import {
 	Lock,
 	MapPin,
 	Milestone,
+	MousePointer2,
 	Plus,
 	Ship,
 	Square,
@@ -14,8 +15,9 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Layer } from "../App";
+import type { TerraDrawFeature } from "./MapView";
 import { CategorySelector } from "./CategorySelector";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -31,8 +33,11 @@ interface LayerCreatorProps {
 		callback: (feature: unknown) => void,
 		color?: string,
 	) => void;
+	onSetDrawMode?: (mode: "select" | "delete") => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
+	drawingMode?: "Point" | "LineString" | "Polygon" | "select" | "delete" | null;
+	terraDrawSnapshot?: TerraDrawFeature[];
 }
 
 type GeometryType = "Point" | "LineString" | "Polygon";
@@ -40,6 +45,7 @@ type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
 type LineStyle = "solid" | "dashed" | "dotted";
 
 interface Feature {
+	terraDrawId?: string | number; // ID from TerraDraw for syncing state
 	type: GeometryType;
 	name: string;
 	description: string;
@@ -52,8 +58,11 @@ export function LayerCreator({
 	onCreateLayer,
 	onClose,
 	onStartDrawing,
+	onSetDrawMode,
 	availableLayers,
 	editingLayer,
+	drawingMode,
+	terraDrawSnapshot,
 }: LayerCreatorProps) {
 	const [layerName, setLayerName] = useState(editingLayer?.name || "");
 	const [category, setCategory] = useState(editingLayer?.category || "");
@@ -112,14 +121,55 @@ export function LayerCreator({
 			).sort()
 		: [];
 
+	// Sync features with TerraDraw state when snapshot changes
+	// This handles modifications (select mode) and deletions (delete mode)
+	useEffect(() => {
+		if (!terraDrawSnapshot) return;
+
+		setFeatures((prevFeatures) => {
+			// Create a map of TerraDraw features by ID for quick lookup
+			const terraDrawMap = new Map(
+				terraDrawSnapshot.map((f) => [f.id, f]),
+			);
+
+			// Process each existing feature
+			const syncedFeatures = prevFeatures
+				.map((feature) => {
+					// If feature has no terraDrawId, keep it unchanged (e.g., GeoJSON import)
+					if (feature.terraDrawId === undefined) {
+						return feature;
+					}
+
+					// Find the corresponding TerraDraw feature
+					const terraFeature = terraDrawMap.get(feature.terraDrawId);
+
+					// If not found in TerraDraw, it was deleted
+					if (!terraFeature) {
+						return null;
+					}
+
+					// Update coordinates if they changed (modified via select mode)
+					return {
+						...feature,
+						coordinates: terraFeature.geometry.coordinates,
+					};
+				})
+				.filter((f): f is Feature => f !== null);
+
+			return syncedFeatures;
+		});
+	}, [terraDrawSnapshot]);
+
 	const addFeatureByDrawing = (type: GeometryType) => {
 		if (!onStartDrawing) return;
 
 		onStartDrawing(type, (drawnFeature) => {
 			const feature = drawnFeature as {
+				id?: string | number;
 				geometry?: { coordinates?: unknown };
 			};
 			const newFeature: Feature = {
+				terraDrawId: feature.id,
 				type,
 				name: "",
 				description: "",
@@ -127,7 +177,7 @@ export function LayerCreator({
 				icon: type === "Point" ? "default" : undefined,
 				lineStyle: type === "LineString" ? "solid" : undefined,
 			};
-			setFeatures([...features, newFeature]);
+			setFeatures((prev) => [...prev, newFeature]);
 		}, layerColor);
 	};
 
@@ -365,7 +415,11 @@ export function LayerCreator({
 							<button
 								type="button"
 								onClick={() => addFeatureByDrawing("Point")}
-								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
+								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+									drawingMode === "Point"
+										? "border-teal-600 bg-teal-50 text-teal-700"
+										: "border-slate-200 hover:border-teal-400"
+								}`}
 							>
 								<MapPin className="w-5 h-5" />
 								<span className="text-xs">Add Point</span>
@@ -373,7 +427,11 @@ export function LayerCreator({
 							<button
 								type="button"
 								onClick={() => addFeatureByDrawing("LineString")}
-								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
+								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+									drawingMode === "LineString"
+										? "border-teal-600 bg-teal-50 text-teal-700"
+										: "border-slate-200 hover:border-teal-400"
+								}`}
 							>
 								<Milestone className="w-5 h-5" />
 								<span className="text-xs">Add Line</span>
@@ -381,10 +439,40 @@ export function LayerCreator({
 							<button
 								type="button"
 								onClick={() => addFeatureByDrawing("Polygon")}
-								className="p-3 rounded-lg border-2 border-slate-200 hover:border-teal-400 transition-all flex flex-col items-center gap-2"
+								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+									drawingMode === "Polygon"
+										? "border-teal-600 bg-teal-50 text-teal-700"
+										: "border-slate-200 hover:border-teal-400"
+								}`}
 							>
 								<Square className="w-5 h-5" />
 								<span className="text-xs">Add Polygon</span>
+							</button>
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<button
+								type="button"
+								onClick={() => onSetDrawMode?.("select")}
+								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+									drawingMode === "select"
+										? "border-teal-600 bg-teal-50 text-teal-700"
+										: "border-slate-200 hover:border-teal-400"
+								}`}
+							>
+								<MousePointer2 className="w-5 h-5" />
+								<span className="text-xs">Select</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => onSetDrawMode?.("delete")}
+								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+									drawingMode === "delete"
+										? "border-red-600 bg-red-50 text-red-700"
+										: "border-slate-200 hover:border-red-400"
+								}`}
+							>
+								<Trash2 className="w-5 h-5" />
+								<span className="text-xs">Delete</span>
 							</button>
 						</div>
 					</TabsContent>

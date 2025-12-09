@@ -20,7 +20,7 @@ import { CommentSection } from "./components/CommentSection";
 import { LayerCreator } from "./components/LayerCreator";
 import { LayerManager } from "./components/LayerManager";
 import { MapSelector } from "./components/MapSelector";
-import { MapView, type MapViewRef } from "./components/MapView";
+import { MapView, type MapViewRef, type TerraDrawFeature } from "./components/MapView";
 import { RoleBadge } from "./components/RoleBadge";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TimeSlider } from "./components/TimeSlider";
@@ -108,7 +108,7 @@ function AppContent() {
 	const [availableLayers, setAvailableLayers] = useState<Layer[]>([]);
 	const [basemap, setBasemap] = useState<string>("osm");
 	const [drawingMode, setDrawingMode] = useState<
-		"Point" | "LineString" | "Polygon" | null
+		"Point" | "LineString" | "Polygon" | "select" | "delete" | null
 	>(null);
 	const [drawCallback, setDrawCallback] = useState<
 		((feature: unknown) => void) | null
@@ -122,6 +122,7 @@ function AppContent() {
 	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
 		null,
 	);
+	const [terraDrawSnapshot, setTerraDrawSnapshot] = useState<TerraDrawFeature[]>([]);
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
@@ -700,6 +701,11 @@ function AppContent() {
 		mapViewRef.current?.startDrawing(type, color);
 	};
 
+	const handleSetDrawMode = (mode: "select" | "delete") => {
+		setDrawingMode(mode);
+		mapViewRef.current?.setDrawMode(mode);
+	};
+
 	const handleDrawComplete = useCallback(
 		(feature: unknown) => {
 			if (drawCallback) {
@@ -941,6 +947,7 @@ function AppContent() {
 							zoom={currentMap.zoom}
 							layers={layersWithTemporalData}
 							onDrawComplete={handleDrawComplete}
+							onTerraDrawChange={setTerraDrawSnapshot}
 							drawingMode={drawingMode}
 							basemap={basemap}
 							onFeatureClick={setHighlightedLayerId}
@@ -1013,10 +1020,14 @@ function AppContent() {
 							setEditingLayer(null);
 							// Clear any TerraDraw drawings when layer creator is closed
 							mapViewRef.current?.clearDrawings();
+							setTerraDrawSnapshot([]);
 						}}
 						onStartDrawing={handleStartDrawing}
+						onSetDrawMode={handleSetDrawMode}
 						availableLayers={availableLayers}
 						editingLayer={editingLayer}
+						drawingMode={drawingMode}
+						terraDrawSnapshot={terraDrawSnapshot}
 					/>
 				)}
 

@@ -14,19 +14,32 @@ import { Legend } from "./Legend";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let TerradrawControlClass: any = null;
 
+// TerraDraw feature type for change events
+export interface TerraDrawFeature {
+	id: string | number;
+	type: "Feature";
+	geometry: {
+		type: string;
+		coordinates: unknown;
+	};
+	properties: Record<string, unknown>;
+}
+
 interface MapViewProps {
 	center: [number, number];
 	zoom: number;
 	layers: Layer[];
 	basemap: string;
 	onDrawComplete?: (feature: unknown) => void;
-	drawingMode?: "Point" | "LineString" | "Polygon" | null;
+	onTerraDrawChange?: (features: TerraDrawFeature[]) => void;
+	drawingMode?: "Point" | "LineString" | "Polygon" | "select" | "delete" | null;
 	onFeatureClick?: (layerId: string) => void;
 	highlightedLayerId?: string | null;
 }
 
 export interface MapViewRef {
 	startDrawing: (type: "Point" | "LineString" | "Polygon", color?: string) => void;
+	setDrawMode: (mode: "select" | "delete") => void;
 	cancelDrawing: () => void;
 	clearDrawings: () => void;
 }
@@ -39,6 +52,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			layers,
 			basemap,
 			onDrawComplete,
+			onTerraDrawChange,
 			drawingMode,
 			onFeatureClick,
 			highlightedLayerId,
@@ -50,6 +64,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const drawRef = useRef<any>(null);
 		const onDrawCompleteRef = useRef(onDrawComplete);
+		const onTerraDrawChangeRef = useRef(onTerraDrawChange);
 		const onFeatureClickRef = useRef(onFeatureClick);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
@@ -64,6 +79,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		useEffect(() => {
 			onDrawCompleteRef.current = onDrawComplete;
 		}, [onDrawComplete]);
+
+		useEffect(() => {
+			onTerraDrawChangeRef.current = onTerraDrawChange;
+		}, [onTerraDrawChange]);
 
 		useEffect(() => {
 			onFeatureClickRef.current = onFeatureClick;
@@ -127,6 +146,19 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				} else if (type === "Polygon") {
 					terraDraw.setMode("polygon");
 				}
+			},
+			setDrawMode: (mode: "select" | "delete") => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				// Enable TerraDraw if not already enabled
+				if (!terraDraw.enabled) {
+					terraDraw.start();
+				}
+
+				terraDraw.setMode(mode);
 			},
 			cancelDrawing: () => {
 				if (drawRef.current && mapLoaded) {
@@ -309,6 +341,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 									// Don't clear here - keep the drawing visible until the layer is created
 									// The drawing will be cleared when startDrawing is called again or when cancelDrawing is called
 								}
+							}
+						});
+
+						// Listen for changes (modifications, deletions, selections)
+						terraDraw.on("change", () => {
+							if (onTerraDrawChangeRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
 							}
 						});
 					}
@@ -868,72 +908,76 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			}
 		}, [layers, mapLoaded]);
 
-		// Handle layer highlighting when a layer is selected
+		// Handle layer selection - pan/zoom to fit layer bounds
 		useEffect(() => {
-			if (!mapRef.current || !mapLoaded) return;
+			if (!mapRef.current || !mapLoaded || !highlightedLayerId) return;
 
 			const map = mapRef.current;
+			const selectedLayer = layers.find((l) => l.id === highlightedLayerId);
 
-			// Reset all layers to normal style, then highlight the selected one
-			layers.forEach((layer) => {
-				if (!layer.visible || !map.getSource(layer.id)) return;
+			if (!selectedLayer || !selectedLayer.visible || !selectedLayer.data) return;
 
-				const isHighlighted = layer.id === highlightedLayerId;
-				const baseColor = layer.color || "#3388ff";
+			// Calculate bounds from the layer's GeoJSON data
+			const bounds = new maplibregl.LngLatBounds();
+			let hasValidCoords = false;
 
-				// Update fill layer
-				const fillLayerId = `${layer.id}-fill`;
-				if (map.getLayer(fillLayerId)) {
-					map.setPaintProperty(
-						fillLayerId,
-						"fill-outline-color",
-						isHighlighted ? "#14b8a6" : baseColor,
-					);
-				}
-
-				// Update line layers with highlight effect (thicker stroke)
-				const lineLayerIds = [
-					`${layer.id}-line`,
-					`${layer.id}-line-solid`,
-					`${layer.id}-line-dashed`,
-					`${layer.id}-line-dotted`,
-				];
-
-				lineLayerIds.forEach((lineLayerId) => {
-					if (map.getLayer(lineLayerId)) {
-						map.setPaintProperty(
-							lineLayerId,
-							"line-width",
-							isHighlighted ? 5 : 2,
-						);
-						map.setPaintProperty(
-							lineLayerId,
-							"line-color",
-							isHighlighted ? "#14b8a6" : baseColor,
-						);
+			const processCoordinates = (coords: unknown, geometryType: string) => {
+				if (geometryType === "Point") {
+					const [lng, lat] = coords as [number, number];
+					if (isFinite(lng) && isFinite(lat)) {
+						bounds.extend([lng, lat]);
+						hasValidCoords = true;
 					}
-				});
-
-				// Update circle layer (points)
-				const circleLayerId = `${layer.id}-circle`;
-				if (map.getLayer(circleLayerId)) {
-					map.setPaintProperty(
-						circleLayerId,
-						"circle-radius",
-						isHighlighted ? 12 : 8,
-					);
-					map.setPaintProperty(
-						circleLayerId,
-						"circle-stroke-width",
-						isHighlighted ? 4 : 2,
-					);
-					map.setPaintProperty(
-						circleLayerId,
-						"circle-stroke-color",
-						isHighlighted ? "#14b8a6" : "#ffffff",
-					);
+				} else if (geometryType === "LineString" || geometryType === "MultiPoint") {
+					(coords as [number, number][]).forEach(([lng, lat]) => {
+						if (isFinite(lng) && isFinite(lat)) {
+							bounds.extend([lng, lat]);
+							hasValidCoords = true;
+						}
+					});
+				} else if (geometryType === "Polygon" || geometryType === "MultiLineString") {
+					(coords as [number, number][][]).forEach((ring) => {
+						ring.forEach(([lng, lat]) => {
+							if (isFinite(lng) && isFinite(lat)) {
+								bounds.extend([lng, lat]);
+								hasValidCoords = true;
+							}
+						});
+					});
+				} else if (geometryType === "MultiPolygon") {
+					(coords as [number, number][][][]).forEach((polygon) => {
+						polygon.forEach((ring) => {
+							ring.forEach(([lng, lat]) => {
+								if (isFinite(lng) && isFinite(lat)) {
+									bounds.extend([lng, lat]);
+									hasValidCoords = true;
+								}
+							});
+						});
+					});
 				}
-			});
+			};
+
+			// Handle GeoJSON FeatureCollection
+			if (selectedLayer.data && typeof selectedLayer.data === "object") {
+				const data = selectedLayer.data as { type?: string; features?: Array<{ geometry?: { type: string; coordinates: unknown } }> };
+				if (data.type === "FeatureCollection" && Array.isArray(data.features)) {
+					data.features.forEach((feature) => {
+						if (feature.geometry?.coordinates) {
+							processCoordinates(feature.geometry.coordinates, feature.geometry.type);
+						}
+					});
+				}
+			}
+
+			// Fit map to bounds if we found valid coordinates
+			if (hasValidCoords && !bounds.isEmpty()) {
+				map.fitBounds(bounds, {
+					padding: 50,
+					maxZoom: 15,
+					duration: 500,
+				});
+			}
 		}, [highlightedLayerId, layers, mapLoaded]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
@@ -948,13 +992,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					</div>
 				)}
 				{drawingMode && (
-					<div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
+					<div className={`absolute top-4 left-1/2 -translate-x-1/2 ${drawingMode === "delete" ? "bg-red-600" : "bg-blue-600"} text-white px-4 py-2 rounded-lg shadow-lg`}>
 						<p className="text-sm">
 							{drawingMode === "Point" && "Click on the map to place a point"}
 							{drawingMode === "LineString" &&
 								"Click to add points. Double-click to finish the line"}
 							{drawingMode === "Polygon" &&
 								"Click to add vertices. Double-click to close the polygon"}
+							{drawingMode === "select" &&
+								"Click on a feature to select and modify it"}
+							{drawingMode === "delete" &&
+								"Click on a feature to delete it"}
 						</p>
 					</div>
 				)}

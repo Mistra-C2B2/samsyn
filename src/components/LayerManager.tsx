@@ -59,6 +59,7 @@ interface LayerManagerProps {
 	getLayerCommentCount?: (layerId: string) => number;
 	loading?: boolean;
 	highlightedLayerId?: string | null;
+	onSelectLayer?: (layerId: string | null) => void;
 }
 
 export function LayerManager({
@@ -78,6 +79,7 @@ export function LayerManager({
 	getLayerCommentCount,
 	loading = false,
 	highlightedLayerId,
+	onSelectLayer,
 }: LayerManagerProps) {
 	const { isSignedIn } = useUser();
 	const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -424,11 +426,15 @@ export function LayerManager({
 							layers.map((layer, index) => (
 								<div
 									key={layer.id}
-									className={`flex rounded-lg overflow-hidden ${
+									className={`flex rounded-lg overflow-hidden cursor-pointer ${
 										highlightedLayerId === layer.id
 											? "ring-2 ring-teal-300 shadow-md"
 											: ""
 									}`}
+									onClick={() => {
+										// Toggle selection: if already selected, deselect; otherwise select
+										onSelectLayer?.(highlightedLayerId === layer.id ? null : layer.id);
+									}}
 								>
 									{/* Left accent bar for highlighted layer */}
 									{highlightedLayerId === layer.id && (

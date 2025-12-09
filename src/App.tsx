@@ -944,6 +944,7 @@ function AppContent() {
 							drawingMode={drawingMode}
 							basemap={basemap}
 							onFeatureClick={setHighlightedLayerId}
+							highlightedLayerId={highlightedLayerId}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">
@@ -1000,6 +1001,7 @@ function AppContent() {
 						getLayerCommentCount={getLayerCommentCount}
 						onEditLayer={handleEditLayer}
 						highlightedLayerId={highlightedLayerId}
+						onSelectLayer={setHighlightedLayerId}
 					/>
 				)}
 

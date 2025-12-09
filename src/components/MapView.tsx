@@ -21,6 +21,7 @@ interface MapViewProps {
 	basemap: string;
 	onDrawComplete?: (feature: unknown) => void;
 	drawingMode?: "Point" | "LineString" | "Polygon" | null;
+	onFeatureClick?: (layerId: string) => void;
 }
 
 export interface MapViewRef {
@@ -30,20 +31,33 @@ export interface MapViewRef {
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
-	({ center, zoom, layers, basemap, onDrawComplete, drawingMode }, ref) => {
+	(
+		{ center, zoom, layers, basemap, onDrawComplete, drawingMode, onFeatureClick },
+		ref,
+	) => {
 		const mapContainerRef = useRef<HTMLDivElement>(null);
 		const mapRef = useRef<maplibregl.Map | null>(null);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const drawRef = useRef<any>(null);
 		const onDrawCompleteRef = useRef(onDrawComplete);
+		const onFeatureClickRef = useRef(onFeatureClick);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
 		const mapLoadedRef = useRef(false);
+		const previousLayerIdsRef = useRef<Set<string>>(new Set());
+		// Track previous layer state for efficient updates (only recreate when data changes)
+		const previousLayerStateRef = useRef<
+			Map<string, { visible: boolean; opacity: number; dataHash: string }>
+		>(new Map());
 
-		// Keep the ref updated with the latest callback
+		// Keep the refs updated with the latest callbacks
 		useEffect(() => {
 			onDrawCompleteRef.current = onDrawComplete;
 		}, [onDrawComplete]);
+
+		useEffect(() => {
+			onFeatureClickRef.current = onFeatureClick;
+		}, [onFeatureClick]);
 
 		useImperativeHandle(ref, () => ({
 			startDrawing: (type: "Point" | "LineString" | "Polygon") => {
@@ -425,46 +439,128 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			if (!mapRef.current || !mapLoaded) return;
 
 			const map = mapRef.current;
+			const currentLayerIds = new Set(layers.map((l) => l.id));
+			const previousLayerIds = previousLayerIdsRef.current;
+			const previousLayerState = previousLayerStateRef.current;
 
-			// Remove all existing layers and sources
-			layers.forEach((layer) => {
-				// Remove all possible layer variations
-				const layerIds = [
-					`${layer.id}-fill`,
-					`${layer.id}-line`,
-					`${layer.id}-line-solid`,
-					`${layer.id}-line-dashed`,
-					`${layer.id}-line-dotted`,
-					`${layer.id}-circle`,
-					`${layer.id}-symbol`,
+			// Helper to create a simple hash of layer data for comparison
+			const getDataHash = (layer: Layer): string => {
+				if (!layer.data) return "";
+				return JSON.stringify(layer.data);
+			};
+
+			// Helper function to remove a layer and its source from the map
+			const removeLayerFromMap = (layerId: string) => {
+				const layerVariations = [
+					`${layerId}-fill`,
+					`${layerId}-line`,
+					`${layerId}-line-solid`,
+					`${layerId}-line-dashed`,
+					`${layerId}-line-dotted`,
+					`${layerId}-circle`,
+					`${layerId}-symbol`,
 				];
 
-				layerIds.forEach((layerId) => {
-					if (map.getLayer(layerId)) {
-						map.removeLayer(layerId);
+				layerVariations.forEach((id) => {
+					if (map.getLayer(id)) {
+						map.removeLayer(id);
 					}
 				});
 
-				// Now safe to remove source after all layers are removed
-				if (map.getSource(layer.id)) {
-					map.removeSource(layer.id);
+				if (map.getSource(layerId)) {
+					map.removeSource(layerId);
+				}
+
+				// Clean up state tracking
+				previousLayerState.delete(layerId);
+			};
+
+			// Helper to update opacity for existing layers
+			const updateLayerOpacity = (layerId: string, opacity: number, layerType?: string) => {
+				const fillLayerId = `${layerId}-fill`;
+				const lineLayerId = `${layerId}-line`;
+				const circleLayerId = `${layerId}-circle`;
+				const lineStyles = ["solid", "dashed", "dotted"];
+
+				if (map.getLayer(fillLayerId)) {
+					map.setPaintProperty(fillLayerId, "fill-opacity", opacity);
+				}
+				if (map.getLayer(lineLayerId)) {
+					map.setPaintProperty(lineLayerId, "line-opacity", opacity);
+				}
+				if (map.getLayer(circleLayerId)) {
+					// Heatmap circles use different opacity calculation
+					const circleOpacity = layerType === "heatmap" ? opacity * 0.6 : opacity;
+					map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
+				}
+				// Update styled line layers
+				lineStyles.forEach((style) => {
+					const styledLineId = `${layerId}-line-${style}`;
+					if (map.getLayer(styledLineId)) {
+						map.setPaintProperty(styledLineId, "line-opacity", opacity);
+					}
+				});
+			};
+
+			// Remove layers that are no longer in the layers array (were removed)
+			previousLayerIds.forEach((layerId) => {
+				if (!currentLayerIds.has(layerId)) {
+					removeLayerFromMap(layerId);
 				}
 			});
 
-			// Add visible layers
-			layers.forEach((layer) => {
-				if (!layer.visible) return;
+			// Update the ref with current layer IDs
+			previousLayerIdsRef.current = currentLayerIds;
 
+			// Process each layer - update existing or add new
+			layers.forEach((layer) => {
+				const currentDataHash = getDataHash(layer);
+				const prevState = previousLayerState.get(layer.id);
+				const layerExistsOnMap = map.getSource(layer.id) !== undefined;
+
+				// Handle visibility changes
+				if (!layer.visible) {
+					// If layer was visible before, remove it
+					if (prevState?.visible) {
+						removeLayerFromMap(layer.id);
+					}
+					// Update state to track visibility
+					previousLayerState.set(layer.id, {
+						visible: false,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
+					});
+					return;
+				}
+
+				// Layer is visible - check if we can just update opacity or need to recreate
+				if (layerExistsOnMap && prevState) {
+					// Layer exists - check if only opacity changed (data is same)
+					if (prevState.dataHash === currentDataHash && prevState.visible) {
+						// Only opacity changed - just update paint properties
+						if (prevState.opacity !== layer.opacity) {
+							updateLayerOpacity(layer.id, layer.opacity, layer.type);
+							previousLayerState.set(layer.id, {
+								visible: true,
+								opacity: layer.opacity,
+								dataHash: currentDataHash,
+							});
+						}
+						return;
+					}
+					// Data changed or visibility changed from false to true - need to recreate
+					removeLayerFromMap(layer.id);
+				}
+
+				// Create new layer
 				if (layer.type === "geojson" && layer.data) {
 					map.addSource(layer.id, {
 						type: "geojson",
 						data: layer.data,
 					});
 
-					// Normalize opacity: convert from 0-100 range to 0-1 range
-					// If opacity is already <= 1, use as-is; otherwise divide by 100
-					const normalizedOpacity =
-						layer.opacity > 1 ? layer.opacity / 100 : layer.opacity;
+					// Opacity is already in 0-1 range from the frontend layer state
+					const normalizedOpacity = layer.opacity;
 
 					// Determine fill color based on intensity or use layer color
 					const firstFeature = layer.data.features?.[0];
@@ -483,7 +579,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						filter: ["==", ["geometry-type"], "Polygon"],
 						paint: {
 							"fill-color": fillColor,
-							"fill-opacity": normalizedOpacity * 0.5,
+							"fill-opacity": normalizedOpacity,
 						},
 					});
 
@@ -581,8 +677,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						},
 					});
 
-					// Add popups on click
+					// Add popups on click and notify layer selection
 					map.on("click", `${layer.id}-fill`, (e: unknown) => {
+						// Notify parent about the clicked layer
+						if (onFeatureClickRef.current) {
+							onFeatureClickRef.current(layer.id);
+						}
 						if (e.features?.[0]) {
 							const feature = e.features[0];
 							const name = feature.properties.name || "Unnamed";
@@ -597,6 +697,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					});
 
 					map.on("click", `${layer.id}-circle`, (e: unknown) => {
+						// Notify parent about the clicked layer
+						if (onFeatureClickRef.current) {
+							onFeatureClickRef.current(layer.id);
+						}
 						if (e.features?.[0]) {
 							const feature = e.features[0];
 							const name = feature.properties.name || "Unnamed";
@@ -623,10 +727,16 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					map.on("mouseleave", `${layer.id}-circle`, () => {
 						map.getCanvas().style.cursor = "";
 					});
+
+					// Track state for this layer
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
+					});
 				} else if (layer.type === "heatmap" && layer.data) {
-					// Normalize opacity for heatmap layers
-					const heatmapOpacity =
-						layer.opacity > 1 ? layer.opacity / 100 : layer.opacity;
+					// Opacity is already in 0-1 range from the frontend layer state
+					const heatmapOpacity = layer.opacity;
 
 					const features = layer.data.map((point: unknown) => {
 						const p = point as Record<string, unknown>;
@@ -669,6 +779,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							],
 							"circle-opacity": heatmapOpacity * 0.6,
 						},
+					});
+
+					// Track state for this layer
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
 					});
 				}
 			});

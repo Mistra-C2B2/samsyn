@@ -98,8 +98,34 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                 "visible": ml.visible,
                 "opacity": ml.opacity,
                 "created_at": ml.created_at,
+                "layer": {
+                    "id": ml.layer.id,
+                    "name": ml.layer.name,
+                    "source_type": ml.layer.source_type,
+                    "description": ml.layer.description,
+                    "category": ml.layer.category,
+                    "created_by": ml.layer.created_by,
+                    "editable": ml.layer.editable,
+                    "is_global": ml.layer.is_global,
+                    "source_config": ml.layer.source_config or {},
+                    "style_config": ml.layer.style_config or {},
+                    "legend_config": ml.layer.legend_config or {},
+                    "layer_metadata": ml.layer.layer_metadata or {},
+                    "created_at": ml.layer.created_at,
+                    "updated_at": ml.layer.updated_at,
+                    "features": [
+                        {
+                            "id": feat.id,
+                            "geometry_type": feat.geometry_type,
+                            "properties": feat.properties or {},
+                            "created_at": feat.created_at,
+                        }
+                        for feat in (ml.layer.features if hasattr(ml.layer, 'features') else [])
+                    ],
+                    "map_layers": [],  # Don't include recursive map_layers
+                } if ml.layer else None,
             }
-            for ml in map_obj.map_layers
+            for ml in sorted(map_obj.map_layers, key=lambda x: x.order)
         ],
         "user_role": user_role,
     }

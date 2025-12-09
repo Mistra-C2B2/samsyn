@@ -119,6 +119,9 @@ function AppContent() {
 	const [editingLayer, setEditingLayer] = useState<Layer | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
+	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
+		null,
+	);
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
@@ -328,6 +331,7 @@ function AppContent() {
 	};
 
 	const updateLayer = (layerId: string, updates: Partial<Layer>) => {
+		// Update local state immediately for responsive UI
 		setCurrentMap((prev) => {
 			if (!prev) return prev;
 			return {
@@ -337,6 +341,23 @@ function AppContent() {
 				),
 			};
 		});
+
+		// Persist visibility/opacity changes to backend
+		if (currentMap && (updates.visible !== undefined || updates.opacity !== undefined)) {
+			const apiUpdates: { visible?: boolean; opacity?: number } = {};
+			if (updates.visible !== undefined) {
+				apiUpdates.visible = updates.visible;
+			}
+			if (updates.opacity !== undefined) {
+				// Convert frontend 0-1 to backend 0-100
+				apiUpdates.opacity = Math.round(updates.opacity * 100);
+			}
+
+			// Fire and forget - don't block UI for this
+			layerService.updateMapLayer(currentMap.id, layerId, apiUpdates).catch((error) => {
+				console.error("Failed to persist layer update:", error);
+			});
+		}
 	};
 
 	const reorderLayers = async (startIndex: number, endIndex: number) => {
@@ -622,7 +643,7 @@ function AppContent() {
 				layerId,
 				displayOrder,
 				true,
-				100,
+				70, // Default 70% opacity (backend uses 0-100 range)
 			);
 
 			// Update local state
@@ -630,7 +651,7 @@ function AppContent() {
 				if (!prev) return prev;
 				return {
 					...prev,
-					layers: [...prev.layers, { ...layer, visible: true }],
+					layers: [...prev.layers, { ...layer, visible: true, opacity: 0.7 }],
 				};
 			});
 
@@ -916,6 +937,7 @@ function AppContent() {
 							onDrawComplete={handleDrawComplete}
 							drawingMode={drawingMode}
 							basemap={basemap}
+							onFeatureClick={setHighlightedLayerId}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">
@@ -971,6 +993,7 @@ function AppContent() {
 						onOpenComments={handleOpenCommentsForLayer}
 						getLayerCommentCount={getLayerCommentCount}
 						onEditLayer={handleEditLayer}
+						highlightedLayerId={highlightedLayerId}
 					/>
 				)}
 

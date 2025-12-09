@@ -136,6 +136,21 @@ export class LayerService {
 	}
 
 	/**
+	 * Update layer display properties in a map (visibility, opacity, order)
+	 * PUT /api/v1/maps/{map_id}/layers/{layer_id}
+	 */
+	async updateMapLayer(
+		mapId: string,
+		layerId: string,
+		updates: { visible?: boolean; opacity?: number; order?: number },
+	) {
+		return this.client.put<MapLayerResponse, typeof updates>(
+			`/api/v1/maps/${mapId}/layers/${layerId}`,
+			updates,
+		);
+	}
+
+	/**
 	 * Transform backend LayerResponse to frontend Layer format
 	 */
 	transformToLayer(layerResponse: LayerResponse): Layer {
@@ -173,7 +188,7 @@ export class LayerService {
 			name: layerResponse.name,
 			type: frontendType,
 			visible: true, // Default visibility - will be overridden by MapLayer settings
-			opacity: 100, // Default opacity - will be overridden by MapLayer settings
+			opacity: 0.7, // Default opacity 70% (0-1 range) - will be overridden by MapLayer settings
 			description: layerResponse.description || undefined,
 			category: layerResponse.category || undefined,
 			createdBy: layerResponse.created_by,

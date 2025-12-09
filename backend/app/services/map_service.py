@@ -12,7 +12,7 @@ Handles all map CRUD operations including:
 
 from uuid import UUID
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 
 from app.models.map import Map
@@ -85,7 +85,17 @@ class MapService:
         Returns:
             Map if found and user has view access, None otherwise
         """
-        map_obj = self.db.query(Map).filter(Map.id == map_id).first()
+        # Eagerly load map_layers with their layer and features
+        map_obj = (
+            self.db.query(Map)
+            .options(
+                joinedload(Map.map_layers)
+                .joinedload(MapLayer.layer)
+                .joinedload(Layer.features)
+            )
+            .filter(Map.id == map_id)
+            .first()
+        )
 
         if not map_obj:
             return None

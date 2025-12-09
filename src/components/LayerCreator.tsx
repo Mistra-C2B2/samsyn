@@ -432,7 +432,7 @@ export function LayerCreator({
 						</div>
 						{features.map((feature, index) => (
 							<div
-								key={`feature-${feature.type}-${feature.name}-${index}`}
+								key={index}
 								className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2"
 							>
 								<div className="flex items-center justify-between">

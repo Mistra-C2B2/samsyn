@@ -44,6 +44,10 @@ python tests/test_console.py   # Check for console errors/warnings
 
 **Always run this test after making frontend changes.**
 
+## Backend
+
+See [backend/README.md](backend/README.md) for API endpoints documentation.
+
 ## Notes
 
 - Clerk auth: Set `VITE_CLERK_PUBLISHABLE_KEY` in `.env.local` to enable

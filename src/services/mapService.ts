@@ -185,7 +185,7 @@ export class MapService {
 					name: layerResponse.name,
 					type: frontendType,
 					visible: mapLayer.visible,
-					opacity: mapLayer.opacity,
+					opacity: mapLayer.opacity / 100, // Convert backend 0-100 to frontend 0-1
 					description: layerResponse.description || undefined,
 					category: layerResponse.category || undefined,
 					createdBy: layerResponse.created_by,

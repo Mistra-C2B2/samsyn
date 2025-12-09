@@ -693,10 +693,11 @@ function AppContent() {
 	const handleStartDrawing = (
 		type: "Point" | "LineString" | "Polygon",
 		callback: (feature: unknown) => void,
+		color?: string,
 	) => {
 		setDrawingMode(type);
 		setDrawCallback(() => callback);
-		mapViewRef.current?.startDrawing(type);
+		mapViewRef.current?.startDrawing(type, color);
 	};
 
 	const handleDrawComplete = useCallback(

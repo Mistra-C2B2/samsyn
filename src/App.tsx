@@ -20,7 +20,11 @@ import { CommentSection } from "./components/CommentSection";
 import { LayerCreator } from "./components/LayerCreator";
 import { LayerManager } from "./components/LayerManager";
 import { MapSelector } from "./components/MapSelector";
-import { MapView, type MapViewRef, type TerraDrawFeature } from "./components/MapView";
+import {
+	MapView,
+	type MapViewRef,
+	type TerraDrawFeature,
+} from "./components/MapView";
 import { RoleBadge } from "./components/RoleBadge";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TimeSlider } from "./components/TimeSlider";
@@ -122,7 +126,9 @@ function AppContent() {
 	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
 		null,
 	);
-	const [terraDrawSnapshot, setTerraDrawSnapshot] = useState<TerraDrawFeature[]>([]);
+	const [terraDrawSnapshot, setTerraDrawSnapshot] = useState<
+		TerraDrawFeature[]
+	>([]);
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
@@ -1024,6 +1030,9 @@ function AppContent() {
 						}}
 						onStartDrawing={handleStartDrawing}
 						onSetDrawMode={handleSetDrawMode}
+						onAddFeaturesToMap={(features, color) =>
+							mapViewRef.current?.addFeatures(features, color) || []
+						}
 						availableLayers={availableLayers}
 						editingLayer={editingLayer}
 						drawingMode={drawingMode}

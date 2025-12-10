@@ -433,7 +433,9 @@ export function LayerManager({
 									}`}
 									onClick={() => {
 										// Toggle selection: if already selected, deselect; otherwise select
-										onSelectLayer?.(highlightedLayerId === layer.id ? null : layer.id);
+										onSelectLayer?.(
+											highlightedLayerId === layer.id ? null : layer.id,
+										);
 									}}
 								>
 									{/* Left accent bar for highlighted layer */}

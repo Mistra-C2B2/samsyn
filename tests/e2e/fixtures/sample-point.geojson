@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Test Point" },
+      "geometry": { "type": "Point", "coordinates": [10.0, 60.0] }
+    }
+  ]
+}

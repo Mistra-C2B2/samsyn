@@ -53,12 +53,15 @@
       "devDependencies": {
             "@babel/plugin-transform-class-properties": "^7.27.1",
             "@biomejs/biome": "^2.3.8",
+            "@clerk/testing": "^1.13.22",
+            "@playwright/test": "^1.57.0",
             "@types/node": "^20.10.0",
             "@types/react": "^19.2.7",
             "@types/react-dom": "^19.2.3",
             "@vitejs/plugin-react": "^5.1.1",
             "@vitejs/plugin-react-swc": "^3.10.2",
             "@watergis/maplibre-gl-terradraw": "^1.9.6",
+            "dotenv": "^17.2.3",
             "vite": "^5.4.21"
       },
       "scripts": {
@@ -69,6 +72,11 @@
             "migrate:new": "cd backend && .venv/bin/alembic revision --autogenerate -m",
             "lint": "biome lint ./src",
             "format": "biome format --write ./src",
-            "check": "biome check --write ./src"
+            "check": "biome check --write ./src",
+            "test": "playwright test",
+            "test:auth": "dotenv -e .env.test -- playwright test tests/e2e/layers-authenticated.spec.ts",
+            "test:ui": "playwright test --ui",
+            "test:headed": "playwright test --headed",
+            "test:report": "playwright show-report"
       }
 }

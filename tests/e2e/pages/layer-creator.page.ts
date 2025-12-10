@@ -199,6 +199,20 @@ export class LayerCreatorPage {
 		return names;
 	}
 
+	async getFeatureDescriptions(): Promise<string[]> {
+		const descriptions: string[] = [];
+		const count = await this.featureCards.count();
+
+		for (let i = 0; i < count; i++) {
+			const card = this.featureCards.nth(i);
+			const descInput = card.locator('textarea[placeholder="Description (optional)"]');
+			const value = await descInput.inputValue();
+			descriptions.push(value);
+		}
+
+		return descriptions;
+	}
+
 	async setFeatureName(index: number, name: string) {
 		const card = this.featureCards.nth(index);
 		const nameInput = card.locator('input[placeholder="Feature name (required)"]');

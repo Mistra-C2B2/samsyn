@@ -1,22 +1,21 @@
+import { useUser } from "@clerk/clerk-react";
 import {
 	AlertTriangle,
 	Anchor,
 	Circle,
-	Code,
 	Loader2,
-	Lock,
 	MapPin,
 	Milestone,
-	MousePointer2,
 	Plus,
 	Ship,
 	Square,
 	Trash2,
-	Users,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Layer } from "../App";
+import { DrawingProvider } from "../contexts/DrawingContext";
+import { useDebouncedCallback } from "../hooks/useDebounce";
 import {
 	type Feature,
 	type GeometryType,
@@ -24,14 +23,14 @@ import {
 	type LineStyle,
 	useLayerEditor,
 } from "../hooks/useLayerEditor";
-import { useDebouncedCallback } from "../hooks/useDebounce";
-import { CategorySelector } from "./CategorySelector";
 import { LayerCreatorErrorBoundary } from "./LayerCreatorErrorBoundary";
+import { DrawingModePanel } from "./layer-creator/DrawingModePanel";
+import { LayerMetadataForm } from "./layer-creator/LayerMetadataForm";
+import { PermissionsSelector } from "./layer-creator/PermissionsSelector";
 import type { TerraDrawFeature } from "./MapView";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
 
 // ============================================================================
@@ -108,39 +107,6 @@ function getCoordinatesSummary(feature: Feature): string {
 	}
 	return "";
 }
-
-// ============================================================================
-// Drawing Mode Button Component
-// ============================================================================
-
-interface DrawModeButtonProps {
-	isActive: boolean;
-	onClick: () => void;
-	icon: React.ReactNode;
-	label: string;
-}
-
-const DrawModeButton = memo(function DrawModeButton({
-	isActive,
-	onClick,
-	icon,
-	label,
-}: DrawModeButtonProps) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
-				isActive
-					? "border-teal-600 bg-teal-50 text-teal-700"
-					: "border-slate-200 hover:border-teal-400"
-			}`}
-		>
-			{icon}
-			<span className="text-xs">{label}</span>
-		</button>
-	);
-});
 
 // ============================================================================
 // Feature Card Component
@@ -276,10 +242,14 @@ export function LayerCreator({
 	drawingMode,
 	terraDrawSnapshot,
 }: LayerCreatorProps) {
+	// Get current user from Clerk auth
+	const { user } = useUser();
+
 	// Use the layer editor hook for state management
 	const editor = useLayerEditor({
 		editingLayer,
 		terraDrawSnapshot,
+		currentUserId: user?.id,
 	});
 
 	// Local state for GeoJSON import
@@ -317,18 +287,63 @@ export function LayerCreator({
 			prevEditingLayerIdRef.current = editingLayerId;
 		}
 
-		// Initialize existing features in TerraDraw when editing
+		// Initialize pending features in TerraDraw when editing
 		if (
 			!initializedFeaturesRef.current &&
 			editor.isEditMode &&
-			editor.features.length > 0 &&
+			editor.pendingFeatures.length > 0 &&
 			onAddFeaturesToMap
 		) {
-			const unsyncedFeatures = editor.features.filter(
-				(f) => !f.syncedToTerraDraw,
+			const featuresToAdd = editor.pendingFeatures.map((f) => ({
+				id: f.id,
+				type: f.type,
+				coordinates: f.coordinates,
+			}));
+
+			const addedIds = onAddFeaturesToMap(featuresToAdd, editor.layerColor);
+
+			// Update features with new TerraDraw IDs
+			if (addedIds.length > 0) {
+				const idMappings: Array<{ oldId: string; newId: string }> = [];
+				editor.pendingFeatures.forEach((feature, index) => {
+					if (addedIds[index]) {
+						idMappings.push({ oldId: feature.id, newId: addedIds[index] });
+					}
+				});
+
+				if (idMappings.length > 0) {
+					editor.remapFeatureIds(idMappings);
+				}
+			}
+
+			initializedFeaturesRef.current = true;
+		}
+	}, [
+		editingLayer?.id,
+		editor.isEditMode,
+		editor.pendingFeatures,
+		editor.layerColor,
+		editor.remapFeatureIds,
+		onAddFeaturesToMap,
+	]);
+
+	// Track features added via GeoJSON import to prevent duplicate adds
+	const importedFeaturesRef = useRef<Set<string>>(new Set());
+
+	// Add pending features from GeoJSON import to TerraDraw (for create mode)
+	useEffect(() => {
+		if (
+			!editor.isEditMode &&
+			editor.pendingFeatures.length > 0 &&
+			onAddFeaturesToMap
+		) {
+			// Filter out features we've already added
+			const newFeatures = editor.pendingFeatures.filter(
+				(f) => !importedFeaturesRef.current.has(f.id),
 			);
-			if (unsyncedFeatures.length > 0) {
-				const featuresToAdd = unsyncedFeatures.map((f) => ({
+
+			if (newFeatures.length > 0) {
+				const featuresToAdd = newFeatures.map((f) => ({
 					id: f.id,
 					type: f.type,
 					coordinates: f.coordinates,
@@ -339,9 +354,11 @@ export function LayerCreator({
 				// Update features with new TerraDraw IDs
 				if (addedIds.length > 0) {
 					const idMappings: Array<{ oldId: string; newId: string }> = [];
-					unsyncedFeatures.forEach((feature, index) => {
+					newFeatures.forEach((feature, index) => {
 						if (addedIds[index]) {
 							idMappings.push({ oldId: feature.id, newId: addedIds[index] });
+							// Track this feature as added
+							importedFeaturesRef.current.add(feature.id);
 						}
 					});
 
@@ -349,14 +366,11 @@ export function LayerCreator({
 						editor.remapFeatureIds(idMappings);
 					}
 				}
-
-				initializedFeaturesRef.current = true;
 			}
 		}
 	}, [
-		editingLayer?.id,
 		editor.isEditMode,
-		editor.features,
+		editor.pendingFeatures,
 		editor.layerColor,
 		editor.remapFeatureIds,
 		onAddFeaturesToMap,
@@ -375,6 +389,7 @@ export function LayerCreator({
 		return () => {
 			initializedFeaturesRef.current = false;
 			prevEditingLayerIdRef.current = undefined;
+			importedFeaturesRef.current.clear();
 		};
 	}, []);
 
@@ -390,17 +405,14 @@ export function LayerCreator({
 					geometry?: { coordinates?: unknown };
 				};
 
-				editor.addFeature(
-					{
-						type,
+				if (feature.id) {
+					editor.addFeature(feature.id, {
 						name: "",
 						description: "",
-						coordinates: feature.geometry?.coordinates,
 						icon: type === "Point" ? "default" : undefined,
 						lineStyle: type === "LineString" ? "solid" : undefined,
-					},
-					feature.id,
-				);
+					});
+				}
 			},
 			editor.layerColor,
 		);
@@ -431,7 +443,7 @@ export function LayerCreator({
 
 	// Handle save/create
 	const handleCreate = async () => {
-		const validation = editor.validate();
+		const validation = editor.validate(editor.features);
 		if (!validation.valid) {
 			editor.setError(validation.error || "Validation failed");
 			return;
@@ -442,7 +454,7 @@ export function LayerCreator({
 			setSaveWarning(validation.warning);
 		}
 
-		const layer = editor.buildLayer(editingLayer);
+		const layer = editor.buildLayer(editor.features, editingLayer);
 		if (!layer) return;
 
 		editor.setSaving(true);
@@ -464,7 +476,15 @@ export function LayerCreator({
 	// Memoized handlers for feature cards to prevent unnecessary re-renders
 	const handleFeatureUpdate = useCallback(
 		(featureId: string, field: keyof Feature, value: unknown) => {
-			editor.updateFeature(featureId, { [field]: value });
+			// Only update metadata fields (name, description, icon, lineStyle)
+			if (
+				field === "name" ||
+				field === "description" ||
+				field === "icon" ||
+				field === "lineStyle"
+			) {
+				editor.updateFeature(featureId, { [field]: value });
+			}
 		},
 		[editor.updateFeature],
 	);
@@ -477,303 +497,121 @@ export function LayerCreator({
 	);
 
 	return (
-		<div className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg">
-			{/* Header */}
-			<div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-				<h2 className="text-slate-900">
-					{editor.isEditMode ? "Edit Layer" : "Create Layer"}
-				</h2>
-				<Button variant="ghost" size="sm" onClick={onClose}>
-					<X className="w-4 h-4" />
-				</Button>
-			</div>
+		<DrawingProvider
+			value={{
+				drawingMode,
+				onStartDrawing,
+				onSetDrawMode,
+				onAddFeaturesToMap,
+			}}
+		>
+			<div className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg">
+				{/* Header */}
+				<div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+					<h2 className="text-slate-900">
+						{editor.isEditMode ? "Edit Layer" : "Create Layer"}
+					</h2>
+					<Button variant="ghost" size="sm" onClick={onClose}>
+						<X className="w-4 h-4" />
+					</Button>
+				</div>
 
-			{/* Content */}
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
-				{/* Layer Name */}
-				<div className="space-y-2">
-					<Label htmlFor="layer-name">Layer Name</Label>
-					<Input
-						id="layer-name"
-						placeholder="e.g., Fishing Zones"
-						value={editor.layerName}
-						onChange={(e) => editor.setLayerName(e.target.value)}
+				{/* Content */}
+				<div className="flex-1 overflow-y-auto p-4 space-y-4">
+					{/* Layer Metadata Form */}
+					<LayerMetadataForm
+						layerName={editor.layerName}
+						setLayerName={editor.setLayerName}
+						category={editor.category}
+						setCategory={editor.setCategory}
+						description={editor.description}
+						setDescription={editor.setDescription}
+						layerColor={editor.layerColor}
+						setLayerColor={editor.setLayerColor}
+						existingCategories={existingCategories}
 					/>
-				</div>
 
-				{/* Category */}
-				<CategorySelector
-					value={editor.category}
-					onChange={editor.setCategory}
-					existingCategories={existingCategories}
-				/>
-
-				{/* Description */}
-				<div className="space-y-2">
-					<Label htmlFor="layer-description">
-						Layer Description (optional)
-					</Label>
-					<Textarea
-						id="layer-description"
-						placeholder="Describe this layer..."
-						value={editor.description}
-						onChange={(e) => editor.setDescription(e.target.value)}
-						rows={3}
+					{/* Drawing Mode Panel */}
+					<DrawingModePanel
+						onStartDrawing={handleAddFeatureByDrawing}
+						geoJsonInput={geoJsonInput}
+						setGeoJsonInput={setGeoJsonInput}
+						geoJsonError={geoJsonError}
+						geoJsonImporting={geoJsonImporting}
+						onGeoJsonImport={handleGeoJsonImport}
 					/>
-				</div>
 
-				{/* Color Picker */}
-				<div className="space-y-2">
-					<Label htmlFor="layer-color">Layer Color</Label>
-					<div className="flex items-center gap-2">
-						<Input
-							id="layer-color"
-							type="color"
-							value={editor.layerColor}
-							onChange={(e) => editor.setLayerColor(e.target.value)}
-							className="w-20 h-10 cursor-pointer"
-						/>
-						<Input
-							type="text"
-							value={editor.layerColor}
-							onChange={(e) => editor.setLayerColor(e.target.value)}
-							placeholder="#3b82f6"
-							className="flex-1"
-						/>
-					</div>
-				</div>
-
-				{/* Drawing Tabs */}
-				<Tabs defaultValue="draw" className="w-full">
-					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="draw">Draw on Map</TabsTrigger>
-						<TabsTrigger value="geojson">
-							<Code className="w-4 h-4 mr-2" />
-							GeoJSON
-						</TabsTrigger>
-					</TabsList>
-
-					<TabsContent value="draw" className="space-y-3 mt-3">
-						{/* Drawing mode buttons */}
-						<div className="grid grid-cols-3 gap-2">
-							<DrawModeButton
-								isActive={drawingMode === "Point"}
-								onClick={() => handleAddFeatureByDrawing("Point")}
-								icon={<MapPin className="w-5 h-5" />}
-								label="Add Point"
-							/>
-							<DrawModeButton
-								isActive={drawingMode === "LineString"}
-								onClick={() => handleAddFeatureByDrawing("LineString")}
-								icon={<Milestone className="w-5 h-5" />}
-								label="Add Line"
-							/>
-							<DrawModeButton
-								isActive={drawingMode === "Polygon"}
-								onClick={() => handleAddFeatureByDrawing("Polygon")}
-								icon={<Square className="w-5 h-5" />}
-								label="Add Polygon"
-							/>
+					{/* Features List */}
+					{editor.features.length > 0 && (
+						<div className="space-y-3 border-t border-slate-200 pt-4">
+							<div className="flex items-center justify-between">
+								<Label>Features ({editor.features.length})</Label>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={editor.clearFeatures}
+									className="text-xs text-slate-500 hover:text-red-600"
+								>
+									Clear All
+								</Button>
+							</div>
+							{editor.features.map((feature) => (
+								<FeatureCard
+									key={feature.id}
+									feature={feature}
+									onUpdate={(field, value) =>
+										handleFeatureUpdate(feature.id, field, value)
+									}
+									onRemove={() => handleFeatureRemove(feature.id)}
+								/>
+							))}
 						</div>
+					)}
 
-						{/* Select/Delete mode buttons */}
-						<div className="grid grid-cols-2 gap-2">
-							<button
-								type="button"
-								onClick={() => onSetDrawMode?.("select")}
-								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
-									drawingMode === "select"
-										? "border-teal-600 bg-teal-50 text-teal-700"
-										: "border-slate-200 hover:border-teal-400"
-								}`}
-							>
-								<MousePointer2 className="w-5 h-5" />
-								<span className="text-xs">Select</span>
-							</button>
-							<button
-								type="button"
-								onClick={() => onSetDrawMode?.("delete")}
-								className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
-									drawingMode === "delete"
-										? "border-red-600 bg-red-50 text-red-700"
-										: "border-slate-200 hover:border-red-400"
-								}`}
-							>
-								<Trash2 className="w-5 h-5" />
-								<span className="text-xs">Delete</span>
-							</button>
-						</div>
-					</TabsContent>
-
-					<TabsContent value="geojson" className="space-y-3 mt-3">
-						<div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-slate-700">
-							<p>
-								Paste a GeoJSON FeatureCollection. Each feature will be imported
-								as a separate item that you can name and customize.
+					{/* Empty State */}
+					{editor.features.length === 0 && (
+						<div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center">
+							<p className="text-sm text-slate-600">
+								Click a button above to start drawing features on the map
 							</p>
 						</div>
-						<Textarea
-							placeholder={`{\n  "type": "FeatureCollection",\n  "features": [\n    {\n      "type": "Feature",\n      "properties": {\n        "name": "Feature Name"\n      },\n      "geometry": {...}\n    }\n  ]\n}`}
-							value={geoJsonInput}
-							onChange={(e) => setGeoJsonInput(e.target.value)}
-							rows={8}
-							className="font-mono text-xs"
-						/>
-						{geoJsonError && (
-							<div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-								{geoJsonError}
-							</div>
-						)}
-						<Button
-							onClick={handleGeoJsonImport}
-							variant="outline"
-							className="w-full"
-							disabled={!geoJsonInput.trim() || geoJsonImporting}
-						>
-							{geoJsonImporting ? (
-								<>
-									<Loader2 className="w-4 h-4 mr-2 animate-spin" />
-									Importing...
-								</>
-							) : (
-								<>
-									<Code className="w-4 h-4 mr-2" />
-									Import GeoJSON
-								</>
-							)}
-						</Button>
-					</TabsContent>
-				</Tabs>
+					)}
 
-				{/* Features List */}
-				{editor.features.length > 0 && (
-					<div className="space-y-3 border-t border-slate-200 pt-4">
-						<div className="flex items-center justify-between">
-							<Label>Features ({editor.features.length})</Label>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={editor.clearFeatures}
-								className="text-xs text-slate-500 hover:text-red-600"
-							>
-								Clear All
-							</Button>
+					{/* Permissions Selector */}
+					<PermissionsSelector
+						editableBy={editor.editableBy}
+						setEditableBy={editor.setEditableBy}
+					/>
+				</div>
+
+				{/* Footer */}
+				<div className="p-4 border-t border-slate-200 space-y-3">
+					{saveWarning && (
+						<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-600">
+							{saveWarning}
 						</div>
-						{editor.features.map((feature) => (
-							<FeatureCard
-								key={feature.id}
-								feature={feature}
-								onUpdate={(field, value) =>
-									handleFeatureUpdate(feature.id, field, value)
-								}
-								onRemove={() => handleFeatureRemove(feature.id)}
-							/>
-						))}
-					</div>
-				)}
-
-				{/* Empty State */}
-				{editor.features.length === 0 && (
-					<div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center">
-						<p className="text-sm text-slate-600">
-							Click a button above to start drawing features on the map
-						</p>
-					</div>
-				)}
-
-				{/* Permissions */}
-				<div className="space-y-3 border-t border-slate-200 pt-4">
-					<Label>Who Can Edit This Layer?</Label>
-					<div className="space-y-2">
-						<button
-							type="button"
-							onClick={() => editor.setEditableBy("creator-only")}
-							className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-								editor.editableBy === "creator-only"
-									? "border-teal-600 bg-teal-50"
-									: "border-slate-200 hover:border-teal-400"
-							}`}
-						>
-							<div className="flex items-start gap-3">
-								<div
-									className={`p-2 rounded ${
-										editor.editableBy === "creator-only"
-											? "bg-teal-100"
-											: "bg-slate-100"
-									}`}
-								>
-									<Lock className="w-4 h-4" />
-								</div>
-								<div className="flex-1">
-									<div className="font-medium text-sm">Only Me</div>
-									<p className="text-xs text-slate-600 mt-1">
-										Only you can edit or delete this layer
-									</p>
-								</div>
-							</div>
-						</button>
-
-						<button
-							type="button"
-							onClick={() => editor.setEditableBy("everyone")}
-							className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-								editor.editableBy === "everyone"
-									? "border-teal-600 bg-teal-50"
-									: "border-slate-200 hover:border-teal-400"
-							}`}
-						>
-							<div className="flex items-start gap-3">
-								<div
-									className={`p-2 rounded ${
-										editor.editableBy === "everyone"
-											? "bg-teal-100"
-											: "bg-slate-100"
-									}`}
-								>
-									<Users className="w-4 h-4" />
-								</div>
-								<div className="flex-1">
-									<div className="font-medium text-sm">Everyone</div>
-									<p className="text-xs text-slate-600 mt-1">
-										All users can edit this layer
-									</p>
-								</div>
-							</div>
-						</button>
-					</div>
-					<p className="text-xs text-slate-500">
-						You can change this setting later as the layer creator
-					</p>
+					)}
+					{editor.error && (
+						<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+							{editor.error}
+						</div>
+					)}
+					<Button onClick={handleCreate} className="w-full" disabled={!canSave}>
+						{editor.saving ? (
+							<>
+								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+								{editor.isEditMode ? "Saving..." : "Creating..."}
+							</>
+						) : (
+							<>
+								<Plus className="w-4 h-4 mr-2" />
+								{editor.isEditMode ? "Save Changes" : "Create Layer"}
+							</>
+						)}
+					</Button>
 				</div>
 			</div>
-
-			{/* Footer */}
-			<div className="p-4 border-t border-slate-200 space-y-3">
-				{saveWarning && (
-					<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-600">
-						{saveWarning}
-					</div>
-				)}
-				{editor.error && (
-					<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-						{editor.error}
-					</div>
-				)}
-				<Button onClick={handleCreate} className="w-full" disabled={!canSave}>
-					{editor.saving ? (
-						<>
-							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
-							{editor.isEditMode ? "Saving..." : "Creating..."}
-						</>
-					) : (
-						<>
-							<Plus className="w-4 h-4 mr-2" />
-							{editor.isEditMode ? "Save Changes" : "Create Layer"}
-						</>
-					)}
-				</Button>
-			</div>
-		</div>
+		</DrawingProvider>
 	);
 }
 

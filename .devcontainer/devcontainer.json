@@ -62,5 +62,5 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "forwardPorts": [5173, 3000]
+  "forwardPorts": [5173, 3000, 8000, 9323]
 }

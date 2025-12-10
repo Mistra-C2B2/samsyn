@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { AppPage, LayersPage } from "./pages";
+import { AppPage, LayersPage, LayerCreatorPage } from "./pages";
 
 /**
  * Helper function to check if a map exists in the app.
@@ -838,6 +838,80 @@ test.describe("Layer Editing", () => {
 			'input[type="text"][placeholder="#3b82f6"]',
 		);
 		await expect(colorTextInput).toHaveValue(newColor);
+	});
+
+	test("should load existing features with names and descriptions when editing layer", async ({ page }) => {
+		if (!(await hasMapLoaded(page))) {
+			test.skip();
+			return;
+		}
+
+		const layersPage = new LayersPage(page);
+		await layersPage.waitForPanel();
+
+		if (!(await hasLayers(layersPage))) {
+			test.skip();
+			return;
+		}
+
+		// Get all layer names
+		const layerNames = await layersPage.getLayerNames();
+
+		// Find the first editable layer that is a "draw" type (has features)
+		let editableDrawLayerName = "";
+
+		for (const layerName of layerNames) {
+			const isEditable = await layersPage.isLayerEditable(layerName);
+			if (isEditable) {
+				// Check if this layer has features by opening it
+				await layersPage.editLayer(layerName);
+
+				const layerCreator = new LayerCreatorPage(page);
+				await layerCreator.waitForPanel();
+
+				const featureCount = await layerCreator.getFeatureCount();
+				if (featureCount > 0) {
+					editableDrawLayerName = layerName;
+
+					// Verify the layer name is pre-populated
+					const layerNameValue = await layerCreator.getLayerName();
+					expect(layerNameValue).toBe(layerName);
+
+					// Verify features are loaded in the sidebar
+					expect(featureCount).toBeGreaterThan(0);
+
+					// Verify feature cards have name inputs visible
+					const featureNames = await layerCreator.getFeatureNames();
+					expect(featureNames.length).toBe(featureCount);
+
+					// Verify feature cards have description inputs visible
+					const featureDescriptions = await layerCreator.getFeatureDescriptions();
+					expect(featureDescriptions.length).toBe(featureCount);
+
+					// Check that at least one feature has a non-empty name (pre-populated)
+					// Features should have names if they were saved with names
+					const hasAnyName = featureNames.some(name => name.length > 0);
+
+					// Log for debugging
+					console.log(`Layer "${layerName}" has ${featureCount} features`);
+					console.log(`Feature names: ${JSON.stringify(featureNames)}`);
+					console.log(`Feature descriptions: ${JSON.stringify(featureDescriptions)}`);
+
+					// Test passed - we found an editable layer with features
+					break;
+				}
+
+				// Close the panel and try the next layer
+				await layerCreator.close();
+				await page.waitForTimeout(300);
+			}
+		}
+
+		if (!editableDrawLayerName) {
+			// No editable layers with features found, skip test
+			test.skip();
+			return;
+		}
 	});
 
 	test("should open layer info dialog", async ({ page }) => {

@@ -246,10 +246,20 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				// Add each feature to TerraDraw
 				for (const feature of features) {
 					try {
+						// Map geometry type to TerraDraw mode name
+						const modeMap: Record<string, string> = {
+							Point: "point",
+							LineString: "linestring",
+							Polygon: "polygon",
+						};
+						const mode = modeMap[feature.type] || feature.type.toLowerCase();
+
 						// Create a GeoJSON feature to add
 						const geoJsonFeature = {
 							type: "Feature" as const,
-							properties: {},
+							properties: {
+								mode, // TerraDraw requires a mode property
+							},
 							geometry: {
 								type: feature.type,
 								coordinates: feature.coordinates,
@@ -259,7 +269,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						// Use TerraDraw's addFeatures method
 						const ids = terraDraw.addFeatures([geoJsonFeature]);
 						if (ids && ids.length > 0) {
-							addedIds.push(String(ids[0]));
+							const idValue =
+								typeof ids[0] === "object" && ids[0] !== null && "id" in ids[0]
+									? String((ids[0] as { id: unknown }).id)
+									: String(ids[0]);
+							addedIds.push(idValue);
 						}
 					} catch (err) {
 						console.warn("Failed to add feature to TerraDraw:", err);
@@ -268,6 +282,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 				// Set to select mode so user can interact with features
 				terraDraw.setMode("select");
+
+				// Notify parent of the new snapshot after adding features
+				if (onTerraDrawChangeRef.current) {
+					const snapshot = terraDraw.getSnapshot();
+					onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
+				}
 
 				return addedIds;
 			},

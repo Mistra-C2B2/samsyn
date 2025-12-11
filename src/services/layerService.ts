@@ -394,7 +394,8 @@ export class LayerService {
 		if (
 			updates.wmsUrl !== undefined ||
 			updates.wmsLayerName !== undefined ||
-			updates.geotiffUrl !== undefined
+			updates.geotiffUrl !== undefined ||
+			updates.data !== undefined
 		) {
 			const sourceConfig: Record<string, unknown> = {};
 
@@ -407,6 +408,15 @@ export class LayerService {
 			} else if (updates.geotiffUrl) {
 				sourceConfig.delivery = "direct";
 				sourceConfig.url = updates.geotiffUrl;
+			} else if (updates.data) {
+				// Update vector layer GeoJSON data (for feature edits/deletions)
+				const geoJsonData = updates.data as {
+					type: string;
+					features?: unknown[];
+				};
+				sourceConfig.geometryType = "Polygon";
+				sourceConfig.featureCount = geoJsonData.features?.length || 0;
+				sourceConfig.geojson = updates.data;
 			}
 
 			if (Object.keys(sourceConfig).length > 0) {

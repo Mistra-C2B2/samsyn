@@ -174,7 +174,9 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 					  }
 					| undefined;
 
+				console.log("[useLayerEditor] Layer data:", layerData);
 				if (layerData?.features) {
+					console.log("[useLayerEditor] Features from layer data:", layerData.features);
 					const pendingFeatures: PendingFeature[] = layerData.features
 						.filter((f) => f.type === "Feature" && f.geometry)
 						.map((f) => ({
@@ -190,15 +192,19 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 							},
 						}));
 
+					console.log("[useLayerEditor] Pending features to import:", pendingFeatures);
 					// Import them via the feature manager
 					if (pendingFeatures.length > 0) {
-						featureManager.importGeoJson(
+						const result = featureManager.importGeoJson(
 							JSON.stringify({
 								type: "FeatureCollection",
 								features: layerData.features,
 							}),
 						);
+						console.log("[useLayerEditor] Import result:", result);
 					}
+				} else {
+					console.log("[useLayerEditor] No features in layer data");
 				}
 
 				setIsEditMode(true);

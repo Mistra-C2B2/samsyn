@@ -255,10 +255,6 @@ export function LayerCreator({
 		onRemoveFeatureFromTerraDraw: onRemoveFeatureFromMap,
 	});
 
-	// Local state for GeoJSON import
-	const [geoJsonInput, setGeoJsonInput] = useState("");
-	const [geoJsonError, setGeoJsonError] = useState("");
-	const [geoJsonImporting, setGeoJsonImporting] = useState(false);
 	const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
 	// Track if we've initialized existing features in TerraDraw
@@ -290,6 +286,15 @@ export function LayerCreator({
 			prevEditingLayerIdRef.current = editingLayerId;
 		}
 
+		// Debug logging
+		console.log("[LayerCreator] Edit mode check:", {
+			initialized: initializedFeaturesRef.current,
+			isEditMode: editor.isEditMode,
+			pendingFeaturesCount: editor.pendingFeatures.length,
+			hasOnAddFeaturesToMap: !!onAddFeaturesToMap,
+			editingLayerId,
+		});
+
 		// Initialize pending features in TerraDraw when editing
 		if (
 			!initializedFeaturesRef.current &&
@@ -297,6 +302,7 @@ export function LayerCreator({
 			editor.pendingFeatures.length > 0 &&
 			onAddFeaturesToMap
 		) {
+			console.log("[LayerCreator] Adding features to TerraDraw:", editor.pendingFeatures);
 			const featuresToAdd = editor.pendingFeatures.map((f) => ({
 				id: f.id,
 				type: f.type,
@@ -304,6 +310,7 @@ export function LayerCreator({
 			}));
 
 			const addedIds = onAddFeaturesToMap(featuresToAdd, editor.layerColor);
+			console.log("[LayerCreator] Added feature IDs:", addedIds);
 
 			// Update features with new TerraDraw IDs
 			if (addedIds.length > 0) {
@@ -421,29 +428,6 @@ export function LayerCreator({
 		);
 	};
 
-	// Handle GeoJSON import
-	const handleGeoJsonImport = async () => {
-		setGeoJsonImporting(true);
-		setGeoJsonError("");
-
-		// Use setTimeout to allow UI to update before processing large files
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		try {
-			const result = editor.importGeoJson(geoJsonInput);
-			if (result.success) {
-				setGeoJsonInput("");
-				if (result.warning) {
-					setGeoJsonError(result.warning);
-				}
-			} else {
-				setGeoJsonError(result.error || "Import failed");
-			}
-		} finally {
-			setGeoJsonImporting(false);
-		}
-	};
-
 	// Handle save/create
 	const handleCreate = async () => {
 		const validation = editor.validate(editor.features);
@@ -537,11 +521,6 @@ export function LayerCreator({
 					{/* Drawing Mode Panel */}
 					<DrawingModePanel
 						onStartDrawing={handleAddFeatureByDrawing}
-						geoJsonInput={geoJsonInput}
-						setGeoJsonInput={setGeoJsonInput}
-						geoJsonError={geoJsonError}
-						geoJsonImporting={geoJsonImporting}
-						onGeoJsonImport={handleGeoJsonImport}
 					/>
 
 					{/* Features List */}

@@ -92,12 +92,13 @@ function isValidCoordinates(coords: unknown, type: GeometryType): boolean {
 		);
 	}
 
-	if (type === "LineString") {
+	if (type === "LineString" || type === "Freehand") {
 		if (!Array.isArray(coords) || coords.length < 2) return false;
 		return coords.every((coord) => isValidCoordinates(coord, "Point"));
 	}
 
-	if (type === "Polygon") {
+	// Polygon, Rectangle, and Circle all use the same coordinate structure
+	if (type === "Polygon" || type === "Rectangle" || type === "Circle") {
 		if (!Array.isArray(coords) || coords.length === 0) return false;
 		return coords.every(
 			(ring) =>

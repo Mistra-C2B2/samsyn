@@ -271,8 +271,9 @@ function AppContent() {
 	const layersWithTemporalData = useMemo(() => {
 		if (!currentMap) return [];
 		return currentMap.layers.map((layer) => {
-			// Hide the layer being edited - TerraDraw will render its features instead
-			if (editingLayer && layer.id === editingLayer.id) {
+			// Hide the layer being edited - but only after TerraDraw has loaded the features
+			// This prevents a flash where the layer disappears before TerraDraw shows features
+			if (editingLayer && layer.id === editingLayer.id && terraDrawSnapshot.length > 0) {
 				return { ...layer, visible: false };
 			}
 
@@ -288,7 +289,7 @@ function AppContent() {
 			const closestData = sortedData[0];
 			return { ...layer, data: closestData.data };
 		});
-	}, [currentMap, currentTimeRange, editingLayer]);
+	}, [currentMap, currentTimeRange, editingLayer, terraDrawSnapshot.length]);
 
 	// Get comment count for a specific layer
 	const getLayerCommentCount = (layerId: string) => {

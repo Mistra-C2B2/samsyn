@@ -1,10 +1,14 @@
 import {
+	Circle,
 	Code,
 	Loader2,
 	MapPin,
 	Milestone,
 	MousePointer2,
+	Pencil,
+	RectangleHorizontal,
 	Square,
+	Trash,
 	Trash2,
 } from "lucide-react";
 import { memo } from "react";
@@ -85,7 +89,7 @@ export function DrawingModePanel({
 			</TabsList>
 
 			<TabsContent value="draw" className="space-y-3 mt-3">
-				{/* Drawing mode buttons */}
+				{/* Basic drawing mode buttons */}
 				<div className="grid grid-cols-3 gap-2">
 					<DrawModeButton
 						isActive={drawingMode === "Point"}
@@ -107,8 +111,30 @@ export function DrawingModePanel({
 					/>
 				</div>
 
+				{/* Additional shape buttons */}
+				<div className="grid grid-cols-3 gap-2">
+					<DrawModeButton
+						isActive={drawingMode === "Rectangle"}
+						onClick={() => onStartDrawing("Rectangle")}
+						icon={<RectangleHorizontal className="w-5 h-5" />}
+						label="Rectangle"
+					/>
+					<DrawModeButton
+						isActive={drawingMode === "Circle"}
+						onClick={() => onStartDrawing("Circle")}
+						icon={<Circle className="w-5 h-5" />}
+						label="Circle"
+					/>
+					<DrawModeButton
+						isActive={drawingMode === "Freehand"}
+						onClick={() => onStartDrawing("Freehand")}
+						icon={<Pencil className="w-5 h-5" />}
+						label="Freehand"
+					/>
+				</div>
+
 				{/* Select/Delete mode buttons */}
-				<div className="grid grid-cols-2 gap-2">
+				<div className="grid grid-cols-3 gap-2">
 					<button
 						type="button"
 						onClick={() => onSetDrawMode?.("select")}
@@ -132,6 +158,15 @@ export function DrawingModePanel({
 					>
 						<Trash2 className="w-5 h-5" />
 						<span className="text-xs">Delete</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => onSetDrawMode?.("delete-selection")}
+						className="p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 border-slate-200 hover:border-red-400 hover:bg-red-50 hover:text-red-700 active:bg-red-100"
+						title="Delete selected features"
+					>
+						<Trash className="w-5 h-5" />
+						<span className="text-xs text-center">Delete Selected</span>
 					</button>
 				</div>
 			</TabsContent>

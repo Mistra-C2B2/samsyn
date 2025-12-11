@@ -60,6 +60,7 @@ interface UseLayerEditorOptions {
 	editingLayer?: Layer | null;
 	terraDrawSnapshot?: TerraDrawFeature[];
 	onAddFeaturesToTerraDraw?: (features: PendingFeature[]) => void;
+	onRemoveFeatureFromTerraDraw?: (id: string) => void;
 	currentUserId?: string;
 }
 
@@ -82,6 +83,7 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		editingLayer,
 		terraDrawSnapshot,
 		onAddFeaturesToTerraDraw,
+		onRemoveFeatureFromTerraDraw,
 		currentUserId = "anonymous",
 	} = options;
 
@@ -272,9 +274,14 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 	// Matches existing API: removeFeature(id)
 	const removeFeature = useCallback(
 		(id: string) => {
+			// Remove from metadata (sidebar list)
 			featureManager.removeFeatureMetadata(id);
+			// Remove from TerraDraw (map canvas)
+			if (onRemoveFeatureFromTerraDraw) {
+				onRemoveFeatureFromTerraDraw(id);
+			}
 		},
-		[featureManager.removeFeatureMetadata],
+		[featureManager.removeFeatureMetadata, onRemoveFeatureFromTerraDraw],
 	);
 
 	const importGeoJsonWithErrorClear = useCallback(

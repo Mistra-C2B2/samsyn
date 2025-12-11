@@ -2,13 +2,13 @@ import { createContext, type ReactNode, useContext } from "react";
 import type { GeometryType } from "../hooks/useLayerEditor";
 
 interface DrawingContextValue {
-	drawingMode: GeometryType | "select" | "delete" | null;
+	drawingMode: GeometryType | "select" | "delete" | "delete-selection" | null;
 	onStartDrawing?: (
 		type: GeometryType,
 		callback: (feature: unknown) => void,
 		color?: string,
 	) => void;
-	onSetDrawMode?: (mode: "select" | "delete") => void;
+	onSetDrawMode?: (mode: "select" | "delete" | "delete-selection") => void;
 	onAddFeaturesToMap?: (
 		features: Array<{ id: string; type: GeometryType; coordinates: unknown }>,
 		color?: string,

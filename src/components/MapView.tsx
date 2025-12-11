@@ -32,17 +32,33 @@ interface MapViewProps {
 	basemap: string;
 	onDrawComplete?: (feature: unknown) => void;
 	onTerraDrawChange?: (features: TerraDrawFeature[]) => void;
-	drawingMode?: "Point" | "LineString" | "Polygon" | "select" | "delete" | null;
+	drawingMode?:
+		| "Point"
+		| "LineString"
+		| "Polygon"
+		| "Rectangle"
+		| "Circle"
+		| "Freehand"
+		| "select"
+		| "delete"
+		| "delete-selection"
+		| null;
 	onFeatureClick?: (layerId: string) => void;
 	highlightedLayerId?: string | null;
 }
 
 export interface MapViewRef {
 	startDrawing: (
-		type: "Point" | "LineString" | "Polygon",
+		type:
+			| "Point"
+			| "LineString"
+			| "Polygon"
+			| "Rectangle"
+			| "Circle"
+			| "Freehand",
 		color?: string,
 	) => void;
-	setDrawMode: (mode: "select" | "delete") => void;
+	setDrawMode: (mode: "select" | "delete" | "delete-selection") => void;
 	cancelDrawing: () => void;
 	clearDrawings: () => void;
 	addFeatures: (
@@ -53,6 +69,7 @@ export interface MapViewRef {
 		}>,
 		color?: string,
 	) => string[];
+	removeFeature: (id: string) => void;
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
@@ -101,7 +118,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 		useImperativeHandle(ref, () => ({
 			startDrawing: (
-				type: "Point" | "LineString" | "Polygon",
+				type:
+					| "Point"
+					| "LineString"
+					| "Polygon"
+					| "Rectangle"
+					| "Circle"
+					| "Freehand",
 				color?: string,
 			) => {
 				if (!drawRef.current || !mapLoaded) return;
@@ -144,6 +167,33 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								closingPointOutlineColor: "#ffffff",
 							},
 						});
+						// Update rectangle style
+						terraDraw.updateModeOptions("rectangle", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
+						// Update circle style
+						terraDraw.updateModeOptions("circle", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
+						// Update freehand style
+						terraDraw.updateModeOptions("freehand", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
 					} catch (err) {
 						console.warn("Failed to update drawing styles:", err);
 					}
@@ -159,9 +209,15 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					terraDraw.setMode("linestring");
 				} else if (type === "Polygon") {
 					terraDraw.setMode("polygon");
+				} else if (type === "Rectangle") {
+					terraDraw.setMode("rectangle");
+				} else if (type === "Circle") {
+					terraDraw.setMode("circle");
+				} else if (type === "Freehand") {
+					terraDraw.setMode("freehand");
 				}
 			},
-			setDrawMode: (mode: "select" | "delete") => {
+			setDrawMode: (mode: "select" | "delete" | "delete-selection") => {
 				if (!drawRef.current || !mapLoaded) return;
 
 				const terraDraw = drawRef.current.getTerraDrawInstance();
@@ -172,7 +228,22 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					terraDraw.start();
 				}
 
-				terraDraw.setMode(mode);
+				// Handle delete-selection as an action, not a mode
+				if (mode === "delete-selection") {
+					// Get all selected features and delete them
+					const snapshot = terraDraw.getSnapshot();
+					const selectedIds = snapshot
+						.filter((f) => f.properties?.selected === true)
+						.map((f) => String(f.id));
+
+					if (selectedIds.length > 0) {
+						terraDraw.removeFeatures(selectedIds);
+					}
+					// Stay in select mode after deletion
+					terraDraw.setMode("select");
+				} else {
+					terraDraw.setMode(mode);
+				}
 			},
 			cancelDrawing: () => {
 				if (drawRef.current && mapLoaded) {
@@ -290,6 +361,42 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				}
 
 				return addedIds;
+			},
+			removeFeature: (id: string) => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				try {
+					const snapshotBefore = terraDraw.getSnapshot();
+
+					// If the feature is selected, deselect it first
+					const featureToRemove = snapshotBefore.find(
+						(f) => String(f.id) === id,
+					);
+					if (featureToRemove?.properties?.selected) {
+						terraDraw.deselectFeature(id);
+					}
+
+					// Check if this is the only feature - if so, use clear() instead
+					// because removeFeatures() doesn't properly trigger visual updates in TerraDraw
+					if (snapshotBefore.length === 1) {
+						terraDraw.clear();
+						terraDraw.setMode("select");
+					} else {
+						terraDraw.removeFeatures([id]);
+						terraDraw.setMode("select");
+					}
+
+					// Notify parent of the updated snapshot after removing the feature
+					if (onTerraDrawChangeRef.current) {
+						const snapshot = terraDraw.getSnapshot();
+						onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
+					}
+				} catch (err) {
+					console.warn("Failed to remove feature from TerraDraw:", err);
+				}
 			},
 		}));
 
@@ -428,6 +535,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							"freehand",
 							"select",
 							"delete",
+							"delete-selection",
 						],
 						open: false,
 					});

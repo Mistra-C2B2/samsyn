@@ -50,6 +50,7 @@ interface LayerCreatorProps {
 		features: Array<{ id: string; type: GeometryType; coordinates: unknown }>,
 		color?: string,
 	) => string[];
+	onRemoveFeatureFromMap?: (id: string) => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
 	drawingMode?: GeometryType | "select" | "delete" | null;
@@ -237,6 +238,7 @@ export function LayerCreator({
 	onStartDrawing,
 	onSetDrawMode,
 	onAddFeaturesToMap,
+	onRemoveFeatureFromMap,
 	availableLayers,
 	editingLayer,
 	drawingMode,
@@ -250,6 +252,7 @@ export function LayerCreator({
 		editingLayer,
 		terraDrawSnapshot,
 		currentUserId: user?.id,
+		onRemoveFeatureFromTerraDraw: onRemoveFeatureFromMap,
 	});
 
 	// Local state for GeoJSON import

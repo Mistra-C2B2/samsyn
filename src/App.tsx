@@ -112,7 +112,16 @@ function AppContent() {
 	const [availableLayers, setAvailableLayers] = useState<Layer[]>([]);
 	const [basemap, setBasemap] = useState<string>("osm");
 	const [drawingMode, setDrawingMode] = useState<
-		"Point" | "LineString" | "Polygon" | "select" | "delete" | null
+		| "Point"
+		| "LineString"
+		| "Polygon"
+		| "Rectangle"
+		| "Circle"
+		| "Freehand"
+		| "select"
+		| "delete"
+		| "delete-selection"
+		| null
 	>(null);
 	const [drawCallback, setDrawCallback] = useState<
 		((feature: unknown) => void) | null
@@ -698,7 +707,13 @@ function AppContent() {
 	};
 
 	const handleStartDrawing = (
-		type: "Point" | "LineString" | "Polygon",
+		type:
+			| "Point"
+			| "LineString"
+			| "Polygon"
+			| "Rectangle"
+			| "Circle"
+			| "Freehand",
 		callback: (feature: unknown) => void,
 		color?: string,
 	) => {
@@ -707,9 +722,16 @@ function AppContent() {
 		mapViewRef.current?.startDrawing(type, color);
 	};
 
-	const handleSetDrawMode = (mode: "select" | "delete") => {
-		setDrawingMode(mode);
-		mapViewRef.current?.setDrawMode(mode);
+	const handleSetDrawMode = (mode: "select" | "delete" | "delete-selection") => {
+		// delete-selection is an action, not a mode - it deletes selected features and stays in select mode
+		if (mode === "delete-selection") {
+			mapViewRef.current?.setDrawMode(mode);
+			// Keep the UI in select mode after the action
+			setDrawingMode("select");
+		} else {
+			setDrawingMode(mode);
+			mapViewRef.current?.setDrawMode(mode);
+		}
 	};
 
 	const handleDrawComplete = useCallback(
@@ -1032,6 +1054,9 @@ function AppContent() {
 						onSetDrawMode={handleSetDrawMode}
 						onAddFeaturesToMap={(features, color) =>
 							mapViewRef.current?.addFeatures(features, color) || []
+						}
+						onRemoveFeatureFromMap={(id) =>
+							mapViewRef.current?.removeFeature(id)
 						}
 						availableLayers={availableLayers}
 						editingLayer={editingLayer}

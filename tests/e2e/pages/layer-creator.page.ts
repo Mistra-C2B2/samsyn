@@ -25,12 +25,18 @@ export class LayerCreatorPage {
 	readonly drawTab: Locator;
 	readonly geojsonTab: Locator;
 
-	// Draw Mode buttons
+	// Draw Mode buttons - Basic shapes
 	readonly addPointButton: Locator;
 	readonly addLineButton: Locator;
 	readonly addPolygonButton: Locator;
+	// Draw Mode buttons - Additional shapes
+	readonly rectangleButton: Locator;
+	readonly circleButton: Locator;
+	readonly freehandButton: Locator;
+	// Draw Mode buttons - Interaction modes
 	readonly selectModeButton: Locator;
 	readonly deleteModeButton: Locator;
+	readonly deleteSelectionButton: Locator;
 
 	// Features
 	readonly featureCards: Locator;
@@ -79,7 +85,7 @@ export class LayerCreatorPage {
 		});
 		this.geojsonTab = this.panel.locator('button[role="tab"]:has(svg.lucide-code)');
 
-		// Draw Mode buttons - using the label text to identify them
+		// Draw Mode buttons - Basic shapes (using label text)
 		this.addPointButton = this.panel.locator(
 			'button:has-text("Add Point")'
 		);
@@ -89,12 +95,26 @@ export class LayerCreatorPage {
 		this.addPolygonButton = this.panel.locator(
 			'button:has-text("Add Polygon")'
 		);
+		// Draw Mode buttons - Additional shapes
+		this.rectangleButton = this.panel.locator(
+			'button:has-text("Rectangle")'
+		);
+		this.circleButton = this.panel.locator(
+			'button:has-text("Circle")'
+		);
+		this.freehandButton = this.panel.locator(
+			'button:has-text("Freehand")'
+		);
+		// Draw Mode buttons - Interaction modes
 		this.selectModeButton = this.panel.locator(
 			'button:has-text("Select")'
 		).filter({ has: page.locator('svg.lucide-mouse-pointer-2') });
 		this.deleteModeButton = this.panel.locator(
 			'button:has-text("Delete")'
 		).filter({ has: page.locator('svg.lucide-trash-2') });
+		this.deleteSelectionButton = this.panel.locator(
+			'button:has-text("Delete Selected")'
+		);
 
 		// Features
 		this.featureCards = this.panel.locator(
@@ -173,12 +193,28 @@ export class LayerCreatorPage {
 		await this.addPolygonButton.click();
 	}
 
+	async clickRectangle() {
+		await this.rectangleButton.click();
+	}
+
+	async clickCircle() {
+		await this.circleButton.click();
+	}
+
+	async clickFreehand() {
+		await this.freehandButton.click();
+	}
+
 	async clickSelectMode() {
 		await this.selectModeButton.click();
 	}
 
 	async clickDeleteMode() {
 		await this.deleteModeButton.click();
+	}
+
+	async clickDeleteSelection() {
+		await this.deleteSelectionButton.click();
 	}
 
 	async getFeatureCount(): Promise<number> {
@@ -323,10 +359,10 @@ export class LayerCreatorPage {
 
 	/**
 	 * Checks if a specific draw mode is active
-	 * @param mode - The mode to check: "Point", "LineString", "Polygon", "select", or "delete"
+	 * @param mode - The mode to check: "Point", "LineString", "Polygon", "Rectangle", "Circle", "Freehand", "select", "delete", or "delete-selection"
 	 */
 	async isDrawModeActive(
-		mode: "Point" | "LineString" | "Polygon" | "select" | "delete"
+		mode: "Point" | "LineString" | "Polygon" | "Rectangle" | "Circle" | "Freehand" | "select" | "delete" | "delete-selection"
 	): Promise<boolean> {
 		let button: Locator;
 
@@ -340,11 +376,23 @@ export class LayerCreatorPage {
 			case "Polygon":
 				button = this.addPolygonButton;
 				break;
+			case "Rectangle":
+				button = this.rectangleButton;
+				break;
+			case "Circle":
+				button = this.circleButton;
+				break;
+			case "Freehand":
+				button = this.freehandButton;
+				break;
 			case "select":
 				button = this.selectModeButton;
 				break;
 			case "delete":
 				button = this.deleteModeButton;
+				break;
+			case "delete-selection":
+				button = this.deleteSelectionButton;
 				break;
 		}
 

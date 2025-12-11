@@ -5,7 +5,13 @@ import type { TerraDrawFeature } from "../../components/MapView";
 // Types
 // ============================================================================
 
-export type GeometryType = "Point" | "LineString" | "Polygon";
+export type GeometryType =
+	| "Point"
+	| "LineString"
+	| "Polygon"
+	| "Rectangle"
+	| "Circle"
+	| "Freehand";
 export type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
 export type LineStyle = "solid" | "dashed" | "dotted";
 

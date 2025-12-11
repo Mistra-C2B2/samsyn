@@ -47,6 +47,12 @@ interface MapViewProps {
   highlightedLayerId?: string | null;
 }
 
+export interface DrawingStyles {
+  color: string;
+  lineWidth: number;
+  fillPolygons: boolean;
+}
+
 export interface MapViewRef {
   startDrawing: (
     type:
@@ -70,6 +76,7 @@ export interface MapViewRef {
     color?: string
   ) => string[];
   removeFeature: (id: string) => void;
+  updateDrawingStyles: (styles: DrawingStyles) => void;
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
@@ -396,6 +403,94 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
           }
         } catch (err) {
           console.warn("Failed to remove feature from TerraDraw:", err);
+        }
+      },
+      updateDrawingStyles: (styles: DrawingStyles) => {
+        if (!drawRef.current || !mapLoaded) return;
+
+        const terraDraw = drawRef.current.getTerraDrawInstance();
+        if (!terraDraw) return;
+
+        const { color, lineWidth, fillPolygons } = styles;
+        const fillOpacity = fillPolygons ? 0.3 : 0;
+
+        try {
+          // Update point style
+          terraDraw.updateModeOptions("point", {
+            styles: {
+              pointColor: color,
+              pointOutlineColor: "#ffffff",
+            },
+          });
+          // Update linestring style
+          terraDraw.updateModeOptions("linestring", {
+            styles: {
+              lineStringColor: color,
+              lineStringWidth: lineWidth,
+              closingPointColor: color,
+              closingPointOutlineColor: "#ffffff",
+            },
+          });
+          // Update polygon style
+          terraDraw.updateModeOptions("polygon", {
+            styles: {
+              fillColor: color,
+              fillOpacity,
+              outlineColor: color,
+              outlineWidth: lineWidth,
+              closingPointColor: color,
+              closingPointOutlineColor: "#ffffff",
+            },
+          });
+          // Update rectangle style
+          terraDraw.updateModeOptions("rectangle", {
+            styles: {
+              fillColor: color,
+              fillOpacity,
+              outlineColor: color,
+              outlineWidth: lineWidth,
+            },
+          });
+          // Update circle style
+          terraDraw.updateModeOptions("circle", {
+            styles: {
+              fillColor: color,
+              fillOpacity,
+              outlineColor: color,
+              outlineWidth: lineWidth,
+            },
+          });
+          // Update freehand style
+          terraDraw.updateModeOptions("freehand", {
+            styles: {
+              fillColor: color,
+              fillOpacity,
+              outlineColor: color,
+              outlineWidth: lineWidth,
+            },
+          });
+          // Update select mode styling for existing features
+          terraDraw.updateModeOptions("select", {
+            styles: {
+              selectedPolygonColor: color,
+              selectedPolygonFillOpacity: fillOpacity,
+              selectedPolygonOutlineColor: color,
+              selectedPolygonOutlineWidth: lineWidth,
+              selectedLineStringColor: color,
+              selectedLineStringWidth: lineWidth,
+              selectedPointColor: color,
+              selectedPointOutlineColor: "#ffffff",
+              selectionPolygonFillOpacity: 0.1,
+              selectionPolygonOutlineColor: color,
+            },
+          });
+
+          // Note: TerraDraw doesn't support updating styles of existing features
+          // without clearing and re-adding them (which causes flicker).
+          // New features will use the updated styles, and when saved,
+          // the layer will store the final style settings.
+        } catch (err) {
+          console.warn("Failed to update drawing styles:", err);
         }
       },
     }));

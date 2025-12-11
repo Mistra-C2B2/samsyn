@@ -113,6 +113,10 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		initialDescription: editingLayer?.description || "",
 		initialColor: editingLayer?.color || "#3b82f6",
 		initialEditableBy: editingLayer?.editable || "creator-only",
+		initialLineStyle: editingLayer?.lineStyle || "solid",
+		initialLineWidth: editingLayer?.lineWidth || 2,
+		initialFillPolygons: editingLayer?.fillPolygons ?? true,
+		initialMarkerIcon: editingLayer?.markerIcon || "default",
 	});
 
 	// 2. Feature Manager Hook
@@ -133,6 +137,10 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		description: metadata.description,
 		layerColor: metadata.layerColor,
 		editableBy: metadata.editableBy,
+		lineStyle: metadata.lineStyle,
+		lineWidth: metadata.lineWidth,
+		fillPolygons: metadata.fillPolygons,
+		markerIcon: metadata.markerIcon,
 		features: featureManager.features,
 		validate: validation.validate,
 		currentUserId,
@@ -160,6 +168,10 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 					description: editingLayer.description || "",
 					layerColor: editingLayer.color || "#3b82f6",
 					editableBy: editingLayer.editable || "creator-only",
+					lineStyle: editingLayer.lineStyle || "solid",
+					lineWidth: editingLayer.lineWidth || 2,
+					fillPolygons: editingLayer.fillPolygons ?? true,
+					markerIcon: editingLayer.markerIcon || "default",
 				});
 
 				// Parse features from editing layer and set as pending
@@ -360,6 +372,11 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		description: metadata.description,
 		layerColor: metadata.layerColor,
 		editableBy: metadata.editableBy,
+		// Style settings
+		lineStyle: metadata.lineStyle,
+		lineWidth: metadata.lineWidth,
+		fillPolygons: metadata.fillPolygons,
+		markerIcon: metadata.markerIcon,
 		features: featureManager.features, // Merged features
 		pendingFeatures: featureManager.pendingFeatures,
 		saving,
@@ -373,6 +390,11 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		setDescription: metadata.setDescription,
 		setLayerColor: metadata.setLayerColor,
 		setEditableBy: metadata.setEditableBy,
+		// Style setters
+		setLineStyle: metadata.setLineStyle,
+		setLineWidth: metadata.setLineWidth,
+		setFillPolygons: metadata.setFillPolygons,
+		setMarkerIcon: metadata.setMarkerIcon,
 
 		// Feature actions (matches original API signatures)
 		addFeature, // (terraDrawId, metadata) => id

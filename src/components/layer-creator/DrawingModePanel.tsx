@@ -64,7 +64,9 @@ export function DrawingModePanel({
 	const { drawingMode, onSetDrawMode } = useDrawing();
 
 	return (
-		<div className="space-y-3">
+		<div className="space-y-4 border-t border-slate-200 pt-4">
+			<label className="text-sm font-medium">Drawing Tools</label>
+
 			{/* Basic drawing mode buttons */}
 			<div className="grid grid-cols-3 gap-2">
 				<DrawModeButton

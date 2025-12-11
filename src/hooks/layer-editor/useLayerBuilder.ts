@@ -36,12 +36,20 @@ interface GeoJSONFeatureCollection {
 	features: GeoJSONFeature[];
 }
 
+type LineStyle = "solid" | "dashed" | "dotted";
+type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
+
 export interface UseLayerBuilderOptions {
 	layerName: string;
 	category: string;
 	description: string;
 	layerColor: string;
 	editableBy: "creator-only" | "everyone";
+	// Style settings
+	lineStyle: LineStyle;
+	lineWidth: number;
+	fillPolygons: boolean;
+	markerIcon: IconType;
 	features: Feature[];
 	validate: () => ValidationResult;
 	currentUserId?: string;
@@ -63,6 +71,10 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 		description,
 		layerColor,
 		editableBy,
+		lineStyle,
+		lineWidth,
+		fillPolygons,
+		markerIcon,
 		features,
 		validate,
 		currentUserId = "anonymous",
@@ -84,8 +96,6 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 						name: feature.name,
 						description: feature.description,
 						featureType: feature.type,
-						icon: feature.icon,
-						lineStyle: feature.lineStyle,
 					},
 					geometry: {
 						type: feature.type,
@@ -114,6 +124,11 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 				description: description || undefined,
 				editable: editableBy,
 				createdBy: editingLayerData?.createdBy || currentUserId,
+				// Style settings at layer level
+				lineStyle,
+				lineWidth,
+				fillPolygons,
+				markerIcon,
 			};
 		},
 		[
@@ -122,6 +137,10 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 			description,
 			layerColor,
 			editableBy,
+			lineStyle,
+			lineWidth,
+			fillPolygons,
+			markerIcon,
 			features,
 			validate,
 			currentUserId,

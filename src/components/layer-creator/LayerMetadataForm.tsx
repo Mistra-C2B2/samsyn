@@ -14,8 +14,6 @@ interface LayerMetadataFormProps {
 	setCategory: (value: string) => void;
 	description: string;
 	setDescription: (value: string) => void;
-	layerColor: string;
-	setLayerColor: (value: string) => void;
 	existingCategories: string[];
 }
 
@@ -30,8 +28,6 @@ export function LayerMetadataForm({
 	setCategory,
 	description,
 	setDescription,
-	layerColor,
-	setLayerColor,
 	existingCategories,
 }: LayerMetadataFormProps) {
 	return (
@@ -64,27 +60,6 @@ export function LayerMetadataForm({
 					onChange={(e) => setDescription(e.target.value)}
 					rows={3}
 				/>
-			</div>
-
-			{/* Color Picker */}
-			<div className="space-y-2">
-				<Label htmlFor="layer-color">Layer Color</Label>
-				<div className="flex items-center gap-2">
-					<Input
-						id="layer-color"
-						type="color"
-						value={layerColor}
-						onChange={(e) => setLayerColor(e.target.value)}
-						className="w-20 h-10 cursor-pointer"
-					/>
-					<Input
-						type="text"
-						value={layerColor}
-						onChange={(e) => setLayerColor(e.target.value)}
-						placeholder="#3b82f6"
-						className="flex-1"
-					/>
-				</div>
 			</div>
 		</>
 	);

@@ -1,13 +1,9 @@
 import { useUser } from "@clerk/clerk-react";
 import {
-	AlertTriangle,
-	Anchor,
-	Circle,
 	Loader2,
 	MapPin,
 	Milestone,
 	Plus,
-	Ship,
 	Square,
 	Trash2,
 	X,
@@ -19,14 +15,13 @@ import { useDebouncedCallback } from "../hooks/useDebounce";
 import {
 	type Feature,
 	type GeometryType,
-	type IconType,
-	type LineStyle,
 	useLayerEditor,
 } from "../hooks/useLayerEditor";
 import { LayerCreatorErrorBoundary } from "./LayerCreatorErrorBoundary";
 import { DrawingModePanel } from "./layer-creator/DrawingModePanel";
 import { LayerMetadataForm } from "./layer-creator/LayerMetadataForm";
 import { PermissionsSelector } from "./layer-creator/PermissionsSelector";
+import { StyleSettingsPanel } from "./layer-creator/StyleSettingsPanel";
 import type { TerraDrawFeature } from "./MapView";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -36,6 +31,12 @@ import { Textarea } from "./ui/textarea";
 // ============================================================================
 // Types
 // ============================================================================
+
+interface DrawingStyles {
+	color: string;
+	lineWidth: number;
+	fillPolygons: boolean;
+}
 
 interface LayerCreatorProps {
 	onCreateLayer: (layer: Layer) => void | Promise<void>;
@@ -51,6 +52,7 @@ interface LayerCreatorProps {
 		color?: string,
 	) => string[];
 	onRemoveFeatureFromMap?: (id: string) => void;
+	onUpdateDrawingStyles?: (styles: DrawingStyles) => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
 	drawingMode?: GeometryType | "select" | "delete" | null;
@@ -69,22 +71,6 @@ function GeometryIcon({ type }: { type: GeometryType }) {
 			return <Milestone className="w-4 h-4" />;
 		case "Polygon":
 			return <Square className="w-4 h-4" />;
-	}
-}
-
-function FeatureIcon({ iconType }: { iconType: IconType }) {
-	const iconClass = "w-4 h-4";
-	switch (iconType) {
-		case "anchor":
-			return <Anchor className={iconClass} />;
-		case "ship":
-			return <Ship className={iconClass} />;
-		case "warning":
-			return <AlertTriangle className={iconClass} />;
-		case "circle":
-			return <Circle className={iconClass} />;
-		default:
-			return <MapPin className={iconClass} />;
 	}
 }
 
@@ -124,15 +110,6 @@ const FeatureCard = memo(function FeatureCard({
 	onUpdate,
 	onRemove,
 }: FeatureCardProps) {
-	const iconTypes: IconType[] = [
-		"default",
-		"anchor",
-		"ship",
-		"warning",
-		"circle",
-	];
-	const lineStyles: LineStyle[] = ["solid", "dashed", "dotted"];
-
 	// Local state for immediate UI updates
 	const [localDescription, setLocalDescription] = useState(feature.description);
 
@@ -177,50 +154,6 @@ const FeatureCard = memo(function FeatureCard({
 				rows={2}
 			/>
 
-			{feature.type === "Point" && (
-				<div className="space-y-2">
-					<Label className="text-xs">Icon Style</Label>
-					<div className="grid grid-cols-5 gap-1">
-						{iconTypes.map((iconType) => (
-							<button
-								type="button"
-								key={iconType}
-								onClick={() => onUpdate("icon", iconType)}
-								className={`p-2 rounded border transition-colors flex items-center justify-center ${
-									feature.icon === iconType
-										? "border-teal-600 bg-teal-50"
-										: "border-slate-200 hover:border-teal-400"
-								}`}
-							>
-								<FeatureIcon iconType={iconType} />
-							</button>
-						))}
-					</div>
-				</div>
-			)}
-
-			{feature.type === "LineString" && (
-				<div className="space-y-2">
-					<Label className="text-xs">Line Style</Label>
-					<div className="grid grid-cols-3 gap-2">
-						{lineStyles.map((style) => (
-							<button
-								type="button"
-								key={style}
-								onClick={() => onUpdate("lineStyle", style)}
-								className={`p-2 rounded border text-xs capitalize transition-colors ${
-									feature.lineStyle === style
-										? "border-teal-600 bg-teal-50"
-										: "border-slate-200 hover:border-teal-400"
-								}`}
-							>
-								{style}
-							</button>
-						))}
-					</div>
-				</div>
-			)}
-
 			<div className="text-xs text-slate-500">
 				{getCoordinatesSummary(feature)}
 			</div>
@@ -239,6 +172,7 @@ export function LayerCreator({
 	onSetDrawMode,
 	onAddFeaturesToMap,
 	onRemoveFeatureFromMap,
+	onUpdateDrawingStyles,
 	availableLayers,
 	editingLayer,
 	drawingMode,
@@ -403,6 +337,25 @@ export function LayerCreator({
 		};
 	}, []);
 
+	// Debounced style update to avoid excessive TerraDraw calls
+	const debouncedUpdateStyles = useDebouncedCallback(
+		(styles: DrawingStyles) => {
+			if (onUpdateDrawingStyles) {
+				onUpdateDrawingStyles(styles);
+			}
+		},
+		100, // 100ms debounce for responsive feel without overwhelming TerraDraw
+	);
+
+	// Update drawing styles when they change
+	useEffect(() => {
+		debouncedUpdateStyles({
+			color: editor.layerColor,
+			lineWidth: editor.lineWidth,
+			fillPolygons: editor.fillPolygons,
+		});
+	}, [editor.layerColor, editor.lineWidth, editor.fillPolygons, debouncedUpdateStyles]);
+
 	// Handle drawing a new feature
 	const handleAddFeatureByDrawing = (type: GeometryType) => {
 		if (!onStartDrawing) return;
@@ -513,14 +466,26 @@ export function LayerCreator({
 						setCategory={editor.setCategory}
 						description={editor.description}
 						setDescription={editor.setDescription}
-						layerColor={editor.layerColor}
-						setLayerColor={editor.setLayerColor}
 						existingCategories={existingCategories}
 					/>
 
 					{/* Drawing Mode Panel */}
 					<DrawingModePanel
 						onStartDrawing={handleAddFeatureByDrawing}
+					/>
+
+					{/* Style Settings Panel */}
+					<StyleSettingsPanel
+						layerColor={editor.layerColor}
+						setLayerColor={editor.setLayerColor}
+						lineStyle={editor.lineStyle}
+						setLineStyle={editor.setLineStyle}
+						lineWidth={editor.lineWidth}
+						setLineWidth={editor.setLineWidth}
+						fillPolygons={editor.fillPolygons}
+						setFillPolygons={editor.setFillPolygons}
+						markerIcon={editor.markerIcon}
+						setMarkerIcon={editor.setMarkerIcon}
 					/>
 
 					{/* Features List */}

@@ -21,6 +21,7 @@ import { LayerCreator } from "./components/LayerCreator";
 import { LayerManager } from "./components/LayerManager";
 import { MapSelector } from "./components/MapSelector";
 import {
+	type DrawingStyles,
 	MapView,
 	type MapViewRef,
 	type TerraDrawFeature,
@@ -60,6 +61,11 @@ export interface Layer {
 	// Permission settings
 	createdBy?: string; // User ID of the creator
 	editable?: "creator-only" | "everyone"; // Who can edit this layer
+	// Style settings (layer-level)
+	lineStyle?: "solid" | "dashed" | "dotted";
+	lineWidth?: number;
+	fillPolygons?: boolean;
+	markerIcon?: "default" | "anchor" | "ship" | "warning" | "circle";
 	// WMS properties
 	wmsUrl?: string;
 	wmsLayerName?: string;
@@ -1064,6 +1070,9 @@ function AppContent() {
 						}
 						onRemoveFeatureFromMap={(id) =>
 							mapViewRef.current?.removeFeature(id)
+						}
+						onUpdateDrawingStyles={(styles: DrawingStyles) =>
+							mapViewRef.current?.updateDrawingStyles(styles)
 						}
 						availableLayers={availableLayers}
 						editingLayer={editingLayer}

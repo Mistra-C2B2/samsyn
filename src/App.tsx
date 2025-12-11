@@ -267,9 +267,15 @@ function AppContent() {
 	}, [currentMap]);
 
 	// Update layers with temporal data based on current time
+	// Also hide the layer being edited so only TerraDraw features are shown
 	const layersWithTemporalData = useMemo(() => {
 		if (!currentMap) return [];
 		return currentMap.layers.map((layer) => {
+			// Hide the layer being edited - TerraDraw will render its features instead
+			if (editingLayer && layer.id === editingLayer.id) {
+				return { ...layer, visible: false };
+			}
+
 			if (!layer.temporal || !layer.temporalData) return layer;
 
 			// Find the closest temporal data point to current time
@@ -282,7 +288,7 @@ function AppContent() {
 			const closestData = sortedData[0];
 			return { ...layer, data: closestData.data };
 		});
-	}, [currentMap, currentTimeRange]);
+	}, [currentMap, currentTimeRange, editingLayer]);
 
 	// Get comment count for a specific layer
 	const getLayerCommentCount = (layerId: string) => {

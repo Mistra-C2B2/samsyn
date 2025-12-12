@@ -876,7 +876,6 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
         const fillLayerId = `${layerId}-fill`;
         const lineLayerId = `${layerId}-line`;
         const circleLayerId = `${layerId}-circle`;
-        const lineStyles = ["solid", "dashed", "dotted"];
 
         if (map.getLayer(fillLayerId)) {
           map.setPaintProperty(fillLayerId, "fill-opacity", opacity);
@@ -890,13 +889,6 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
             layerType === "heatmap" ? opacity * 0.6 : opacity;
           map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
         }
-        // Update styled line layers
-        lineStyles.forEach((style) => {
-          const styledLineId = `${layerId}-line-${style}`;
-          if (map.getLayer(styledLineId)) {
-            map.setPaintProperty(styledLineId, "line-opacity", opacity);
-          }
-        });
       };
 
       // Remove layers that are no longer in the layers array (were removed)
@@ -968,7 +960,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
           else if (intensity === "medium") fillColor = "#fee08b";
           else if (intensity === "low") fillColor = "#1a9850";
 
-          // Add polygon fills
+          // Get layer-level style settings (with defaults)
+          const layerLineWidth = layer.lineWidth ?? 2;
+          const layerFillPolygons = layer.fillPolygons ?? true;
+
+          // Add polygon fills (respect fillPolygons setting)
           map.addLayer({
             id: `${layer.id}-fill`,
             type: "fill",
@@ -976,87 +972,26 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
               "fill-color": fillColor,
-              "fill-opacity": normalizedOpacity,
+              "fill-opacity": layerFillPolygons ? normalizedOpacity : 0,
             },
           });
 
-          // Add lines with different styles
-          const features = layer.data.features || [];
-          const hasLineStyles = features.some(
-            (f: unknown) => (f as Record<string, unknown>).properties?.lineStyle
-          );
-
-          if (hasLineStyles) {
-            // Create separate layers for each line style
-            ["solid", "dashed", "dotted"].forEach((style) => {
-              const paintConfig: Record<string, unknown> = {
-                "line-color": fillColor,
-                "line-width": 2,
-                "line-opacity": normalizedOpacity,
-              };
-
-              // Only add line-dasharray for non-solid styles
-              if (style === "dashed") {
-                paintConfig["line-dasharray"] = [2, 2];
-              } else if (style === "dotted") {
-                paintConfig["line-dasharray"] = [0.5, 1.5];
-              }
-
-              map.addLayer({
-                id: `${layer.id}-line-${style}`,
-                type: "line",
-                source: layer.id,
-                filter: [
-                  "all",
-                  [
-                    "in",
-                    ["geometry-type"],
-                    ["literal", ["Polygon", "LineString"]],
-                  ],
-                  ["==", ["get", "lineStyle"], style],
-                ],
-                paint: paintConfig,
-              });
-            });
-
-            // Default line for features without lineStyle
-            map.addLayer({
-              id: `${layer.id}-line`,
-              type: "line",
-              source: layer.id,
-              filter: [
-                "all",
-                [
-                  "in",
-                  ["geometry-type"],
-                  ["literal", ["Polygon", "LineString"]],
-                ],
-                ["!", ["has", "lineStyle"]],
-              ],
-              paint: {
-                "line-color": fillColor,
-                "line-width": 2,
-                "line-opacity": normalizedOpacity,
-              },
-            });
-          } else {
-            // Standard line layer
-            map.addLayer({
-              id: `${layer.id}-line`,
-              type: "line",
-              source: layer.id,
-              filter: [
-                "in",
-                ["geometry-type"],
-                ["literal", ["Polygon", "LineString"]],
-              ],
-              paint: {
-                "line-color": fillColor,
-                "line-width": 2,
-                "line-opacity": normalizedOpacity,
-              },
-            });
-          }
+          // Add line layer with layer-level style
+          map.addLayer({
+            id: `${layer.id}-line`,
+            type: "line",
+            source: layer.id,
+            filter: [
+              "in",
+              ["geometry-type"],
+              ["literal", ["Polygon", "LineString"]],
+            ],
+            paint: {
+              "line-color": fillColor,
+              "line-width": layerLineWidth,
+              "line-opacity": normalizedOpacity,
+            },
+          });
 
           // Add point markers with icon support
           map.addLayer({

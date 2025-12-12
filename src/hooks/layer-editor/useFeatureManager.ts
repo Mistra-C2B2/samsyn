@@ -13,7 +13,6 @@ export type GeometryType =
 	| "Circle"
 	| "Freehand";
 export type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
-export type LineStyle = "solid" | "dashed" | "dotted";
 
 type GeoJSONCoordinates =
 	| [number, number] // Point
@@ -33,7 +32,6 @@ interface GeoJSONFeature {
 		name?: string;
 		description?: string;
 		icon?: string;
-		lineStyle?: string;
 		featureType?: string;
 		[key: string]: unknown;
 	};
@@ -49,7 +47,6 @@ export interface FeatureMetadata {
 	name: string;
 	description: string;
 	icon?: IconType;
-	lineStyle?: LineStyle;
 }
 
 // Temporary feature data for features not yet in TerraDraw (during import/edit init)
@@ -68,7 +65,6 @@ export interface Feature {
 	description: string;
 	coordinates: GeoJSONCoordinates;
 	icon?: IconType;
-	lineStyle?: LineStyle;
 }
 
 // ============================================================================
@@ -268,7 +264,6 @@ function mergeFeatures(
 			name: metadata.name,
 			description: metadata.description,
 			icon: metadata.icon,
-			lineStyle: metadata.lineStyle,
 		});
 	}
 
@@ -386,8 +381,6 @@ export function useFeatureManager(options: UseFeatureManagerOptions = {}) {
 								name: feature.properties?.name || "",
 								description: feature.properties?.description || "",
 								icon: (feature.properties?.icon as IconType) || "default",
-								lineStyle:
-									(feature.properties?.lineStyle as LineStyle) || "solid",
 							},
 						};
 					})

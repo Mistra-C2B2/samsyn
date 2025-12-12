@@ -62,7 +62,6 @@ export interface Layer {
 	createdBy?: string; // User ID of the creator
 	editable?: "creator-only" | "everyone"; // Who can edit this layer
 	// Style settings (layer-level)
-	lineStyle?: "solid" | "dashed" | "dotted";
 	lineWidth?: number;
 	fillPolygons?: boolean;
 	markerIcon?: "default" | "anchor" | "ship" | "warning" | "circle";

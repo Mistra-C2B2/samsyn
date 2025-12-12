@@ -13,14 +13,11 @@ import { Slider } from "../ui/slider";
 // Types
 // ============================================================================
 
-type LineStyle = "solid" | "dashed" | "dotted";
 type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
 
 interface StyleSettingsPanelProps {
 	layerColor: string;
 	setLayerColor: (value: string) => void;
-	lineStyle: LineStyle;
-	setLineStyle: (value: LineStyle) => void;
 	lineWidth: number;
 	setLineWidth: (value: number) => void;
 	fillPolygons: boolean;
@@ -56,8 +53,6 @@ function FeatureIcon({ iconType }: { iconType: IconType }) {
 export function StyleSettingsPanel({
 	layerColor,
 	setLayerColor,
-	lineStyle,
-	setLineStyle,
 	lineWidth,
 	setLineWidth,
 	fillPolygons,
@@ -65,7 +60,6 @@ export function StyleSettingsPanel({
 	markerIcon,
 	setMarkerIcon,
 }: StyleSettingsPanelProps) {
-	const lineStyles: LineStyle[] = ["solid", "dashed", "dotted"];
 	const iconTypes: IconType[] = ["default", "anchor", "ship", "warning", "circle"];
 
 	return (
@@ -90,27 +84,6 @@ export function StyleSettingsPanel({
 						placeholder="#3b82f6"
 						className="flex-1"
 					/>
-				</div>
-			</div>
-
-			{/* Line Style */}
-			<div className="space-y-2">
-				<Label className="text-xs text-slate-600">Line Style</Label>
-				<div className="grid grid-cols-3 gap-2">
-					{lineStyles.map((style) => (
-						<button
-							type="button"
-							key={style}
-							onClick={() => setLineStyle(style)}
-							className={`p-2 rounded border text-xs capitalize transition-colors ${
-								lineStyle === style
-									? "border-teal-600 bg-teal-50"
-									: "border-slate-200 hover:border-teal-400"
-							}`}
-						>
-							{style}
-						</button>
-					))}
 				</div>
 			</div>
 

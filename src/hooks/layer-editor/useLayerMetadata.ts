@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 // Types
 // ============================================================================
 
-export type LineStyle = "solid" | "dashed" | "dotted";
 export type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
 
 export interface LayerMetadata {
@@ -14,7 +13,6 @@ export interface LayerMetadata {
 	layerColor: string;
 	editableBy: "creator-only" | "everyone";
 	// Style settings
-	lineStyle: LineStyle;
 	lineWidth: number;
 	fillPolygons: boolean;
 	markerIcon: IconType;
@@ -26,7 +24,6 @@ export interface UseLayerMetadataOptions {
 	initialDescription?: string;
 	initialColor?: string;
 	initialEditableBy?: "creator-only" | "everyone";
-	initialLineStyle?: LineStyle;
 	initialLineWidth?: number;
 	initialFillPolygons?: boolean;
 	initialMarkerIcon?: IconType;
@@ -47,7 +44,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		initialDescription = "",
 		initialColor = "#3b82f6",
 		initialEditableBy = "creator-only",
-		initialLineStyle = "solid",
 		initialLineWidth = 2,
 		initialFillPolygons = true,
 		initialMarkerIcon = "default",
@@ -61,7 +57,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		initialEditableBy,
 	);
 	// Style settings
-	const [lineStyle, setLineStyle] = useState<LineStyle>(initialLineStyle);
 	const [lineWidth, setLineWidth] = useState(initialLineWidth);
 	const [fillPolygons, setFillPolygons] = useState(initialFillPolygons);
 	const [markerIcon, setMarkerIcon] = useState<IconType>(initialMarkerIcon);
@@ -72,7 +67,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		setDescription(initialDescription);
 		setLayerColor(initialColor);
 		setEditableBy(initialEditableBy);
-		setLineStyle(initialLineStyle);
 		setLineWidth(initialLineWidth);
 		setFillPolygons(initialFillPolygons);
 		setMarkerIcon(initialMarkerIcon);
@@ -82,7 +76,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		initialDescription,
 		initialColor,
 		initialEditableBy,
-		initialLineStyle,
 		initialLineWidth,
 		initialFillPolygons,
 		initialMarkerIcon,
@@ -95,7 +88,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 			setDescription(metadata.description);
 		if (metadata.layerColor !== undefined) setLayerColor(metadata.layerColor);
 		if (metadata.editableBy !== undefined) setEditableBy(metadata.editableBy);
-		if (metadata.lineStyle !== undefined) setLineStyle(metadata.lineStyle);
 		if (metadata.lineWidth !== undefined) setLineWidth(metadata.lineWidth);
 		if (metadata.fillPolygons !== undefined)
 			setFillPolygons(metadata.fillPolygons);
@@ -109,7 +101,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		description,
 		layerColor,
 		editableBy,
-		lineStyle,
 		lineWidth,
 		fillPolygons,
 		markerIcon,
@@ -120,7 +111,6 @@ export function useLayerMetadata(options: UseLayerMetadataOptions = {}) {
 		setDescription,
 		setLayerColor,
 		setEditableBy,
-		setLineStyle,
 		setLineWidth,
 		setFillPolygons,
 		setMarkerIcon,

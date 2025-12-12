@@ -25,7 +25,6 @@ interface GeoJSONFeature {
 		name?: string;
 		description?: string;
 		icon?: string;
-		lineStyle?: string;
 		featureType?: string;
 		[key: string]: unknown;
 	};
@@ -36,7 +35,6 @@ interface GeoJSONFeatureCollection {
 	features: GeoJSONFeature[];
 }
 
-type LineStyle = "solid" | "dashed" | "dotted";
 type IconType = "default" | "anchor" | "ship" | "warning" | "circle";
 
 export interface UseLayerBuilderOptions {
@@ -46,7 +44,6 @@ export interface UseLayerBuilderOptions {
 	layerColor: string;
 	editableBy: "creator-only" | "everyone";
 	// Style settings
-	lineStyle: LineStyle;
 	lineWidth: number;
 	fillPolygons: boolean;
 	markerIcon: IconType;
@@ -71,7 +68,6 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 		description,
 		layerColor,
 		editableBy,
-		lineStyle,
 		lineWidth,
 		fillPolygons,
 		markerIcon,
@@ -125,7 +121,6 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 				editable: editableBy,
 				createdBy: editingLayerData?.createdBy || currentUserId,
 				// Style settings at layer level
-				lineStyle,
 				lineWidth,
 				fillPolygons,
 				markerIcon,
@@ -137,7 +132,6 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 			description,
 			layerColor,
 			editableBy,
-			lineStyle,
 			lineWidth,
 			fillPolygons,
 			markerIcon,

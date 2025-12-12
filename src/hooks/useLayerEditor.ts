@@ -6,7 +6,6 @@ import {
 	type FeatureMetadata,
 	type GeometryType,
 	type IconType,
-	type LineStyle,
 	type PendingFeature,
 	useFeatureManager,
 } from "./layer-editor/useFeatureManager";
@@ -20,7 +19,6 @@ export type {
 	FeatureMetadata,
 	GeometryType,
 	IconType,
-	LineStyle,
 	PendingFeature,
 };
 
@@ -113,7 +111,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		initialDescription: editingLayer?.description || "",
 		initialColor: editingLayer?.color || "#3b82f6",
 		initialEditableBy: editingLayer?.editable || "creator-only",
-		initialLineStyle: editingLayer?.lineStyle || "solid",
 		initialLineWidth: editingLayer?.lineWidth || 2,
 		initialFillPolygons: editingLayer?.fillPolygons ?? true,
 		initialMarkerIcon: editingLayer?.markerIcon || "default",
@@ -137,7 +134,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		description: metadata.description,
 		layerColor: metadata.layerColor,
 		editableBy: metadata.editableBy,
-		lineStyle: metadata.lineStyle,
 		lineWidth: metadata.lineWidth,
 		fillPolygons: metadata.fillPolygons,
 		markerIcon: metadata.markerIcon,
@@ -168,7 +164,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 					description: editingLayer.description || "",
 					layerColor: editingLayer.color || "#3b82f6",
 					editableBy: editingLayer.editable || "creator-only",
-					lineStyle: editingLayer.lineStyle || "solid",
 					lineWidth: editingLayer.lineWidth || 2,
 					fillPolygons: editingLayer.fillPolygons ?? true,
 					markerIcon: editingLayer.markerIcon || "default",
@@ -200,7 +195,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 								name: (f.properties?.name as string) || "",
 								description: (f.properties?.description as string) || "",
 								icon: (f.properties?.icon as IconType) || "default",
-								lineStyle: (f.properties?.lineStyle as LineStyle) || "solid",
 							},
 						}));
 
@@ -373,7 +367,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		layerColor: metadata.layerColor,
 		editableBy: metadata.editableBy,
 		// Style settings
-		lineStyle: metadata.lineStyle,
 		lineWidth: metadata.lineWidth,
 		fillPolygons: metadata.fillPolygons,
 		markerIcon: metadata.markerIcon,
@@ -391,7 +384,6 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 		setLayerColor: metadata.setLayerColor,
 		setEditableBy: metadata.setEditableBy,
 		// Style setters
-		setLineStyle: metadata.setLineStyle,
 		setLineWidth: metadata.setLineWidth,
 		setFillPolygons: metadata.setFillPolygons,
 		setMarkerIcon: metadata.setMarkerIcon,

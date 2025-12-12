@@ -373,7 +373,6 @@ export function LayerCreator({
 						name: "",
 						description: "",
 						icon: type === "Point" ? "default" : undefined,
-						lineStyle: type === "LineString" ? "solid" : undefined,
 					});
 				}
 			},
@@ -416,13 +415,8 @@ export function LayerCreator({
 	// Memoized handlers for feature cards to prevent unnecessary re-renders
 	const handleFeatureUpdate = useCallback(
 		(featureId: string, field: keyof Feature, value: unknown) => {
-			// Only update metadata fields (name, description, icon, lineStyle)
-			if (
-				field === "name" ||
-				field === "description" ||
-				field === "icon" ||
-				field === "lineStyle"
-			) {
+			// Only update metadata fields (name, description, icon)
+			if (field === "name" || field === "description" || field === "icon") {
 				editor.updateFeature(featureId, { [field]: value });
 			}
 		},
@@ -478,8 +472,6 @@ export function LayerCreator({
 					<StyleSettingsPanel
 						layerColor={editor.layerColor}
 						setLayerColor={editor.setLayerColor}
-						lineStyle={editor.lineStyle}
-						setLineStyle={editor.setLineStyle}
 						lineWidth={editor.lineWidth}
 						setLineWidth={editor.setLineWidth}
 						fillPolygons={editor.fillPolygons}

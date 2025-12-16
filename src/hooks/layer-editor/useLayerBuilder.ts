@@ -94,7 +94,8 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 						featureType: feature.type,
 					},
 					geometry: {
-						type: feature.type,
+						// Marker uses Point geometry in GeoJSON
+						type: feature.type === "Marker" ? "Point" : feature.type,
 						coordinates: feature.coordinates,
 					},
 				}));

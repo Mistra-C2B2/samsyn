@@ -1,10 +1,4 @@
-import {
-	Anchor,
-	AlertTriangle,
-	Circle,
-	MapPin,
-	Ship,
-} from "lucide-react";
+import { AlertTriangle, Anchor, Circle, MapPin, Ship } from "lucide-react";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Slider } from "../ui/slider";
@@ -60,7 +54,13 @@ export function StyleSettingsPanel({
 	markerIcon,
 	setMarkerIcon,
 }: StyleSettingsPanelProps) {
-	const iconTypes: IconType[] = ["default", "anchor", "ship", "warning", "circle"];
+	const iconTypes: IconType[] = [
+		"default",
+		"anchor",
+		"ship",
+		"warning",
+		"circle",
+	];
 
 	return (
 		<div className="space-y-4 border-t border-slate-200 pt-4">
@@ -89,7 +89,9 @@ export function StyleSettingsPanel({
 
 			{/* Line Width */}
 			<div className="space-y-2">
-				<Label className="text-xs text-slate-600">Line Width: {lineWidth}px</Label>
+				<Label className="text-xs text-slate-600">
+					Line Width: {lineWidth}px
+				</Label>
 				<Slider
 					value={[lineWidth]}
 					onValueChange={(value) => setLineWidth(value[0])}

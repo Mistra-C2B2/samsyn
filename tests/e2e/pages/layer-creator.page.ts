@@ -27,6 +27,7 @@ export class LayerCreatorPage {
 
 	// Draw Mode buttons - Basic shapes
 	readonly addPointButton: Locator;
+	readonly addMarkerButton: Locator;
 	readonly addLineButton: Locator;
 	readonly addPolygonButton: Locator;
 	// Draw Mode buttons - Additional shapes
@@ -87,13 +88,16 @@ export class LayerCreatorPage {
 
 		// Draw Mode buttons - Basic shapes (using label text)
 		this.addPointButton = this.panel.locator(
-			'button:has-text("Add Point")'
+			'button:has-text("Point")'
+		);
+		this.addMarkerButton = this.panel.locator(
+			'button:has-text("Marker")'
 		);
 		this.addLineButton = this.panel.locator(
-			'button:has-text("Add Line")'
+			'button:has-text("Line")'
 		);
 		this.addPolygonButton = this.panel.locator(
-			'button:has-text("Add Polygon")'
+			'button:has-text("Polygon")'
 		);
 		// Draw Mode buttons - Additional shapes
 		this.rectangleButton = this.panel.locator(
@@ -183,6 +187,10 @@ export class LayerCreatorPage {
 
 	async clickAddPoint() {
 		await this.addPointButton.click();
+	}
+
+	async clickAddMarker() {
+		await this.addMarkerButton.click();
 	}
 
 	async clickAddLine() {
@@ -359,16 +367,19 @@ export class LayerCreatorPage {
 
 	/**
 	 * Checks if a specific draw mode is active
-	 * @param mode - The mode to check: "Point", "LineString", "Polygon", "Rectangle", "Circle", "Freehand", "select", "delete", or "delete-selection"
+	 * @param mode - The mode to check: "Point", "Marker", "LineString", "Polygon", "Rectangle", "Circle", "Freehand", "select", "delete", or "delete-selection"
 	 */
 	async isDrawModeActive(
-		mode: "Point" | "LineString" | "Polygon" | "Rectangle" | "Circle" | "Freehand" | "select" | "delete" | "delete-selection"
+		mode: "Point" | "Marker" | "LineString" | "Polygon" | "Rectangle" | "Circle" | "Freehand" | "select" | "delete" | "delete-selection"
 	): Promise<boolean> {
 		let button: Locator;
 
 		switch (mode) {
 			case "Point":
 				button = this.addPointButton;
+				break;
+			case "Marker":
+				button = this.addMarkerButton;
 				break;
 			case "LineString":
 				button = this.addLineButton;

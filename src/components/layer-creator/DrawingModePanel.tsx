@@ -1,5 +1,6 @@
 import {
 	Circle,
+	CircleDot,
 	MapPin,
 	Milestone,
 	MousePointer2,
@@ -58,9 +59,7 @@ const DrawModeButton = memo(function DrawModeButton({
 // Main Component
 // ============================================================================
 
-export function DrawingModePanel({
-	onStartDrawing,
-}: DrawingModePanelProps) {
+export function DrawingModePanel({ onStartDrawing }: DrawingModePanelProps) {
 	const { drawingMode, onSetDrawMode } = useDrawing();
 
 	return (
@@ -68,24 +67,30 @@ export function DrawingModePanel({
 			<label className="text-sm font-medium">Drawing Tools</label>
 
 			{/* Basic drawing mode buttons */}
-			<div className="grid grid-cols-3 gap-2">
+			<div className="grid grid-cols-4 gap-2">
 				<DrawModeButton
 					isActive={drawingMode === "Point"}
 					onClick={() => onStartDrawing("Point")}
+					icon={<CircleDot className="w-5 h-5" />}
+					label="Point"
+				/>
+				<DrawModeButton
+					isActive={drawingMode === "Marker"}
+					onClick={() => onStartDrawing("Marker")}
 					icon={<MapPin className="w-5 h-5" />}
-					label="Add Point"
+					label="Marker"
 				/>
 				<DrawModeButton
 					isActive={drawingMode === "LineString"}
 					onClick={() => onStartDrawing("LineString")}
 					icon={<Milestone className="w-5 h-5" />}
-					label="Add Line"
+					label="Line"
 				/>
 				<DrawModeButton
 					isActive={drawingMode === "Polygon"}
 					onClick={() => onStartDrawing("Polygon")}
 					icon={<Square className="w-5 h-5" />}
-					label="Add Polygon"
+					label="Polygon"
 				/>
 			</div>
 

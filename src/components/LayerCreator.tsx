@@ -38,6 +38,8 @@ interface DrawingStyles {
 	fillPolygons: boolean;
 }
 
+type MarkerIconType = "default" | "anchor" | "ship" | "warning" | "circle";
+
 interface LayerCreatorProps {
 	onCreateLayer: (layer: Layer) => void | Promise<void>;
 	onClose: () => void;
@@ -57,6 +59,9 @@ interface LayerCreatorProps {
 	editingLayer?: Layer | null;
 	drawingMode?: GeometryType | "select" | "delete" | null;
 	terraDrawSnapshot?: TerraDrawFeature[];
+	// For marker icon overlay
+	onMarkerIconChange?: (icon: MarkerIconType) => void;
+	onMarkerColorChange?: (color: string) => void;
 }
 
 // ============================================================================
@@ -177,6 +182,8 @@ export function LayerCreator({
 	editingLayer,
 	drawingMode,
 	terraDrawSnapshot,
+	onMarkerIconChange,
+	onMarkerColorChange,
 }: LayerCreatorProps) {
 	// Get current user from Clerk auth
 	const { user } = useUser();
@@ -236,7 +243,10 @@ export function LayerCreator({
 			editor.pendingFeatures.length > 0 &&
 			onAddFeaturesToMap
 		) {
-			console.log("[LayerCreator] Adding features to TerraDraw:", editor.pendingFeatures);
+			console.log(
+				"[LayerCreator] Adding features to TerraDraw:",
+				editor.pendingFeatures,
+			);
 			const featuresToAdd = editor.pendingFeatures.map((f) => ({
 				id: f.id,
 				type: f.type,
@@ -354,7 +364,26 @@ export function LayerCreator({
 			lineWidth: editor.lineWidth,
 			fillPolygons: editor.fillPolygons,
 		});
-	}, [editor.layerColor, editor.lineWidth, editor.fillPolygons, debouncedUpdateStyles]);
+	}, [
+		editor.layerColor,
+		editor.lineWidth,
+		editor.fillPolygons,
+		debouncedUpdateStyles,
+	]);
+
+	// Notify parent of marker icon changes for overlay rendering
+	useEffect(() => {
+		if (onMarkerIconChange) {
+			onMarkerIconChange(editor.markerIcon);
+		}
+	}, [editor.markerIcon, onMarkerIconChange]);
+
+	// Notify parent of color changes for marker overlay rendering
+	useEffect(() => {
+		if (onMarkerColorChange) {
+			onMarkerColorChange(editor.layerColor);
+		}
+	}, [editor.layerColor, onMarkerColorChange]);
 
 	// Handle drawing a new feature
 	const handleAddFeatureByDrawing = (type: GeometryType) => {
@@ -464,9 +493,7 @@ export function LayerCreator({
 					/>
 
 					{/* Drawing Mode Panel */}
-					<DrawingModePanel
-						onStartDrawing={handleAddFeatureByDrawing}
-					/>
+					<DrawingModePanel onStartDrawing={handleAddFeatureByDrawing} />
 
 					{/* Style Settings Panel */}
 					<StyleSettingsPanel

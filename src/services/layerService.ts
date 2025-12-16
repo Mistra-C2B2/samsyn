@@ -182,6 +182,14 @@ export class LayerService {
 		// Note: vectorConfig is defined but not currently used in transformation
 		// It's available for future enhancements when vector-specific properties need to be extracted
 
+		// Extract style configuration if present
+		const styleConfig = layerResponse.style_config as {
+			color?: string;
+			lineWidth?: number;
+			fillPolygons?: boolean;
+			markerIcon?: "default" | "anchor" | "ship" | "warning" | "circle";
+		};
+
 		// Build the frontend Layer object
 		const layer: Layer = {
 			id: layerResponse.id,
@@ -193,6 +201,11 @@ export class LayerService {
 			category: layerResponse.category || undefined,
 			createdBy: layerResponse.created_by,
 			editable: layerResponse.editable as "creator-only" | "everyone",
+			// Style properties from style_config
+			color: styleConfig?.color,
+			lineWidth: styleConfig?.lineWidth,
+			fillPolygons: styleConfig?.fillPolygons,
+			markerIcon: styleConfig?.markerIcon,
 		};
 
 		// Add WMS-specific fields
@@ -315,6 +328,15 @@ export class LayerService {
 		if (layer.color) {
 			styleConfig.color = layer.color;
 		}
+		if (layer.lineWidth !== undefined) {
+			styleConfig.lineWidth = layer.lineWidth;
+		}
+		if (layer.fillPolygons !== undefined) {
+			styleConfig.fillPolygons = layer.fillPolygons;
+		}
+		if (layer.markerIcon) {
+			styleConfig.markerIcon = layer.markerIcon;
+		}
 
 		// Build legend_config
 		const legendConfig: Record<string, unknown> = {};
@@ -424,9 +446,27 @@ export class LayerService {
 			}
 		}
 
-		// Update style_config if color changed
-		if (updates.color !== undefined) {
-			layerUpdate.style_config = { color: updates.color };
+		// Update style_config if style properties changed
+		if (
+			updates.color !== undefined ||
+			updates.lineWidth !== undefined ||
+			updates.fillPolygons !== undefined ||
+			updates.markerIcon !== undefined
+		) {
+			const styleConfig: Record<string, unknown> = {};
+			if (updates.color !== undefined) {
+				styleConfig.color = updates.color;
+			}
+			if (updates.lineWidth !== undefined) {
+				styleConfig.lineWidth = updates.lineWidth;
+			}
+			if (updates.fillPolygons !== undefined) {
+				styleConfig.fillPolygons = updates.fillPolygons;
+			}
+			if (updates.markerIcon !== undefined) {
+				styleConfig.markerIcon = updates.markerIcon;
+			}
+			layerUpdate.style_config = styleConfig;
 		}
 
 		// Update legend_config if legend changed

@@ -1101,12 +1101,38 @@ function AppContent() {
 						}}
 						onStartDrawing={handleStartDrawing}
 						onSetDrawMode={handleSetDrawMode}
-						onAddFeaturesToMap={(features, color) =>
-							mapViewRef.current?.addFeatures(features, color) || []
-						}
-						onRemoveFeatureFromMap={(id) =>
-							mapViewRef.current?.removeFeature(id)
-						}
+						onAddFeaturesToMap={(features, color) => {
+							const addedIds =
+								mapViewRef.current?.addFeatures(features, color) || [];
+							// Track marker feature IDs for the overlay layer
+							const markerIds: string[] = [];
+							features.forEach((f, index) => {
+								if (f.type === "Marker" && addedIds[index]) {
+									markerIds.push(addedIds[index]);
+								}
+							});
+
+							if (markerIds.length > 0) {
+								setMarkerFeatureIds((prev) => {
+									const next = new Set(prev);
+									markerIds.forEach((id) => next.add(id));
+									return next;
+								});
+							}
+							return addedIds;
+						}}
+						onRemoveFeatureFromMap={(id) => {
+							mapViewRef.current?.removeFeature(id);
+							// Remove from marker tracking if it was a marker
+							setMarkerFeatureIds((prev) => {
+								if (prev.has(id)) {
+									const next = new Set(prev);
+									next.delete(id);
+									return next;
+								}
+								return prev;
+							});
+						}}
 						onUpdateDrawingStyles={(styles: DrawingStyles) =>
 							mapViewRef.current?.updateDrawingStyles(styles)
 						}

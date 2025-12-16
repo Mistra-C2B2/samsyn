@@ -48,6 +48,7 @@ export interface FeatureMetadata {
 	name: string;
 	description: string;
 	icon?: IconType;
+	featureType?: GeometryType; // Store actual type (e.g., "Marker" vs "Point")
 }
 
 // Temporary feature data for features not yet in TerraDraw (during import/edit init)
@@ -258,9 +259,13 @@ function mergeFeatures(
 		// If no metadata exists, skip this feature (it was just drawn but not named yet)
 		if (!metadata) continue;
 
+		// Use stored featureType if available (e.g., "Marker"), otherwise use geometry type
+		const featureType =
+			metadata.featureType || (terraFeature.geometry.type as GeometryType);
+
 		features.push({
 			id,
-			type: terraFeature.geometry.type as GeometryType,
+			type: featureType,
 			coordinates: terraFeature.geometry.coordinates as GeoJSONCoordinates,
 			name: metadata.name,
 			description: metadata.description,
@@ -374,14 +379,20 @@ export function useFeatureManager(options: UseFeatureManagerOptions = {}) {
 							return null;
 						}
 
+						// Use featureType from properties if available (e.g., "Marker"),
+						// otherwise fall back to geometry type
+						const featureType =
+							(feature.properties?.featureType as GeometryType) || geometryType;
+
 						return {
 							id: crypto.randomUUID(), // Temporary ID
-							type: geometryType,
+							type: featureType,
 							coordinates,
 							metadata: {
 								name: feature.properties?.name || "",
 								description: feature.properties?.description || "",
 								icon: (feature.properties?.icon as IconType) || "default",
+								featureType, // Preserve the feature type in metadata
 							},
 						};
 					})

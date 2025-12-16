@@ -1,10 +1,10 @@
 import maplibregl from "maplibre-gl";
 import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
+	forwardRef,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
 } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
@@ -14,1268 +14,1560 @@ import { Legend } from "./Legend";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let TerradrawControlClass: any = null;
 
-// TerraDraw feature type for change events
-export interface TerraDrawFeature {
-  id: string | number;
-  type: "Feature";
-  geometry: {
-    type: string;
-    coordinates: unknown;
-  };
-  properties: Record<string, unknown>;
+// Marker icon SVGs as data URLs for MapLibre
+// These are based on Lucide icons and will be rendered as map symbols
+const MARKER_ICONS: Record<string, string> = {
+	// Default pin marker
+	default: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`,
+	// Anchor icon
+	anchor: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="21"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>`,
+	// Ship icon
+	ship: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M12 10v4"/><path d="M12 2v3"/></svg>`,
+	// Warning triangle
+	warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13" stroke="white" stroke-width="2"/><circle cx="12" cy="17" r="1" fill="white"/></svg>`,
+	// Circle marker
+	circle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>`,
+};
+
+// Helper function to create a colored SVG and convert to ImageData for MapLibre
+async function loadSvgAsImage(
+	iconSvg: string,
+	color: string,
+	size: number = 48,
+): Promise<ImageData> {
+	return new Promise((resolve, reject) => {
+		// Replace currentColor with the actual color
+		const coloredSvg = iconSvg.replace(/currentColor/g, color);
+
+		// Create an image from the SVG
+		const img = new Image();
+		img.width = size;
+		img.height = size;
+
+		img.onload = () => {
+			// Draw to canvas to get ImageData
+			const canvas = document.createElement("canvas");
+			canvas.width = size;
+			canvas.height = size;
+			const ctx = canvas.getContext("2d");
+			if (!ctx) {
+				reject(new Error("Could not get canvas context"));
+				return;
+			}
+			ctx.drawImage(img, 0, 0, size, size);
+			const imageData = ctx.getImageData(0, 0, size, size);
+			resolve(imageData);
+		};
+
+		img.onerror = (err) => {
+			reject(err);
+		};
+
+		// Use base64 encoding for better compatibility
+		const base64 = btoa(coloredSvg);
+		img.src = `data:image/svg+xml;base64,${base64}`;
+	});
 }
 
+// Helper function to load icon images into the map
+// Uses a mutex pattern to prevent concurrent updates causing "already exists" errors
+const iconLoadingPromise: { current: Promise<void> | null } = { current: null };
+
+async function loadMarkerIcons(
+	map: maplibregl.Map,
+	color: string,
+): Promise<void> {
+	// Wait for any in-progress loading to complete first
+	if (iconLoadingPromise.current) {
+		await iconLoadingPromise.current;
+	}
+
+	const loadIcons = async () => {
+		const iconTypes = Object.keys(MARKER_ICONS) as Array<
+			keyof typeof MARKER_ICONS
+		>;
+
+		for (const iconType of iconTypes) {
+			const iconId = `marker-${iconType}`;
+			// Remove existing image if it exists (for color updates)
+			if (map.hasImage(iconId)) {
+				map.removeImage(iconId);
+			}
+
+			try {
+				const imageData = await loadSvgAsImage(
+					MARKER_ICONS[iconType],
+					color,
+					48,
+				);
+				// Double-check after async operation
+				if (map.hasImage(iconId)) {
+					map.removeImage(iconId);
+				}
+				map.addImage(iconId, imageData, { sdf: false });
+			} catch (err) {
+				console.warn(`Failed to load marker icon ${iconType}:`, err);
+			}
+		}
+	};
+
+	iconLoadingPromise.current = loadIcons();
+	await iconLoadingPromise.current;
+	iconLoadingPromise.current = null;
+}
+
+// TerraDraw feature type for change events
+export interface TerraDrawFeature {
+	id: string | number;
+	type: "Feature";
+	geometry: {
+		type: string;
+		coordinates: unknown;
+	};
+	properties: Record<string, unknown>;
+}
+
+type MarkerIconType = "default" | "anchor" | "ship" | "warning" | "circle";
+
 interface MapViewProps {
-  center: [number, number];
-  zoom: number;
-  layers: Layer[];
-  basemap: string;
-  onDrawComplete?: (feature: unknown) => void;
-  onTerraDrawChange?: (features: TerraDrawFeature[]) => void;
-  drawingMode?:
-    | "Point"
-    | "LineString"
-    | "Polygon"
-    | "Rectangle"
-    | "Circle"
-    | "Freehand"
-    | "select"
-    | "delete"
-    | "delete-selection"
-    | null;
-  onFeatureClick?: (layerId: string) => void;
-  highlightedLayerId?: string | null;
+	center: [number, number];
+	zoom: number;
+	layers: Layer[];
+	basemap: string;
+	onDrawComplete?: (feature: unknown) => void;
+	onTerraDrawChange?: (features: TerraDrawFeature[]) => void;
+	drawingMode?:
+		| "Point"
+		| "Marker" // For display purposes only - mapped to Point for TerraDraw
+		| "LineString"
+		| "Polygon"
+		| "Rectangle"
+		| "Circle"
+		| "Freehand"
+		| "select"
+		| "delete"
+		| "delete-selection"
+		| null;
+	onFeatureClick?: (layerId: string) => void;
+	highlightedLayerId?: string | null;
+	// For showing marker icons on top of TerraDraw during editing
+	markerIcon?: MarkerIconType;
+	markerFeatureIds?: Set<string>; // IDs of features that should show as markers
+	markerColor?: string;
+	// Pass snapshot to trigger overlay updates when features move
+	terraDrawSnapshot?: TerraDrawFeature[];
 }
 
 export interface DrawingStyles {
-  color: string;
-  lineWidth: number;
-  fillPolygons: boolean;
+	color: string;
+	lineWidth: number;
+	fillPolygons: boolean;
 }
 
 export interface MapViewRef {
-  startDrawing: (
-    type:
-      | "Point"
-      | "LineString"
-      | "Polygon"
-      | "Rectangle"
-      | "Circle"
-      | "Freehand",
-    color?: string
-  ) => void;
-  setDrawMode: (mode: "select" | "delete" | "delete-selection") => void;
-  cancelDrawing: () => void;
-  clearDrawings: () => void;
-  addFeatures: (
-    features: Array<{
-      id: string;
-      type: "Point" | "LineString" | "Polygon";
-      coordinates: unknown;
-    }>,
-    color?: string
-  ) => string[];
-  removeFeature: (id: string) => void;
-  updateDrawingStyles: (styles: DrawingStyles) => void;
+	startDrawing: (
+		type:
+			| "Point"
+			| "LineString"
+			| "Polygon"
+			| "Rectangle"
+			| "Circle"
+			| "Freehand",
+		color?: string,
+	) => void;
+	setDrawMode: (mode: "select" | "delete" | "delete-selection") => void;
+	cancelDrawing: () => void;
+	clearDrawings: () => void;
+	addFeatures: (
+		features: Array<{
+			id: string;
+			type: "Point" | "LineString" | "Polygon";
+			coordinates: unknown;
+		}>,
+		color?: string,
+	) => string[];
+	removeFeature: (id: string) => void;
+	updateDrawingStyles: (styles: DrawingStyles) => void;
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
-  (
-    {
-      center,
-      zoom,
-      layers,
-      basemap,
-      onDrawComplete,
-      onTerraDrawChange,
-      drawingMode,
-      onFeatureClick,
-      highlightedLayerId,
-    },
-    ref
-  ) => {
-    const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<maplibregl.Map | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const drawRef = useRef<any>(null);
-    const onDrawCompleteRef = useRef(onDrawComplete);
-    const onTerraDrawChangeRef = useRef(onTerraDrawChange);
-    const onFeatureClickRef = useRef(onFeatureClick);
-    const initialPropsRef = useRef({ center, zoom, basemap });
-    const [mapLoaded, setMapLoaded] = useState(false);
-    const mapLoadedRef = useRef(false);
-    const previousLayerIdsRef = useRef<Set<string>>(new Set());
-    // Track previous layer state for efficient updates (only recreate when data changes)
-    const previousLayerStateRef = useRef<
-      Map<string, { visible: boolean; opacity: number; dataHash: string }>
-    >(new Map());
-
-    // Keep the refs updated with the latest callbacks
-    useEffect(() => {
-      onDrawCompleteRef.current = onDrawComplete;
-    }, [onDrawComplete]);
-
-    useEffect(() => {
-      onTerraDrawChangeRef.current = onTerraDrawChange;
-    }, [onTerraDrawChange]);
-
-    useEffect(() => {
-      onFeatureClickRef.current = onFeatureClick;
-    }, [onFeatureClick]);
-
-    useImperativeHandle(ref, () => ({
-      startDrawing: (
-        type:
-          | "Point"
-          | "LineString"
-          | "Polygon"
-          | "Rectangle"
-          | "Circle"
-          | "Freehand",
-        color?: string
-      ) => {
-        if (!drawRef.current || !mapLoaded) return;
-
-        const terraDraw = drawRef.current.getTerraDrawInstance();
-        if (!terraDraw) return;
-
-        // Enable TerraDraw if not already enabled (must be done before updating styles)
-        if (!terraDraw.enabled) {
-          terraDraw.start();
-        }
-
-        // Update styles with the selected color if provided
-        if (color) {
-          try {
-            // Update point style
-            terraDraw.updateModeOptions("point", {
-              styles: {
-                pointColor: color,
-                pointOutlineColor: "#ffffff",
-              },
-            });
-            // Update linestring style
-            terraDraw.updateModeOptions("linestring", {
-              styles: {
-                lineStringColor: color,
-                lineStringWidth: 3,
-                closingPointColor: color,
-                closingPointOutlineColor: "#ffffff",
-              },
-            });
-            // Update polygon style
-            terraDraw.updateModeOptions("polygon", {
-              styles: {
-                fillColor: color,
-                fillOpacity: 0.3,
-                outlineColor: color,
-                outlineWidth: 2,
-                closingPointColor: color,
-                closingPointOutlineColor: "#ffffff",
-              },
-            });
-            // Update rectangle style
-            terraDraw.updateModeOptions("rectangle", {
-              styles: {
-                fillColor: color,
-                fillOpacity: 0.3,
-                outlineColor: color,
-                outlineWidth: 2,
-              },
-            });
-            // Update circle style
-            terraDraw.updateModeOptions("circle", {
-              styles: {
-                fillColor: color,
-                fillOpacity: 0.3,
-                outlineColor: color,
-                outlineWidth: 2,
-              },
-            });
-            // Update freehand style
-            terraDraw.updateModeOptions("freehand", {
-              styles: {
-                fillColor: color,
-                fillOpacity: 0.3,
-                outlineColor: color,
-                outlineWidth: 2,
-              },
-            });
-          } catch (err) {
-            console.warn("Failed to update drawing styles:", err);
-          }
-        }
-
-        // Don't clear existing features - allow users to draw multiple features
-        // Features will be cleared when the layer is created or drawing is cancelled
-
-        // Start drawing based on type
-        if (type === "Point") {
-          terraDraw.setMode("point");
-        } else if (type === "LineString") {
-          terraDraw.setMode("linestring");
-        } else if (type === "Polygon") {
-          terraDraw.setMode("polygon");
-        } else if (type === "Rectangle") {
-          terraDraw.setMode("rectangle");
-        } else if (type === "Circle") {
-          terraDraw.setMode("circle");
-        } else if (type === "Freehand") {
-          terraDraw.setMode("freehand");
-        }
-      },
-      setDrawMode: (mode: "select" | "delete" | "delete-selection") => {
-        if (!drawRef.current || !mapLoaded) return;
-
-        const terraDraw = drawRef.current.getTerraDrawInstance();
-        if (!terraDraw) return;
-
-        // Enable TerraDraw if not already enabled
-        if (!terraDraw.enabled) {
-          terraDraw.start();
-        }
-
-        // Handle delete-selection as an action, not a mode
-        if (mode === "delete-selection") {
-          // Get all selected features and delete them
-          const snapshot = terraDraw.getSnapshot();
-          const selectedIds = snapshot
-            .filter((f) => f.properties?.selected === true)
-            .map((f) => String(f.id));
-
-          if (selectedIds.length > 0) {
-            terraDraw.removeFeatures(selectedIds);
-          }
-          // Stay in select mode after deletion
-          terraDraw.setMode("select");
-        } else {
-          terraDraw.setMode(mode);
-        }
-      },
-      cancelDrawing: () => {
-        if (drawRef.current && mapLoaded) {
-          const terraDraw = drawRef.current.getTerraDrawInstance();
-          if (terraDraw) {
-            terraDraw.setMode("select");
-            const snapshot = terraDraw.getSnapshot();
-            if (snapshot.length > 0) {
-              terraDraw.clear();
-            }
-          }
-        }
-      },
-      clearDrawings: () => {
-        if (drawRef.current && mapLoaded) {
-          const terraDraw = drawRef.current.getTerraDrawInstance();
-          if (terraDraw) {
-            terraDraw.setMode("select");
-            const snapshot = terraDraw.getSnapshot();
-            if (snapshot.length > 0) {
-              terraDraw.clear();
-            }
-          }
-        }
-      },
-      addFeatures: (features, color) => {
-        if (!drawRef.current || !mapLoaded) return [];
-
-        const terraDraw = drawRef.current.getTerraDrawInstance();
-        if (!terraDraw) return [];
-
-        // Enable TerraDraw if not already enabled
-        if (!terraDraw.enabled) {
-          terraDraw.start();
-        }
-
-        // Update styles with the provided color
-        if (color) {
-          try {
-            terraDraw.updateModeOptions("point", {
-              styles: {
-                pointColor: color,
-                pointOutlineColor: "#ffffff",
-              },
-            });
-            terraDraw.updateModeOptions("linestring", {
-              styles: {
-                lineStringColor: color,
-                lineStringWidth: 3,
-                closingPointColor: color,
-                closingPointOutlineColor: "#ffffff",
-              },
-            });
-            terraDraw.updateModeOptions("polygon", {
-              styles: {
-                fillColor: color,
-                fillOpacity: 0.3,
-                outlineColor: color,
-                outlineWidth: 2,
-                closingPointColor: color,
-                closingPointOutlineColor: "#ffffff",
-              },
-            });
-          } catch (err) {
-            console.warn("Failed to update drawing styles:", err);
-          }
-        }
-
-        const addedIds: string[] = [];
-
-        // Add each feature to TerraDraw
-        for (const feature of features) {
-          try {
-            // Map geometry type to TerraDraw mode name
-            const modeMap: Record<string, string> = {
-              Point: "point",
-              LineString: "linestring",
-              Polygon: "polygon",
-            };
-            const mode = modeMap[feature.type] || feature.type.toLowerCase();
-
-            // Create a GeoJSON feature to add
-            const geoJsonFeature = {
-              type: "Feature" as const,
-              properties: {
-                mode, // TerraDraw requires a mode property
-              },
-              geometry: {
-                type: feature.type,
-                coordinates: feature.coordinates,
-              },
-            };
-
-            // Use TerraDraw's addFeatures method
-            const ids = terraDraw.addFeatures([geoJsonFeature]);
-            if (ids && ids.length > 0) {
-              const idValue =
-                typeof ids[0] === "object" && ids[0] !== null && "id" in ids[0]
-                  ? String((ids[0] as { id: unknown }).id)
-                  : String(ids[0]);
-              addedIds.push(idValue);
-            }
-          } catch (err) {
-            console.warn("Failed to add feature to TerraDraw:", err);
-          }
-        }
-
-        // Set to select mode so user can interact with features
-        terraDraw.setMode("select");
-
-        // Notify parent of the new snapshot after adding features
-        if (onTerraDrawChangeRef.current) {
-          const snapshot = terraDraw.getSnapshot();
-          onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
-        }
-
-        return addedIds;
-      },
-      removeFeature: (id: string) => {
-        if (!drawRef.current || !mapLoaded) return;
-
-        const terraDraw = drawRef.current.getTerraDrawInstance();
-        if (!terraDraw) return;
-
-        try {
-          const snapshotBefore = terraDraw.getSnapshot();
-
-          // If the feature is selected, deselect it first
-          const featureToRemove = snapshotBefore.find(
-            (f) => String(f.id) === id
-          );
-          if (featureToRemove?.properties?.selected) {
-            terraDraw.deselectFeature(id);
-          }
-
-          // Check if this is the only feature - if so, use clear() instead
-          // because removeFeatures() doesn't properly trigger visual updates in TerraDraw
-          if (snapshotBefore.length === 1) {
-            terraDraw.clear();
-            terraDraw.setMode("select");
-          } else {
-            terraDraw.removeFeatures([id]);
-            terraDraw.setMode("select");
-          }
-
-          // Notify parent of the updated snapshot after removing the feature
-          if (onTerraDrawChangeRef.current) {
-            const snapshot = terraDraw.getSnapshot();
-            onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
-          }
-        } catch (err) {
-          console.warn("Failed to remove feature from TerraDraw:", err);
-        }
-      },
-      updateDrawingStyles: (styles: DrawingStyles) => {
-        if (!drawRef.current || !mapLoaded) return;
-
-        const terraDraw = drawRef.current.getTerraDrawInstance();
-        if (!terraDraw) return;
-
-        const { color, lineWidth, fillPolygons } = styles;
-        const fillOpacity = fillPolygons ? 0.3 : 0;
-
-        try {
-          // Update point style
-          terraDraw.updateModeOptions("point", {
-            styles: {
-              pointColor: color,
-              pointOutlineColor: "#ffffff",
-            },
-          });
-          // Update linestring style
-          terraDraw.updateModeOptions("linestring", {
-            styles: {
-              lineStringColor: color,
-              lineStringWidth: lineWidth,
-              closingPointColor: color,
-              closingPointOutlineColor: "#ffffff",
-            },
-          });
-          // Update polygon style
-          terraDraw.updateModeOptions("polygon", {
-            styles: {
-              fillColor: color,
-              fillOpacity,
-              outlineColor: color,
-              outlineWidth: lineWidth,
-              closingPointColor: color,
-              closingPointOutlineColor: "#ffffff",
-            },
-          });
-          // Update rectangle style
-          terraDraw.updateModeOptions("rectangle", {
-            styles: {
-              fillColor: color,
-              fillOpacity,
-              outlineColor: color,
-              outlineWidth: lineWidth,
-            },
-          });
-          // Update circle style
-          terraDraw.updateModeOptions("circle", {
-            styles: {
-              fillColor: color,
-              fillOpacity,
-              outlineColor: color,
-              outlineWidth: lineWidth,
-            },
-          });
-          // Update freehand style
-          terraDraw.updateModeOptions("freehand", {
-            styles: {
-              fillColor: color,
-              fillOpacity,
-              outlineColor: color,
-              outlineWidth: lineWidth,
-            },
-          });
-          // Update select mode styling for existing features
-          terraDraw.updateModeOptions("select", {
-            styles: {
-              selectedPolygonColor: color,
-              selectedPolygonFillOpacity: fillOpacity,
-              selectedPolygonOutlineColor: color,
-              selectedPolygonOutlineWidth: lineWidth,
-              selectedLineStringColor: color,
-              selectedLineStringWidth: lineWidth,
-              selectedPointColor: color,
-              selectedPointOutlineColor: "#ffffff",
-              selectionPolygonFillOpacity: 0.1,
-              selectionPolygonOutlineColor: color,
-            },
-          });
-
-          // Note: TerraDraw doesn't support updating styles of existing features
-          // without clearing and re-adding them (which causes flicker).
-          // New features will use the updated styles, and when saved,
-          // the layer will store the final style settings.
-        } catch (err) {
-          console.warn("Failed to update drawing styles:", err);
-        }
-      },
-    }));
-
-    useEffect(() => {
-      if (!mapContainerRef.current || mapRef.current) return;
-
-      // Create basemap style based on basemap prop
-      const getBasemapStyle = (
-        basemapType: string
-      ): maplibregl.StyleSpecification => {
-        // Use raster tile sources for better compatibility
-        const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
-          osm: {
-            version: 8,
-            sources: {
-              osm: {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: "&copy; OpenStreetMap contributors",
-              },
-            },
-            layers: [
-              {
-                id: "osm",
-                type: "raster",
-                source: "osm",
-              },
-            ],
-          },
-          "carto-light": {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO",
-              },
-            },
-            layers: [
-              {
-                id: "carto",
-                type: "raster",
-                source: "carto",
-              },
-            ],
-          },
-          "carto-dark": {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO",
-              },
-            },
-            layers: [
-              {
-                id: "carto",
-                type: "raster",
-                source: "carto",
-              },
-            ],
-          },
-          voyager: {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
-              },
-            },
-            layers: [
-              {
-                id: "carto",
-                type: "raster",
-                source: "carto",
-              },
-            ],
-          },
-        };
-
-        return rasterStyles[basemapType] || rasterStyles.osm;
-      };
-
-      const {
-        center: initCenter,
-        zoom: initZoom,
-        basemap: initBasemap,
-      } = initialPropsRef.current;
-      const map = new maplibregl.Map({
-        container: mapContainerRef.current,
-        style: getBasemapStyle(initBasemap),
-        center: [initCenter[1], initCenter[0]], // uses [lng, lat]
-        zoom: initZoom - 1,
-        attributionControl: false, // Disable default attribution
-      });
-
-      // Add attribution control to bottom-left
-      map.addControl(new maplibregl.AttributionControl(), "bottom-left");
-
-      const initializeDrawControl = async () => {
-        if (mapLoadedRef.current) return; // Already initialized
-        mapLoadedRef.current = true;
-        setMapLoaded(true);
-
-        try {
-          // Dynamically import TerraDraw to avoid bundling issues
-          if (!TerradrawControlClass) {
-            const module = await import("@watergis/maplibre-gl-terradraw");
-            TerradrawControlClass = module.MaplibreTerradrawControl;
-            // @ts-expect-error dynamic CSS import
-            await import(
-              "@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css"
-            );
-          }
-
-          // Initialize terradraw control after map style is loaded
-          const draw = new TerradrawControlClass({
-            modes: [
-              "point",
-              "linestring",
-              "polygon",
-              "rectangle",
-              "circle",
-              "freehand",
-              "select",
-              "delete",
-              "delete-selection",
-            ],
-            open: false,
-          });
-
-          map.addControl(draw, "top-right");
-          drawRef.current = draw;
-
-          // Handle draw events via TerraDraw instance
-          const terraDraw = draw.getTerraDrawInstance();
-          if (terraDraw) {
-            terraDraw.on("finish", (id: string | number) => {
-              if (onDrawCompleteRef.current) {
-                const snapshot = terraDraw.getSnapshot();
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const feature = snapshot.find((f: any) => f.id === id);
-                if (feature) {
-                  onDrawCompleteRef.current(feature);
-                  // Don't clear here - keep the drawing visible until the layer is created
-                  // The drawing will be cleared when startDrawing is called again or when cancelDrawing is called
-                }
-              }
-            });
-
-            // Listen for changes (modifications, deletions, selections)
-            terraDraw.on("change", () => {
-              if (onTerraDrawChangeRef.current) {
-                const snapshot = terraDraw.getSnapshot();
-                onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
-              }
-            });
-          }
-        } catch (error) {
-          console.error("Failed to load TerraDraw:", error);
-        }
-      };
-
-      // Listen for map load event
-      map.on("load", initializeDrawControl);
-
-      // Fallback: poll for style loaded state in case load event is missed
-      const checkLoaded = () => {
-        if (map.isStyleLoaded() && !mapLoadedRef.current) {
-          initializeDrawControl();
-        }
-      };
-
-      const timeoutId = setTimeout(checkLoaded, 100);
-      const intervalId = setInterval(() => {
-        if (mapLoadedRef.current) {
-          clearInterval(intervalId);
-        } else {
-          checkLoaded();
-        }
-      }, 500);
-
-      mapRef.current = map;
-
-      return () => {
-        clearTimeout(timeoutId);
-        clearInterval(intervalId);
-        map.remove();
-        mapRef.current = null;
-        drawRef.current = null;
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Handle center/zoom changes when switching maps
-    useEffect(() => {
-      if (!mapRef.current || !mapLoaded) return;
-
-      const map = mapRef.current;
-      map.setCenter([center[1], center[0]]);
-      map.setZoom(zoom - 1);
-    }, [center, zoom, mapLoaded]);
-
-    // Handle basemap changes
-    useEffect(() => {
-      if (!mapRef.current || !mapLoaded) return;
-
-      const map = mapRef.current;
-
-      // Use raster tile sources for better compatibility
-      const getBasemapStyle = (
-        basemapType: string
-      ): maplibregl.StyleSpecification => {
-        const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
-          osm: {
-            version: 8,
-            sources: {
-              osm: {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: "&copy; OpenStreetMap contributors",
-              },
-            },
-            layers: [{ id: "osm", type: "raster", source: "osm" }],
-          },
-          "carto-light": {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO",
-              },
-            },
-            layers: [{ id: "carto", type: "raster", source: "carto" }],
-          },
-          "carto-dark": {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO",
-              },
-            },
-            layers: [{ id: "carto", type: "raster", source: "carto" }],
-          },
-          voyager: {
-            version: 8,
-            sources: {
-              carto: {
-                type: "raster",
-                tiles: [
-                  "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                ],
-                tileSize: 256,
-                attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
-              },
-            },
-            layers: [{ id: "carto", type: "raster", source: "carto" }],
-          },
-        };
-
-        return rasterStyles[basemapType] || rasterStyles.osm;
-      };
-
-      // Remove existing terradraw control before style change
-      if (drawRef.current) {
-        map.removeControl(drawRef.current);
-        drawRef.current = null;
-      }
-
-      map.setStyle(getBasemapStyle(basemap));
-
-      // Wait for style to load before re-adding layers and terradraw
-      map.once("style.load", async () => {
-        setMapLoaded(true);
-
-        // Re-add terradraw control after style change (class should already be loaded)
-        if (TerradrawControlClass) {
-          const draw = new TerradrawControlClass({
-            modes: [
-              "point",
-              "linestring",
-              "polygon",
-              "rectangle",
-              "circle",
-              "freehand",
-              "select",
-              "delete",
-            ],
-            open: false,
-          });
-
-          map.addControl(draw, "top-right");
-          drawRef.current = draw;
-
-          // Re-attach draw event handler
-          const terraDraw = draw.getTerraDrawInstance();
-          if (terraDraw) {
-            terraDraw.on("finish", (id: string | number) => {
-              if (onDrawCompleteRef.current) {
-                const snapshot = terraDraw.getSnapshot();
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const feature = snapshot.find((f: any) => f.id === id);
-                if (feature) {
-                  onDrawCompleteRef.current(feature);
-                  // Don't clear here - keep the drawing visible until the layer is created
-                }
-              }
-            });
-          }
-        }
-      });
-    }, [basemap, mapLoaded]);
-
-    useEffect(() => {
-      if (!mapRef.current || !mapLoaded) return;
-
-      const map = mapRef.current;
-      const currentLayerIds = new Set(layers.map((l) => l.id));
-      const previousLayerIds = previousLayerIdsRef.current;
-      const previousLayerState = previousLayerStateRef.current;
-
-      // Helper to create a simple hash of layer data for comparison
-      const getDataHash = (layer: Layer): string => {
-        if (!layer.data) return "";
-        return JSON.stringify(layer.data);
-      };
-
-      // Helper function to remove a layer and its source from the map
-      const removeLayerFromMap = (layerId: string) => {
-        const layerVariations = [
-          `${layerId}-fill`,
-          `${layerId}-line`,
-          `${layerId}-line-solid`,
-          `${layerId}-line-dashed`,
-          `${layerId}-line-dotted`,
-          `${layerId}-circle`,
-          `${layerId}-symbol`,
-        ];
-
-        layerVariations.forEach((id) => {
-          if (map.getLayer(id)) {
-            map.removeLayer(id);
-          }
-        });
-
-        if (map.getSource(layerId)) {
-          map.removeSource(layerId);
-        }
-
-        // Clean up state tracking
-        previousLayerState.delete(layerId);
-      };
-
-      // Helper to update opacity for existing layers
-      const updateLayerOpacity = (
-        layerId: string,
-        opacity: number,
-        layerType?: string
-      ) => {
-        const fillLayerId = `${layerId}-fill`;
-        const lineLayerId = `${layerId}-line`;
-        const circleLayerId = `${layerId}-circle`;
-
-        if (map.getLayer(fillLayerId)) {
-          map.setPaintProperty(fillLayerId, "fill-opacity", opacity);
-        }
-        if (map.getLayer(lineLayerId)) {
-          map.setPaintProperty(lineLayerId, "line-opacity", opacity);
-        }
-        if (map.getLayer(circleLayerId)) {
-          // Heatmap circles use different opacity calculation
-          const circleOpacity =
-            layerType === "heatmap" ? opacity * 0.6 : opacity;
-          map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
-        }
-      };
-
-      // Remove layers that are no longer in the layers array (were removed)
-      previousLayerIds.forEach((layerId) => {
-        if (!currentLayerIds.has(layerId)) {
-          removeLayerFromMap(layerId);
-        }
-      });
-
-      // Update the ref with current layer IDs
-      previousLayerIdsRef.current = currentLayerIds;
-
-      // Process each layer - update existing or add new
-      layers.forEach((layer) => {
-        const currentDataHash = getDataHash(layer);
-        const prevState = previousLayerState.get(layer.id);
-        const layerExistsOnMap = map.getSource(layer.id) !== undefined;
-
-        // Handle visibility changes
-        if (!layer.visible) {
-          // If layer was visible before, remove it
-          if (prevState?.visible) {
-            removeLayerFromMap(layer.id);
-          }
-          // Update state to track visibility
-          previousLayerState.set(layer.id, {
-            visible: false,
-            opacity: layer.opacity,
-            dataHash: currentDataHash,
-          });
-          return;
-        }
-
-        // Layer is visible - check if we can just update opacity or need to recreate
-        if (layerExistsOnMap && prevState) {
-          // Layer exists - check if only opacity changed (data is same)
-          if (prevState.dataHash === currentDataHash && prevState.visible) {
-            // Only opacity changed - just update paint properties
-            if (prevState.opacity !== layer.opacity) {
-              updateLayerOpacity(layer.id, layer.opacity, layer.type);
-              previousLayerState.set(layer.id, {
-                visible: true,
-                opacity: layer.opacity,
-                dataHash: currentDataHash,
-              });
-            }
-            return;
-          }
-          // Data changed or visibility changed from false to true - need to recreate
-          removeLayerFromMap(layer.id);
-        }
-
-        // Create new layer
-        if (layer.type === "geojson" && layer.data) {
-          map.addSource(layer.id, {
-            type: "geojson",
-            data: layer.data,
-          });
-
-          // Opacity is already in 0-1 range from the frontend layer state
-          const normalizedOpacity = layer.opacity;
-
-          // Determine fill color based on intensity or use layer color
-          const firstFeature = layer.data.features?.[0];
-          const intensity = firstFeature?.properties?.intensity;
-          let fillColor = layer.color || "#3388ff";
-
-          if (intensity === "high") fillColor = "#d73027";
-          else if (intensity === "medium") fillColor = "#fee08b";
-          else if (intensity === "low") fillColor = "#1a9850";
-
-          // Get layer-level style settings (with defaults)
-          const layerLineWidth = layer.lineWidth ?? 2;
-          const layerFillPolygons = layer.fillPolygons ?? true;
-
-          // Add polygon fills (respect fillPolygons setting)
-          map.addLayer({
-            id: `${layer.id}-fill`,
-            type: "fill",
-            source: layer.id,
-            filter: ["==", ["geometry-type"], "Polygon"],
-            paint: {
-              "fill-color": fillColor,
-              "fill-opacity": layerFillPolygons ? normalizedOpacity : 0,
-            },
-          });
-
-          // Add line layer with layer-level style
-          map.addLayer({
-            id: `${layer.id}-line`,
-            type: "line",
-            source: layer.id,
-            filter: [
-              "in",
-              ["geometry-type"],
-              ["literal", ["Polygon", "LineString"]],
-            ],
-            paint: {
-              "line-color": fillColor,
-              "line-width": layerLineWidth,
-              "line-opacity": normalizedOpacity,
-            },
-          });
-
-          // Add point markers with icon support
-          map.addLayer({
-            id: `${layer.id}-circle`,
-            type: "circle",
-            source: layer.id,
-            filter: ["==", ["geometry-type"], "Point"],
-            paint: {
-              "circle-radius": 8,
-              "circle-color": fillColor,
-              "circle-opacity": normalizedOpacity,
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-            },
-          });
-
-          // Add popups on click and notify layer selection
-          map.on("click", `${layer.id}-fill`, (e: unknown) => {
-            // Notify parent about the clicked layer
-            if (onFeatureClickRef.current) {
-              onFeatureClickRef.current(layer.id);
-            }
-            if (e.features?.[0]) {
-              const feature = e.features[0];
-              const name = feature.properties.name || "Unnamed";
-              const description = feature.properties.description || "";
-              new maplibregl.Popup()
-                .setLngLat(e.lngLat)
-                .setHTML(
-                  `<strong>${name}</strong>${
-                    description ? `<br/>${description}` : ""
-                  }`
-                )
-                .addTo(map);
-            }
-          });
-
-          map.on("click", `${layer.id}-circle`, (e: unknown) => {
-            // Notify parent about the clicked layer
-            if (onFeatureClickRef.current) {
-              onFeatureClickRef.current(layer.id);
-            }
-            if (e.features?.[0]) {
-              const feature = e.features[0];
-              const name = feature.properties.name || "Unnamed";
-              const description = feature.properties.description || "";
-              new maplibregl.Popup()
-                .setLngLat(e.lngLat)
-                .setHTML(
-                  `<strong>${name}</strong>${
-                    description ? `<br/>${description}` : ""
-                  }`
-                )
-                .addTo(map);
-            }
-          });
-
-          // Change cursor on hover
-          map.on("mouseenter", `${layer.id}-fill`, () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", `${layer.id}-fill`, () => {
-            map.getCanvas().style.cursor = "";
-          });
-          map.on("mouseenter", `${layer.id}-circle`, () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", `${layer.id}-circle`, () => {
-            map.getCanvas().style.cursor = "";
-          });
-
-          // Track state for this layer
-          previousLayerState.set(layer.id, {
-            visible: true,
-            opacity: layer.opacity,
-            dataHash: currentDataHash,
-          });
-        } else if (layer.type === "heatmap" && layer.data) {
-          // Opacity is already in 0-1 range from the frontend layer state
-          const heatmapOpacity = layer.opacity;
-
-          const features = layer.data.map((point: unknown) => {
-            const p = point as Record<string, unknown>;
-            return {
-              type: "Feature",
-              geometry: {
-                type: "Point",
-                coordinates: [p.lng, p.lat],
-              },
-              properties: {
-                intensity: p.intensity,
-              },
-            };
-          });
-
-          map.addSource(layer.id, {
-            type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features,
-            },
-          });
-
-          map.addLayer({
-            id: `${layer.id}-circle`,
-            type: "circle",
-            source: layer.id,
-            paint: {
-              "circle-radius": 30,
-              "circle-color": [
-                "interpolate",
-                ["linear"],
-                ["get", "intensity"],
-                0,
-                "#fee5d9",
-                0.5,
-                "#fcae91",
-                1,
-                "#fb6a4a",
-              ],
-              "circle-opacity": heatmapOpacity * 0.6,
-            },
-          });
-
-          // Track state for this layer
-          previousLayerState.set(layer.id, {
-            visible: true,
-            opacity: layer.opacity,
-            dataHash: currentDataHash,
-          });
-        }
-      });
-
-      // Reorder layers on the map to match the layers array order
-      // Layers at the start of the array (top of the UI list) should be rendered on top
-      // MapLibre renders layers in order they appear in the style, later = on top
-      // So we need to ensure layers at index 0 are rendered last (on top)
-      const visibleLayerIds = layers
-        .filter((l) => l.visible && map.getSource(l.id))
-        .map((l) => l.id);
-
-      // Move layers in reverse order - last layer first, so first layer ends up on top
-      for (let i = visibleLayerIds.length - 1; i >= 0; i--) {
-        const layerId = visibleLayerIds[i];
-
-        // Get all map layer IDs for this layer and move them to the top
-        // Order matters: fill first (bottom), then lines, then circles/symbols (top)
-        const mapLayerIds = [
-          `${layerId}-fill`,
-          `${layerId}-line`,
-          `${layerId}-line-solid`,
-          `${layerId}-line-dashed`,
-          `${layerId}-line-dotted`,
-          `${layerId}-circle`,
-          `${layerId}-symbol`,
-        ].filter((id) => map.getLayer(id));
-
-        // Move each sublayer to the top (no beforeId = move to top)
-        for (const mapLayerId of mapLayerIds) {
-          map.moveLayer(mapLayerId);
-        }
-      }
-    }, [layers, mapLoaded]);
-
-    // Handle layer selection - pan/zoom to fit layer bounds
-    useEffect(() => {
-      if (!mapRef.current || !mapLoaded || !highlightedLayerId) return;
-
-      const map = mapRef.current;
-      const selectedLayer = layers.find((l) => l.id === highlightedLayerId);
-
-      if (!selectedLayer || !selectedLayer.visible || !selectedLayer.data)
-        return;
-
-      // Calculate bounds from the layer's GeoJSON data
-      const bounds = new maplibregl.LngLatBounds();
-      let hasValidCoords = false;
-
-      const processCoordinates = (coords: unknown, geometryType: string) => {
-        if (geometryType === "Point") {
-          const [lng, lat] = coords as [number, number];
-          if (isFinite(lng) && isFinite(lat)) {
-            bounds.extend([lng, lat]);
-            hasValidCoords = true;
-          }
-        } else if (
-          geometryType === "LineString" ||
-          geometryType === "MultiPoint"
-        ) {
-          (coords as [number, number][]).forEach(([lng, lat]) => {
-            if (isFinite(lng) && isFinite(lat)) {
-              bounds.extend([lng, lat]);
-              hasValidCoords = true;
-            }
-          });
-        } else if (
-          geometryType === "Polygon" ||
-          geometryType === "MultiLineString"
-        ) {
-          (coords as [number, number][][]).forEach((ring) => {
-            ring.forEach(([lng, lat]) => {
-              if (isFinite(lng) && isFinite(lat)) {
-                bounds.extend([lng, lat]);
-                hasValidCoords = true;
-              }
-            });
-          });
-        } else if (geometryType === "MultiPolygon") {
-          (coords as [number, number][][][]).forEach((polygon) => {
-            polygon.forEach((ring) => {
-              ring.forEach(([lng, lat]) => {
-                if (isFinite(lng) && isFinite(lat)) {
-                  bounds.extend([lng, lat]);
-                  hasValidCoords = true;
-                }
-              });
-            });
-          });
-        }
-      };
-
-      // Handle GeoJSON FeatureCollection
-      if (selectedLayer.data && typeof selectedLayer.data === "object") {
-        const data = selectedLayer.data as {
-          type?: string;
-          features?: Array<{
-            geometry?: { type: string; coordinates: unknown };
-          }>;
-        };
-        if (data.type === "FeatureCollection" && Array.isArray(data.features)) {
-          data.features.forEach((feature) => {
-            if (feature.geometry?.coordinates) {
-              processCoordinates(
-                feature.geometry.coordinates,
-                feature.geometry.type
-              );
-            }
-          });
-        }
-      }
-
-      // Fit map to bounds if we found valid coordinates
-      if (hasValidCoords && !bounds.isEmpty()) {
-        map.fitBounds(bounds, {
-          padding: 150,
-          maxZoom: 12,
-          duration: 1000,
-        });
-      }
-    }, [highlightedLayerId, layers, mapLoaded]);
-
-    const visibleLayers = layers.filter((layer) => layer.visible);
-    const activeLegend = visibleLayers.find((layer) => layer.legend);
-
-    return (
-      <div className="relative w-full h-full">
-        <div ref={mapContainerRef} className="w-full h-full" />
-        {!mapLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
-            <p className="text-slate-600">Loading map...</p>
-          </div>
-        )}
-        {drawingMode && (
-          <div
-            className={`absolute top-4 left-1/2 -translate-x-1/2 ${
-              drawingMode === "delete" ? "bg-red-600" : "bg-blue-600"
-            } text-white px-4 py-2 rounded-lg shadow-lg`}
-          >
-            <p className="text-sm">
-              {drawingMode === "Point" && "Click on the map to place a point"}
-              {drawingMode === "LineString" &&
-                "Click to add points. Double-click to finish the line"}
-              {drawingMode === "Polygon" &&
-                "Click to add vertices. Double-click to close the polygon"}
-              {drawingMode === "select" &&
-                "Click on a feature to select and modify it"}
-              {drawingMode === "delete" && "Click on a feature to delete it"}
-            </p>
-          </div>
-        )}
-        {activeLegend && <Legend layer={activeLegend} />}
-      </div>
-    );
-  }
+	(
+		{
+			center,
+			zoom,
+			layers,
+			basemap,
+			onDrawComplete,
+			onTerraDrawChange,
+			drawingMode,
+			onFeatureClick,
+			highlightedLayerId,
+			markerIcon,
+			markerFeatureIds,
+			markerColor,
+			terraDrawSnapshot: markerOverlaySnapshot,
+		},
+		ref,
+	) => {
+		const mapContainerRef = useRef<HTMLDivElement>(null);
+		const mapRef = useRef<maplibregl.Map | null>(null);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const drawRef = useRef<any>(null);
+		const onDrawCompleteRef = useRef(onDrawComplete);
+		const onTerraDrawChangeRef = useRef(onTerraDrawChange);
+		const onFeatureClickRef = useRef(onFeatureClick);
+		const initialPropsRef = useRef({ center, zoom, basemap });
+		const [mapLoaded, setMapLoaded] = useState(false);
+		const mapLoadedRef = useRef(false);
+		const previousLayerIdsRef = useRef<Set<string>>(new Set());
+		// Track previous layer state for efficient updates (only recreate when data changes)
+		const previousLayerStateRef = useRef<
+			Map<string, { visible: boolean; opacity: number; dataHash: string }>
+		>(new Map());
+
+		// Keep the refs updated with the latest callbacks
+		useEffect(() => {
+			onDrawCompleteRef.current = onDrawComplete;
+		}, [onDrawComplete]);
+
+		useEffect(() => {
+			onTerraDrawChangeRef.current = onTerraDrawChange;
+		}, [onTerraDrawChange]);
+
+		useEffect(() => {
+			onFeatureClickRef.current = onFeatureClick;
+		}, [onFeatureClick]);
+
+		useImperativeHandle(ref, () => ({
+			startDrawing: (
+				type:
+					| "Point"
+					| "LineString"
+					| "Polygon"
+					| "Rectangle"
+					| "Circle"
+					| "Freehand",
+				color?: string,
+			) => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				// Enable TerraDraw if not already enabled (must be done before updating styles)
+				if (!terraDraw.enabled) {
+					terraDraw.start();
+				}
+
+				// Update styles with the selected color if provided
+				if (color) {
+					try {
+						// Update point style
+						terraDraw.updateModeOptions("point", {
+							styles: {
+								pointColor: color,
+								pointOutlineColor: "#ffffff",
+							},
+						});
+						// Update linestring style
+						terraDraw.updateModeOptions("linestring", {
+							styles: {
+								lineStringColor: color,
+								lineStringWidth: 3,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+						// Update polygon style
+						terraDraw.updateModeOptions("polygon", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+						// Update rectangle style
+						terraDraw.updateModeOptions("rectangle", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
+						// Update circle style
+						terraDraw.updateModeOptions("circle", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
+						// Update freehand style
+						terraDraw.updateModeOptions("freehand", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+							},
+						});
+					} catch (err) {
+						console.warn("Failed to update drawing styles:", err);
+					}
+				}
+
+				// Don't clear existing features - allow users to draw multiple features
+				// Features will be cleared when the layer is created or drawing is cancelled
+
+				// Start drawing based on type
+				if (type === "Point") {
+					terraDraw.setMode("point");
+				} else if (type === "LineString") {
+					terraDraw.setMode("linestring");
+				} else if (type === "Polygon") {
+					terraDraw.setMode("polygon");
+				} else if (type === "Rectangle") {
+					terraDraw.setMode("rectangle");
+				} else if (type === "Circle") {
+					terraDraw.setMode("circle");
+				} else if (type === "Freehand") {
+					terraDraw.setMode("freehand");
+				}
+			},
+			setDrawMode: (mode: "select" | "delete" | "delete-selection") => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				// Enable TerraDraw if not already enabled
+				if (!terraDraw.enabled) {
+					terraDraw.start();
+				}
+
+				// Handle delete-selection as an action, not a mode
+				if (mode === "delete-selection") {
+					// Get all selected features and delete them
+					const snapshot = terraDraw.getSnapshot();
+					const selectedIds = snapshot
+						.filter((f) => f.properties?.selected === true)
+						.map((f) => String(f.id));
+
+					if (selectedIds.length > 0) {
+						terraDraw.removeFeatures(selectedIds);
+					}
+					// Stay in select mode after deletion
+					terraDraw.setMode("select");
+				} else {
+					terraDraw.setMode(mode);
+				}
+			},
+			cancelDrawing: () => {
+				if (drawRef.current && mapLoaded) {
+					const terraDraw = drawRef.current.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.setMode("select");
+						const snapshot = terraDraw.getSnapshot();
+						if (snapshot.length > 0) {
+							terraDraw.clear();
+						}
+					}
+				}
+			},
+			clearDrawings: () => {
+				if (drawRef.current && mapLoaded) {
+					const terraDraw = drawRef.current.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.setMode("select");
+						const snapshot = terraDraw.getSnapshot();
+						if (snapshot.length > 0) {
+							terraDraw.clear();
+						}
+					}
+				}
+			},
+			addFeatures: (features, color) => {
+				if (!drawRef.current || !mapLoaded) return [];
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return [];
+
+				// Enable TerraDraw if not already enabled
+				if (!terraDraw.enabled) {
+					terraDraw.start();
+				}
+
+				// Update styles with the provided color
+				if (color) {
+					try {
+						terraDraw.updateModeOptions("point", {
+							styles: {
+								pointColor: color,
+								pointOutlineColor: "#ffffff",
+							},
+						});
+						terraDraw.updateModeOptions("linestring", {
+							styles: {
+								lineStringColor: color,
+								lineStringWidth: 3,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+						terraDraw.updateModeOptions("polygon", {
+							styles: {
+								fillColor: color,
+								fillOpacity: 0.3,
+								outlineColor: color,
+								outlineWidth: 2,
+								closingPointColor: color,
+								closingPointOutlineColor: "#ffffff",
+							},
+						});
+					} catch (err) {
+						console.warn("Failed to update drawing styles:", err);
+					}
+				}
+
+				const addedIds: string[] = [];
+
+				// Add each feature to TerraDraw
+				for (const feature of features) {
+					try {
+						// Map geometry type to TerraDraw mode name
+						// Note: Marker uses Point geometry in GeoJSON/TerraDraw but has different rendering
+						const modeMap: Record<string, string> = {
+							Point: "point",
+							Marker: "point", // Markers use point mode in TerraDraw
+							LineString: "linestring",
+							Polygon: "polygon",
+						};
+						const mode = modeMap[feature.type] || feature.type.toLowerCase();
+
+						// Create a GeoJSON feature to add
+						const geoJsonFeature = {
+							type: "Feature" as const,
+							properties: {
+								mode, // TerraDraw requires a mode property
+							},
+							geometry: {
+								type: feature.type,
+								coordinates: feature.coordinates,
+							},
+						};
+
+						// Use TerraDraw's addFeatures method
+						const ids = terraDraw.addFeatures([geoJsonFeature]);
+						if (ids && ids.length > 0) {
+							const idValue =
+								typeof ids[0] === "object" && ids[0] !== null && "id" in ids[0]
+									? String((ids[0] as { id: unknown }).id)
+									: String(ids[0]);
+							addedIds.push(idValue);
+						}
+					} catch (err) {
+						console.warn("Failed to add feature to TerraDraw:", err);
+					}
+				}
+
+				// Set to select mode so user can interact with features
+				terraDraw.setMode("select");
+
+				// Notify parent of the new snapshot after adding features
+				if (onTerraDrawChangeRef.current) {
+					const snapshot = terraDraw.getSnapshot();
+					onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
+				}
+
+				return addedIds;
+			},
+			removeFeature: (id: string) => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				try {
+					const snapshotBefore = terraDraw.getSnapshot();
+
+					// If the feature is selected, deselect it first
+					const featureToRemove = snapshotBefore.find(
+						(f) => String(f.id) === id,
+					);
+					if (featureToRemove?.properties?.selected) {
+						terraDraw.deselectFeature(id);
+					}
+
+					// Check if this is the only feature - if so, use clear() instead
+					// because removeFeatures() doesn't properly trigger visual updates in TerraDraw
+					if (snapshotBefore.length === 1) {
+						terraDraw.clear();
+						terraDraw.setMode("select");
+					} else {
+						terraDraw.removeFeatures([id]);
+						terraDraw.setMode("select");
+					}
+
+					// Notify parent of the updated snapshot after removing the feature
+					if (onTerraDrawChangeRef.current) {
+						const snapshot = terraDraw.getSnapshot();
+						onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
+					}
+				} catch (err) {
+					console.warn("Failed to remove feature from TerraDraw:", err);
+				}
+			},
+			updateDrawingStyles: (styles: DrawingStyles) => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				const { color, lineWidth, fillPolygons } = styles;
+				const fillOpacity = fillPolygons ? 0.3 : 0;
+
+				try {
+					// Update point style
+					terraDraw.updateModeOptions("point", {
+						styles: {
+							pointColor: color,
+							pointOutlineColor: "#ffffff",
+						},
+					});
+					// Update linestring style
+					terraDraw.updateModeOptions("linestring", {
+						styles: {
+							lineStringColor: color,
+							lineStringWidth: lineWidth,
+							closingPointColor: color,
+							closingPointOutlineColor: "#ffffff",
+						},
+					});
+					// Update polygon style
+					terraDraw.updateModeOptions("polygon", {
+						styles: {
+							fillColor: color,
+							fillOpacity,
+							outlineColor: color,
+							outlineWidth: lineWidth,
+							closingPointColor: color,
+							closingPointOutlineColor: "#ffffff",
+						},
+					});
+					// Update rectangle style
+					terraDraw.updateModeOptions("rectangle", {
+						styles: {
+							fillColor: color,
+							fillOpacity,
+							outlineColor: color,
+							outlineWidth: lineWidth,
+						},
+					});
+					// Update circle style
+					terraDraw.updateModeOptions("circle", {
+						styles: {
+							fillColor: color,
+							fillOpacity,
+							outlineColor: color,
+							outlineWidth: lineWidth,
+						},
+					});
+					// Update freehand style
+					terraDraw.updateModeOptions("freehand", {
+						styles: {
+							fillColor: color,
+							fillOpacity,
+							outlineColor: color,
+							outlineWidth: lineWidth,
+						},
+					});
+					// Update select mode styling for existing features
+					terraDraw.updateModeOptions("select", {
+						styles: {
+							selectedPolygonColor: color,
+							selectedPolygonFillOpacity: fillOpacity,
+							selectedPolygonOutlineColor: color,
+							selectedPolygonOutlineWidth: lineWidth,
+							selectedLineStringColor: color,
+							selectedLineStringWidth: lineWidth,
+							selectedPointColor: color,
+							selectedPointOutlineColor: "#ffffff",
+							selectionPolygonFillOpacity: 0.1,
+							selectionPolygonOutlineColor: color,
+						},
+					});
+
+					// Note: TerraDraw doesn't support updating styles of existing features
+					// without clearing and re-adding them (which causes flicker).
+					// New features will use the updated styles, and when saved,
+					// the layer will store the final style settings.
+				} catch (err) {
+					console.warn("Failed to update drawing styles:", err);
+				}
+			},
+		}));
+
+		useEffect(() => {
+			if (!mapContainerRef.current || mapRef.current) return;
+
+			// Create basemap style based on basemap prop
+			const getBasemapStyle = (
+				basemapType: string,
+			): maplibregl.StyleSpecification => {
+				// Use raster tile sources for better compatibility
+				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
+					osm: {
+						version: 8,
+						sources: {
+							osm: {
+								type: "raster",
+								tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [
+							{
+								id: "osm",
+								type: "raster",
+								source: "osm",
+							},
+						],
+					},
+					"carto-light": {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
+					},
+					"carto-dark": {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
+					},
+					voyager: {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [
+							{
+								id: "carto",
+								type: "raster",
+								source: "carto",
+							},
+						],
+					},
+				};
+
+				return rasterStyles[basemapType] || rasterStyles.osm;
+			};
+
+			const {
+				center: initCenter,
+				zoom: initZoom,
+				basemap: initBasemap,
+			} = initialPropsRef.current;
+			const map = new maplibregl.Map({
+				container: mapContainerRef.current,
+				style: getBasemapStyle(initBasemap),
+				center: [initCenter[1], initCenter[0]], // uses [lng, lat]
+				zoom: initZoom - 1,
+				attributionControl: false, // Disable default attribution
+			});
+
+			// Add attribution control to bottom-left
+			map.addControl(new maplibregl.AttributionControl(), "bottom-left");
+
+			const initializeDrawControl = async () => {
+				if (mapLoadedRef.current) return; // Already initialized
+				mapLoadedRef.current = true;
+				setMapLoaded(true);
+
+				try {
+					// Dynamically import TerraDraw to avoid bundling issues
+					if (!TerradrawControlClass) {
+						const module = await import("@watergis/maplibre-gl-terradraw");
+						TerradrawControlClass = module.MaplibreTerradrawControl;
+						// @ts-expect-error dynamic CSS import
+						await import(
+							"@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css"
+						);
+					}
+
+					// Initialize terradraw control after map style is loaded
+					const draw = new TerradrawControlClass({
+						modes: [
+							"point",
+							"linestring",
+							"polygon",
+							"rectangle",
+							"circle",
+							"freehand",
+							"select",
+							"delete",
+							"delete-selection",
+						],
+						open: false,
+					});
+
+					map.addControl(draw, "top-right");
+					drawRef.current = draw;
+
+					// Handle draw events via TerraDraw instance
+					const terraDraw = draw.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.on("finish", (id: string | number) => {
+							if (onDrawCompleteRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								const feature = snapshot.find((f: any) => f.id === id);
+								if (feature) {
+									onDrawCompleteRef.current(feature);
+									// Don't clear here - keep the drawing visible until the layer is created
+									// The drawing will be cleared when startDrawing is called again or when cancelDrawing is called
+								}
+							}
+						});
+
+						// Listen for changes (modifications, deletions, selections)
+						terraDraw.on("change", () => {
+							if (onTerraDrawChangeRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								onTerraDrawChangeRef.current(snapshot as TerraDrawFeature[]);
+							}
+						});
+					}
+				} catch (error) {
+					console.error("Failed to load TerraDraw:", error);
+				}
+			};
+
+			// Listen for map load event
+			map.on("load", initializeDrawControl);
+
+			// Fallback: poll for style loaded state in case load event is missed
+			const checkLoaded = () => {
+				if (map.isStyleLoaded() && !mapLoadedRef.current) {
+					initializeDrawControl();
+				}
+			};
+
+			const timeoutId = setTimeout(checkLoaded, 100);
+			const intervalId = setInterval(() => {
+				if (mapLoadedRef.current) {
+					clearInterval(intervalId);
+				} else {
+					checkLoaded();
+				}
+			}, 500);
+
+			mapRef.current = map;
+
+			return () => {
+				clearTimeout(timeoutId);
+				clearInterval(intervalId);
+				map.remove();
+				mapRef.current = null;
+				drawRef.current = null;
+			};
+			// eslint-disable-next-line react-hooks/exhaustive-deps
+		}, []);
+
+		// Handle center/zoom changes when switching maps
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+			map.setCenter([center[1], center[0]]);
+			map.setZoom(zoom - 1);
+		}, [center, zoom, mapLoaded]);
+
+		// Handle basemap changes
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+
+			// Use raster tile sources for better compatibility
+			const getBasemapStyle = (
+				basemapType: string,
+			): maplibregl.StyleSpecification => {
+				const rasterStyles: Record<string, maplibregl.StyleSpecification> = {
+					osm: {
+						version: 8,
+						sources: {
+							osm: {
+								type: "raster",
+								tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+								tileSize: 256,
+								attribution: "&copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [{ id: "osm", type: "raster", source: "osm" }],
+					},
+					"carto-light": {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
+					},
+					"carto-dark": {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
+					},
+					voyager: {
+						version: 8,
+						sources: {
+							carto: {
+								type: "raster",
+								tiles: [
+									"https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+								],
+								tileSize: 256,
+								attribution: "&copy; CARTO, &copy; OpenStreetMap contributors",
+							},
+						},
+						layers: [{ id: "carto", type: "raster", source: "carto" }],
+					},
+				};
+
+				return rasterStyles[basemapType] || rasterStyles.osm;
+			};
+
+			// Remove existing terradraw control before style change
+			if (drawRef.current) {
+				map.removeControl(drawRef.current);
+				drawRef.current = null;
+			}
+
+			map.setStyle(getBasemapStyle(basemap));
+
+			// Wait for style to load before re-adding layers and terradraw
+			map.once("style.load", async () => {
+				setMapLoaded(true);
+
+				// Re-add terradraw control after style change (class should already be loaded)
+				if (TerradrawControlClass) {
+					const draw = new TerradrawControlClass({
+						modes: [
+							"point",
+							"linestring",
+							"polygon",
+							"rectangle",
+							"circle",
+							"freehand",
+							"select",
+							"delete",
+						],
+						open: false,
+					});
+
+					map.addControl(draw, "top-right");
+					drawRef.current = draw;
+
+					// Re-attach draw event handler
+					const terraDraw = draw.getTerraDrawInstance();
+					if (terraDraw) {
+						terraDraw.on("finish", (id: string | number) => {
+							if (onDrawCompleteRef.current) {
+								const snapshot = terraDraw.getSnapshot();
+								// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								const feature = snapshot.find((f: any) => f.id === id);
+								if (feature) {
+									onDrawCompleteRef.current(feature);
+									// Don't clear here - keep the drawing visible until the layer is created
+								}
+							}
+						});
+					}
+				}
+			});
+		}, [basemap, mapLoaded]);
+
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+			const currentLayerIds = new Set(layers.map((l) => l.id));
+			const previousLayerIds = previousLayerIdsRef.current;
+			const previousLayerState = previousLayerStateRef.current;
+
+			// Helper to create a simple hash of layer data for comparison
+			const getDataHash = (layer: Layer): string => {
+				if (!layer.data) return "";
+				return JSON.stringify(layer.data);
+			};
+
+			// Helper function to remove a layer and its source from the map
+			const removeLayerFromMap = (layerId: string) => {
+				const layerVariations = [
+					`${layerId}-fill`,
+					`${layerId}-line`,
+					`${layerId}-line-solid`,
+					`${layerId}-line-dashed`,
+					`${layerId}-line-dotted`,
+					`${layerId}-circle`,
+					`${layerId}-symbol`,
+					`${layerId}-marker`,
+				];
+
+				layerVariations.forEach((id) => {
+					if (map.getLayer(id)) {
+						map.removeLayer(id);
+					}
+				});
+
+				if (map.getSource(layerId)) {
+					map.removeSource(layerId);
+				}
+
+				// Clean up state tracking
+				previousLayerState.delete(layerId);
+			};
+
+			// Helper to update opacity for existing layers
+			const updateLayerOpacity = (
+				layerId: string,
+				opacity: number,
+				layerType?: string,
+			) => {
+				const fillLayerId = `${layerId}-fill`;
+				const lineLayerId = `${layerId}-line`;
+				const circleLayerId = `${layerId}-circle`;
+
+				if (map.getLayer(fillLayerId)) {
+					map.setPaintProperty(fillLayerId, "fill-opacity", opacity);
+				}
+				if (map.getLayer(lineLayerId)) {
+					map.setPaintProperty(lineLayerId, "line-opacity", opacity);
+				}
+				if (map.getLayer(circleLayerId)) {
+					// Heatmap circles use different opacity calculation
+					const circleOpacity =
+						layerType === "heatmap" ? opacity * 0.6 : opacity;
+					map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
+				}
+			};
+
+			// Remove layers that are no longer in the layers array (were removed)
+			previousLayerIds.forEach((layerId) => {
+				if (!currentLayerIds.has(layerId)) {
+					removeLayerFromMap(layerId);
+				}
+			});
+
+			// Update the ref with current layer IDs
+			previousLayerIdsRef.current = currentLayerIds;
+
+			// Process each layer - update existing or add new
+			layers.forEach((layer) => {
+				const currentDataHash = getDataHash(layer);
+				const prevState = previousLayerState.get(layer.id);
+				const layerExistsOnMap = map.getSource(layer.id) !== undefined;
+
+				// Handle visibility changes
+				if (!layer.visible) {
+					// If layer was visible before, remove it
+					if (prevState?.visible) {
+						removeLayerFromMap(layer.id);
+					}
+					// Update state to track visibility
+					previousLayerState.set(layer.id, {
+						visible: false,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
+					});
+					return;
+				}
+
+				// Layer is visible - check if we can just update opacity or need to recreate
+				if (layerExistsOnMap && prevState) {
+					// Layer exists - check if only opacity changed (data is same)
+					if (prevState.dataHash === currentDataHash && prevState.visible) {
+						// Only opacity changed - just update paint properties
+						if (prevState.opacity !== layer.opacity) {
+							updateLayerOpacity(layer.id, layer.opacity, layer.type);
+							previousLayerState.set(layer.id, {
+								visible: true,
+								opacity: layer.opacity,
+								dataHash: currentDataHash,
+							});
+						}
+						return;
+					}
+					// Data changed or visibility changed from false to true - need to recreate
+					removeLayerFromMap(layer.id);
+				}
+
+				// Create new layer
+				if (layer.type === "geojson" && layer.data) {
+					map.addSource(layer.id, {
+						type: "geojson",
+						data: layer.data,
+					});
+
+					// Opacity is already in 0-1 range from the frontend layer state
+					const normalizedOpacity = layer.opacity;
+
+					// Determine fill color based on intensity or use layer color
+					const firstFeature = layer.data.features?.[0];
+					const intensity = firstFeature?.properties?.intensity;
+					let fillColor = layer.color || "#3388ff";
+
+					if (intensity === "high") fillColor = "#d73027";
+					else if (intensity === "medium") fillColor = "#fee08b";
+					else if (intensity === "low") fillColor = "#1a9850";
+
+					// Get layer-level style settings (with defaults)
+					const layerLineWidth = layer.lineWidth ?? 2;
+					const layerFillPolygons = layer.fillPolygons ?? true;
+
+					// Add polygon fills (respect fillPolygons setting)
+					map.addLayer({
+						id: `${layer.id}-fill`,
+						type: "fill",
+						source: layer.id,
+						filter: ["==", ["geometry-type"], "Polygon"],
+						paint: {
+							"fill-color": fillColor,
+							"fill-opacity": layerFillPolygons ? normalizedOpacity : 0,
+						},
+					});
+
+					// Add line layer with layer-level style
+					map.addLayer({
+						id: `${layer.id}-line`,
+						type: "line",
+						source: layer.id,
+						filter: [
+							"in",
+							["geometry-type"],
+							["literal", ["Polygon", "LineString"]],
+						],
+						paint: {
+							"line-color": fillColor,
+							"line-width": layerLineWidth,
+							"line-opacity": normalizedOpacity,
+						},
+					});
+
+					// Add circle layer for Points (not Markers)
+					map.addLayer({
+						id: `${layer.id}-circle`,
+						type: "circle",
+						source: layer.id,
+						filter: [
+							"all",
+							["==", ["geometry-type"], "Point"],
+							["!=", ["get", "featureType"], "Marker"],
+						],
+						paint: {
+							"circle-radius": 8,
+							"circle-color": fillColor,
+							"circle-opacity": normalizedOpacity,
+							"circle-stroke-width": 2,
+							"circle-stroke-color": "#ffffff",
+						},
+					});
+
+					// Add symbol layer for Markers with icon support
+					// First, load the marker icons for this layer's color
+					const markerIconType = layer.markerIcon || "default";
+					const markerIconId = `marker-${markerIconType}`;
+
+					// Load icons asynchronously
+					loadMarkerIcons(map, fillColor).then(() => {
+						// Only add symbol layer if icons loaded successfully
+						if (map.hasImage(markerIconId)) {
+							// Check if layer still exists (might have been removed during async load)
+							if (!map.getLayer(`${layer.id}-marker`)) {
+								map.addLayer({
+									id: `${layer.id}-marker`,
+									type: "symbol",
+									source: layer.id,
+									filter: [
+										"all",
+										["==", ["geometry-type"], "Point"],
+										["==", ["get", "featureType"], "Marker"],
+									],
+									layout: {
+										"icon-image": markerIconId,
+										"icon-size": 1.2,
+										"icon-anchor":
+											markerIconType === "default" ? "bottom" : "center",
+										"icon-allow-overlap": true,
+									},
+									paint: {
+										"icon-opacity": normalizedOpacity,
+									},
+								});
+
+								// Add click handler for marker layer
+								map.on("click", `${layer.id}-marker`, (e: unknown) => {
+									const event = e as {
+										features?: Array<{
+											properties: { name?: string; description?: string };
+										}>;
+										lngLat: maplibregl.LngLat;
+									};
+									if (onFeatureClickRef.current) {
+										onFeatureClickRef.current(layer.id);
+									}
+									if (event.features?.[0]) {
+										const feature = event.features[0];
+										const name = feature.properties.name || "Unnamed";
+										const description = feature.properties.description || "";
+										new maplibregl.Popup()
+											.setLngLat(event.lngLat)
+											.setHTML(
+												`<strong>${name}</strong>${
+													description ? `<br/>${description}` : ""
+												}`,
+											)
+											.addTo(map);
+									}
+								});
+
+								// Change cursor on hover for markers
+								map.on("mouseenter", `${layer.id}-marker`, () => {
+									map.getCanvas().style.cursor = "pointer";
+								});
+								map.on("mouseleave", `${layer.id}-marker`, () => {
+									map.getCanvas().style.cursor = "";
+								});
+							}
+						}
+					});
+
+					// Add popups on click and notify layer selection
+					map.on("click", `${layer.id}-fill`, (e: unknown) => {
+						// Notify parent about the clicked layer
+						if (onFeatureClickRef.current) {
+							onFeatureClickRef.current(layer.id);
+						}
+						if (e.features?.[0]) {
+							const feature = e.features[0];
+							const name = feature.properties.name || "Unnamed";
+							const description = feature.properties.description || "";
+							new maplibregl.Popup()
+								.setLngLat(e.lngLat)
+								.setHTML(
+									`<strong>${name}</strong>${
+										description ? `<br/>${description}` : ""
+									}`,
+								)
+								.addTo(map);
+						}
+					});
+
+					map.on("click", `${layer.id}-circle`, (e: unknown) => {
+						// Notify parent about the clicked layer
+						if (onFeatureClickRef.current) {
+							onFeatureClickRef.current(layer.id);
+						}
+						if (e.features?.[0]) {
+							const feature = e.features[0];
+							const name = feature.properties.name || "Unnamed";
+							const description = feature.properties.description || "";
+							new maplibregl.Popup()
+								.setLngLat(e.lngLat)
+								.setHTML(
+									`<strong>${name}</strong>${
+										description ? `<br/>${description}` : ""
+									}`,
+								)
+								.addTo(map);
+						}
+					});
+
+					// Change cursor on hover
+					map.on("mouseenter", `${layer.id}-fill`, () => {
+						map.getCanvas().style.cursor = "pointer";
+					});
+					map.on("mouseleave", `${layer.id}-fill`, () => {
+						map.getCanvas().style.cursor = "";
+					});
+					map.on("mouseenter", `${layer.id}-circle`, () => {
+						map.getCanvas().style.cursor = "pointer";
+					});
+					map.on("mouseleave", `${layer.id}-circle`, () => {
+						map.getCanvas().style.cursor = "";
+					});
+
+					// Track state for this layer
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
+					});
+				} else if (layer.type === "heatmap" && layer.data) {
+					// Opacity is already in 0-1 range from the frontend layer state
+					const heatmapOpacity = layer.opacity;
+
+					const features = layer.data.map((point: unknown) => {
+						const p = point as Record<string, unknown>;
+						return {
+							type: "Feature",
+							geometry: {
+								type: "Point",
+								coordinates: [p.lng, p.lat],
+							},
+							properties: {
+								intensity: p.intensity,
+							},
+						};
+					});
+
+					map.addSource(layer.id, {
+						type: "geojson",
+						data: {
+							type: "FeatureCollection",
+							features,
+						},
+					});
+
+					map.addLayer({
+						id: `${layer.id}-circle`,
+						type: "circle",
+						source: layer.id,
+						paint: {
+							"circle-radius": 30,
+							"circle-color": [
+								"interpolate",
+								["linear"],
+								["get", "intensity"],
+								0,
+								"#fee5d9",
+								0.5,
+								"#fcae91",
+								1,
+								"#fb6a4a",
+							],
+							"circle-opacity": heatmapOpacity * 0.6,
+						},
+					});
+
+					// Track state for this layer
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: currentDataHash,
+					});
+				}
+			});
+
+			// Reorder layers on the map to match the layers array order
+			// Layers at the start of the array (top of the UI list) should be rendered on top
+			// MapLibre renders layers in order they appear in the style, later = on top
+			// So we need to ensure layers at index 0 are rendered last (on top)
+			const visibleLayerIds = layers
+				.filter((l) => l.visible && map.getSource(l.id))
+				.map((l) => l.id);
+
+			// Move layers in reverse order - last layer first, so first layer ends up on top
+			for (let i = visibleLayerIds.length - 1; i >= 0; i--) {
+				const layerId = visibleLayerIds[i];
+
+				// Get all map layer IDs for this layer and move them to the top
+				// Order matters: fill first (bottom), then lines, then circles/symbols (top)
+				const mapLayerIds = [
+					`${layerId}-fill`,
+					`${layerId}-line`,
+					`${layerId}-line-solid`,
+					`${layerId}-line-dashed`,
+					`${layerId}-line-dotted`,
+					`${layerId}-circle`,
+					`${layerId}-symbol`,
+				].filter((id) => map.getLayer(id));
+
+				// Move each sublayer to the top (no beforeId = move to top)
+				for (const mapLayerId of mapLayerIds) {
+					map.moveLayer(mapLayerId);
+				}
+			}
+		}, [layers, mapLoaded]);
+
+		// Handle layer selection - pan/zoom to fit layer bounds
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded || !highlightedLayerId) return;
+
+			const map = mapRef.current;
+			const selectedLayer = layers.find((l) => l.id === highlightedLayerId);
+
+			if (!selectedLayer || !selectedLayer.visible || !selectedLayer.data)
+				return;
+
+			// Calculate bounds from the layer's GeoJSON data
+			const bounds = new maplibregl.LngLatBounds();
+			let hasValidCoords = false;
+
+			const processCoordinates = (coords: unknown, geometryType: string) => {
+				if (geometryType === "Point") {
+					const [lng, lat] = coords as [number, number];
+					if (isFinite(lng) && isFinite(lat)) {
+						bounds.extend([lng, lat]);
+						hasValidCoords = true;
+					}
+				} else if (
+					geometryType === "LineString" ||
+					geometryType === "MultiPoint"
+				) {
+					(coords as [number, number][]).forEach(([lng, lat]) => {
+						if (isFinite(lng) && isFinite(lat)) {
+							bounds.extend([lng, lat]);
+							hasValidCoords = true;
+						}
+					});
+				} else if (
+					geometryType === "Polygon" ||
+					geometryType === "MultiLineString"
+				) {
+					(coords as [number, number][][]).forEach((ring) => {
+						ring.forEach(([lng, lat]) => {
+							if (isFinite(lng) && isFinite(lat)) {
+								bounds.extend([lng, lat]);
+								hasValidCoords = true;
+							}
+						});
+					});
+				} else if (geometryType === "MultiPolygon") {
+					(coords as [number, number][][][]).forEach((polygon) => {
+						polygon.forEach((ring) => {
+							ring.forEach(([lng, lat]) => {
+								if (isFinite(lng) && isFinite(lat)) {
+									bounds.extend([lng, lat]);
+									hasValidCoords = true;
+								}
+							});
+						});
+					});
+				}
+			};
+
+			// Handle GeoJSON FeatureCollection
+			if (selectedLayer.data && typeof selectedLayer.data === "object") {
+				const data = selectedLayer.data as {
+					type?: string;
+					features?: Array<{
+						geometry?: { type: string; coordinates: unknown };
+					}>;
+				};
+				if (data.type === "FeatureCollection" && Array.isArray(data.features)) {
+					data.features.forEach((feature) => {
+						if (feature.geometry?.coordinates) {
+							processCoordinates(
+								feature.geometry.coordinates,
+								feature.geometry.type,
+							);
+						}
+					});
+				}
+			}
+
+			// Fit map to bounds if we found valid coordinates
+			if (hasValidCoords && !bounds.isEmpty()) {
+				map.fitBounds(bounds, {
+					padding: 150,
+					maxZoom: 12,
+					duration: 1000,
+				});
+			}
+		}, [highlightedLayerId, layers, mapLoaded]);
+
+		// Marker overlay layer for showing icons on top of TerraDraw features during editing
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
+
+			const map = mapRef.current;
+			const MARKER_OVERLAY_SOURCE = "marker-overlay-source";
+			const MARKER_OVERLAY_LAYER = "marker-overlay-layer";
+
+			// If no marker features to show, remove the overlay
+			if (!markerFeatureIds || markerFeatureIds.size === 0 || !markerIcon) {
+				if (map.getLayer(MARKER_OVERLAY_LAYER)) {
+					map.removeLayer(MARKER_OVERLAY_LAYER);
+				}
+				if (map.getSource(MARKER_OVERLAY_SOURCE)) {
+					map.removeSource(MARKER_OVERLAY_SOURCE);
+				}
+				return;
+			}
+
+			// Use the passed snapshot to get marker positions (updates when features move)
+			const snapshot = markerOverlaySnapshot || [];
+			const markerFeatures = snapshot
+				.filter((f) => markerFeatureIds.has(String(f.id)))
+				.filter((f) => f.geometry.type === "Point")
+				.map((f) => ({
+					type: "Feature" as const,
+					geometry: {
+						type: "Point" as const,
+						coordinates: f.geometry.coordinates as [number, number],
+					},
+					properties: { id: String(f.id) },
+				}));
+
+			if (markerFeatures.length === 0) {
+				// No valid marker features, clean up
+				if (map.getLayer(MARKER_OVERLAY_LAYER)) {
+					map.removeLayer(MARKER_OVERLAY_LAYER);
+				}
+				if (map.getSource(MARKER_OVERLAY_SOURCE)) {
+					map.removeSource(MARKER_OVERLAY_SOURCE);
+				}
+				return;
+			}
+
+			const geojsonData: GeoJSON.FeatureCollection = {
+				type: "FeatureCollection",
+				features: markerFeatures,
+			};
+
+			// Load marker icons if not already loaded
+			const iconId = `marker-${markerIcon}`;
+			const color = markerColor || "#3b82f6";
+
+			loadMarkerIcons(map, color).then(() => {
+				if (!map.hasImage(iconId)) return;
+
+				// Update or create the source
+				const source = map.getSource(MARKER_OVERLAY_SOURCE) as
+					| maplibregl.GeoJSONSource
+					| undefined;
+				if (source) {
+					source.setData(geojsonData);
+				} else {
+					map.addSource(MARKER_OVERLAY_SOURCE, {
+						type: "geojson",
+						data: geojsonData,
+					});
+				}
+
+				// Create or update the layer
+				if (!map.getLayer(MARKER_OVERLAY_LAYER)) {
+					map.addLayer({
+						id: MARKER_OVERLAY_LAYER,
+						type: "symbol",
+						source: MARKER_OVERLAY_SOURCE,
+						layout: {
+							"icon-image": iconId,
+							"icon-size": 1.2,
+							"icon-anchor": markerIcon === "default" ? "bottom" : "center",
+							"icon-allow-overlap": true,
+						},
+						paint: {
+							"icon-opacity": 1,
+						},
+					});
+				}
+			});
+
+			// Cleanup on unmount or when deps change
+			return () => {
+				// Don't remove immediately - let the effect re-run decide
+			};
+		}, [
+			mapLoaded,
+			markerIcon,
+			markerFeatureIds,
+			markerColor,
+			markerOverlaySnapshot,
+		]);
+
+		const visibleLayers = layers.filter((layer) => layer.visible);
+		const activeLegend = visibleLayers.find((layer) => layer.legend);
+
+		return (
+			<div className="relative w-full h-full">
+				<div ref={mapContainerRef} className="w-full h-full" />
+				{!mapLoaded && (
+					<div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+						<p className="text-slate-600">Loading map...</p>
+					</div>
+				)}
+				{drawingMode && (
+					<div
+						className={`absolute top-4 left-1/2 -translate-x-1/2 ${
+							drawingMode === "delete" ? "bg-red-600" : "bg-blue-600"
+						} text-white px-4 py-2 rounded-lg shadow-lg`}
+					>
+						<p className="text-sm">
+							{drawingMode === "Point" && "Click on the map to place a point"}
+							{drawingMode === "Marker" && "Click on the map to place a marker"}
+							{drawingMode === "LineString" &&
+								"Click to add points. Double-click to finish the line"}
+							{drawingMode === "Polygon" &&
+								"Click to add vertices. Double-click to close the polygon"}
+							{drawingMode === "select" &&
+								"Click on a feature to select and modify it"}
+							{drawingMode === "delete" && "Click on a feature to delete it"}
+						</p>
+					</div>
+				)}
+				{activeLegend && <Legend layer={activeLegend} />}
+			</div>
+		);
+	},
 );
 
 MapView.displayName = "MapView";

@@ -183,7 +183,10 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 
 				console.log("[useLayerEditor] Layer data:", layerData);
 				if (layerData?.features) {
-					console.log("[useLayerEditor] Features from layer data:", layerData.features);
+					console.log(
+						"[useLayerEditor] Features from layer data:",
+						layerData.features,
+					);
 					const pendingFeatures: PendingFeature[] = layerData.features
 						.filter((f) => f.type === "Feature" && f.geometry)
 						.map((f) => ({
@@ -198,7 +201,10 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 							},
 						}));
 
-					console.log("[useLayerEditor] Pending features to import:", pendingFeatures);
+					console.log(
+						"[useLayerEditor] Pending features to import:",
+						pendingFeatures,
+					);
 					// Import them via the feature manager
 					if (pendingFeatures.length > 0) {
 						const result = featureManager.importGeoJson(

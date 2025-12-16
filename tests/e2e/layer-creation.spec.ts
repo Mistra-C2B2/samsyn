@@ -83,6 +83,20 @@ async function drawPointOnMap(
 }
 
 /**
+ * Helper to draw a marker on the map by clicking
+ * Same as point but uses Marker mode which renders an icon overlay
+ */
+async function drawMarkerOnMap(
+	page: import("@playwright/test").Page,
+	x = 400,
+	y = 300
+) {
+	const mapCanvas = page.locator(".maplibregl-canvas");
+	await mapCanvas.click({ position: { x, y } });
+	await page.waitForTimeout(500); // Wait longer for icon overlay to render
+}
+
+/**
  * Helper to draw a line on the map by clicking multiple points
  * TerraDraw requires double-click to finish a line
  */
@@ -198,6 +212,34 @@ test.describe("Layer Creation - Draw Tab", () => {
 		// Verify Point mode is active
 		const isPointActive = await layerCreator.isDrawModeActive("Point");
 		expect(isPointActive).toBe(true);
+	});
+
+	test("should select Marker drawing mode", async ({ page }) => {
+		if (!(await hasMapLoaded(page))) {
+			test.skip();
+			return;
+		}
+
+		const layersPage = new LayersPage(page);
+		await layersPage.waitForPanel();
+
+		if (!(await canCreateLayers(layersPage))) {
+			test.skip();
+			return;
+		}
+
+		const layerCreator = new LayerCreatorPage(page);
+
+		await layersPage.clickCreateLayer();
+		await layerCreator.waitForPanel();
+
+		// Click Add Marker button
+		await layerCreator.clickAddMarker();
+		await page.waitForTimeout(200);
+
+		// Verify Marker mode is active
+		const isMarkerActive = await layerCreator.isDrawModeActive("Marker");
+		expect(isMarkerActive).toBe(true);
 	});
 
 	test("should select LineString drawing mode", async ({ page }) => {

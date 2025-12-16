@@ -118,6 +118,7 @@ function AppContent() {
 	const [basemap, setBasemap] = useState<string>("osm");
 	const [drawingMode, setDrawingMode] = useState<
 		| "Point"
+		| "Marker"
 		| "LineString"
 		| "Polygon"
 		| "Rectangle"
@@ -143,6 +144,15 @@ function AppContent() {
 	const [terraDrawSnapshot, setTerraDrawSnapshot] = useState<
 		TerraDrawFeature[]
 	>([]);
+	// Track which features are markers (vs points) for icon rendering overlay
+	const [markerFeatureIds, setMarkerFeatureIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [currentMarkerIcon, setCurrentMarkerIcon] = useState<
+		"default" | "anchor" | "ship" | "warning" | "circle"
+	>("default");
+	const [currentMarkerColor, setCurrentMarkerColor] =
+		useState<string>("#3b82f6");
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
@@ -278,7 +288,11 @@ function AppContent() {
 		return currentMap.layers.map((layer) => {
 			// Hide the layer being edited - but only after TerraDraw has loaded the features
 			// This prevents a flash where the layer disappears before TerraDraw shows features
-			if (editingLayer && layer.id === editingLayer.id && terraDrawSnapshot.length > 0) {
+			if (
+				editingLayer &&
+				layer.id === editingLayer.id &&
+				terraDrawSnapshot.length > 0
+			) {
 				return { ...layer, visible: false };
 			}
 
@@ -721,6 +735,7 @@ function AppContent() {
 	const handleStartDrawing = (
 		type:
 			| "Point"
+			| "Marker"
 			| "LineString"
 			| "Polygon"
 			| "Rectangle"
@@ -731,10 +746,14 @@ function AppContent() {
 	) => {
 		setDrawingMode(type);
 		setDrawCallback(() => callback);
-		mapViewRef.current?.startDrawing(type, color);
+		// Map Marker to Point for TerraDraw (same underlying mode)
+		const terraDrawType = type === "Marker" ? "Point" : type;
+		mapViewRef.current?.startDrawing(terraDrawType, color);
 	};
 
-	const handleSetDrawMode = (mode: "select" | "delete" | "delete-selection") => {
+	const handleSetDrawMode = (
+		mode: "select" | "delete" | "delete-selection",
+	) => {
 		// delete-selection is an action, not a mode - it deletes selected features and stays in select mode
 		if (mode === "delete-selection") {
 			mapViewRef.current?.setDrawMode(mode);
@@ -748,13 +767,24 @@ function AppContent() {
 
 	const handleDrawComplete = useCallback(
 		(feature: unknown) => {
+			// Track marker feature IDs before calling callback
+			if (drawingMode === "Marker") {
+				const featureObj = feature as { id?: string | number };
+				if (featureObj.id) {
+					setMarkerFeatureIds((prev) => {
+						const next = new Set(prev);
+						next.add(String(featureObj.id));
+						return next;
+					});
+				}
+			}
 			if (drawCallback) {
 				drawCallback(feature);
 			}
 			setDrawingMode(null);
 			setDrawCallback(null);
 		},
-		[drawCallback],
+		[drawCallback, drawingMode],
 	);
 
 	const handleEditLayer = (layer: Layer) => {
@@ -992,6 +1022,10 @@ function AppContent() {
 							basemap={basemap}
 							onFeatureClick={setHighlightedLayerId}
 							highlightedLayerId={highlightedLayerId}
+							markerIcon={currentMarkerIcon}
+							markerFeatureIds={markerFeatureIds}
+							markerColor={currentMarkerColor}
+							terraDrawSnapshot={terraDrawSnapshot}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">
@@ -1061,6 +1095,8 @@ function AppContent() {
 							// Clear any TerraDraw drawings when layer creator is closed
 							mapViewRef.current?.clearDrawings();
 							setTerraDrawSnapshot([]);
+							// Clear marker tracking
+							setMarkerFeatureIds(new Set());
 						}}
 						onStartDrawing={handleStartDrawing}
 						onSetDrawMode={handleSetDrawMode}
@@ -1077,6 +1113,8 @@ function AppContent() {
 						editingLayer={editingLayer}
 						drawingMode={drawingMode}
 						terraDrawSnapshot={terraDrawSnapshot}
+						onMarkerIconChange={setCurrentMarkerIcon}
+						onMarkerColorChange={setCurrentMarkerColor}
 					/>
 				)}
 

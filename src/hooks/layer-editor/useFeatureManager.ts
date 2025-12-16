@@ -7,6 +7,7 @@ import type { TerraDrawFeature } from "../../components/MapView";
 
 export type GeometryType =
 	| "Point"
+	| "Marker"
 	| "LineString"
 	| "Polygon"
 	| "Rectangle"
@@ -74,7 +75,7 @@ export interface Feature {
 function isValidCoordinates(coords: unknown, type: GeometryType): boolean {
 	if (coords === null || coords === undefined) return false;
 
-	if (type === "Point") {
+	if (type === "Point" || type === "Marker") {
 		if (!Array.isArray(coords) || coords.length < 2) return false;
 		return (
 			typeof coords[0] === "number" &&

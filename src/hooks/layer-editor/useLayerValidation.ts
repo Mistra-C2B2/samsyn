@@ -37,18 +37,6 @@ export function useLayerValidation(options: UseLayerValidationOptions) {
 				error: "Please add at least one feature to the layer",
 			};
 		}
-		const featuresWithNames = features.filter((f) => f.name.trim());
-		if (featuresWithNames.length === 0) {
-			return { valid: false, error: "Please give each feature a name" };
-		}
-		// Warn if some features will be skipped
-		if (featuresWithNames.length < features.length) {
-			const skippedCount = features.length - featuresWithNames.length;
-			return {
-				valid: true,
-				warning: `${skippedCount} unnamed feature${skippedCount > 1 ? "s" : ""} will not be saved`,
-			};
-		}
 		return { valid: true };
 	}, [layerName, features]);
 

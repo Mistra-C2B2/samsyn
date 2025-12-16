@@ -120,10 +120,10 @@ export class LayerCreatorPage {
 			'button:has-text("Delete Selected")'
 		);
 
-		// Features
+		// Features - match the outer feature card div (has rounded-lg, border, flex, overflow-hidden)
 		this.featureCards = this.panel.locator(
-			"div.p-3.bg-slate-50.rounded-lg.border.border-slate-200.space-y-2"
-		);
+			"div.rounded-lg.border.flex.overflow-hidden"
+		).filter({ has: this.page.locator('input[placeholder="Feature name (optional)"]') });
 		this.clearAllButton = this.panel.locator('button:has-text("Clear All")');
 
 		// GeoJSON
@@ -235,7 +235,7 @@ export class LayerCreatorPage {
 
 		for (let i = 0; i < count; i++) {
 			const card = this.featureCards.nth(i);
-			const nameInput = card.locator('input[placeholder="Feature name (required)"]');
+			const nameInput = card.locator('input[placeholder="Feature name (optional)"]');
 			const value = await nameInput.inputValue();
 			names.push(value);
 		}
@@ -259,7 +259,7 @@ export class LayerCreatorPage {
 
 	async setFeatureName(index: number, name: string) {
 		const card = this.featureCards.nth(index);
-		const nameInput = card.locator('input[placeholder="Feature name (required)"]');
+		const nameInput = card.locator('input[placeholder="Feature name (optional)"]');
 		await nameInput.clear();
 		await nameInput.fill(name);
 	}
@@ -277,6 +277,29 @@ export class LayerCreatorPage {
 			has: this.page.locator("svg.lucide-trash-2"),
 		});
 		await removeButton.click();
+	}
+
+	/**
+	 * Checks if a feature card is highlighted as selected
+	 * @param index - The index of the feature card
+	 * @returns true if the feature card has the selected styling (teal ring, border, and accent bar)
+	 */
+	async isFeatureCardSelected(index: number): Promise<boolean> {
+		const card = this.featureCards.nth(index);
+		const className = await card.getAttribute("class");
+		if (!className) return false;
+		// Selected cards have ring-2 ring-teal-300 shadow-md border-teal-400
+		return className.includes("ring-teal-300") && className.includes("border-teal-400");
+	}
+
+	/**
+	 * Checks if a feature card has the teal accent bar (indicates selected state)
+	 * @param index - The index of the feature card
+	 */
+	async hasSelectedAccentBar(index: number): Promise<boolean> {
+		const card = this.featureCards.nth(index);
+		const accentBar = card.locator('div.w-2.bg-teal-500');
+		return accentBar.isVisible();
 	}
 
 	/**

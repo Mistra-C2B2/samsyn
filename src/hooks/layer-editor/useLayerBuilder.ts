@@ -84,21 +84,19 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 				return null;
 			}
 
-			const geoJsonFeatures: GeoJSONFeature[] = features
-				.filter((f) => f.name.trim())
-				.map((feature) => ({
-					type: "Feature" as const,
-					properties: {
-						name: feature.name,
-						description: feature.description,
-						featureType: feature.type,
-					},
-					geometry: {
-						// Marker uses Point geometry in GeoJSON
-						type: feature.type === "Marker" ? "Point" : feature.type,
-						coordinates: feature.coordinates,
-					},
-				}));
+			const geoJsonFeatures: GeoJSONFeature[] = features.map((feature) => ({
+				type: "Feature" as const,
+				properties: {
+					name: feature.name,
+					description: feature.description,
+					featureType: feature.type,
+				},
+				geometry: {
+					// Marker uses Point geometry in GeoJSON
+					type: feature.type === "Marker" ? "Point" : feature.type,
+					coordinates: feature.coordinates,
+				},
+			}));
 
 			const layerData: GeoJSONFeatureCollection = {
 				type: "FeatureCollection",

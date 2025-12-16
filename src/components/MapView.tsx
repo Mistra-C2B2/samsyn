@@ -626,6 +626,86 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					console.warn("Failed to update drawing styles:", err);
 				}
 			},
+			panToCoordinates: (
+				coordinates: unknown,
+				geometryType: string,
+			) => {
+				if (!mapRef.current || !mapLoaded) return;
+
+				const map = mapRef.current;
+
+				try {
+					// Handle different geometry types
+					if (geometryType === "Point" || geometryType === "Marker") {
+						// Point: [lng, lat]
+						const coords = coordinates as [number, number];
+						map.flyTo({
+							center: coords,
+							zoom: Math.max(map.getZoom(), 12),
+							duration: 1000,
+						});
+					} else if (geometryType === "LineString" || geometryType === "Freehand") {
+						// LineString: [[lng, lat], ...]
+						const coords = coordinates as [number, number][];
+						const bounds = new maplibregl.LngLatBounds();
+						for (const coord of coords) {
+							bounds.extend(coord);
+						}
+						map.fitBounds(bounds, {
+							padding: 100,
+							maxZoom: 14,
+							duration: 1000,
+						});
+					} else if (
+						geometryType === "Polygon" ||
+						geometryType === "Rectangle" ||
+						geometryType === "Circle"
+					) {
+						// Polygon: [[[lng, lat], ...], ...]
+						const coords = coordinates as [number, number][][];
+						const bounds = new maplibregl.LngLatBounds();
+						for (const ring of coords) {
+							for (const coord of ring) {
+								bounds.extend(coord);
+							}
+						}
+						map.fitBounds(bounds, {
+							padding: 100,
+							maxZoom: 14,
+							duration: 1000,
+						});
+					}
+				} catch (err) {
+					console.warn("Failed to pan to coordinates:", err);
+				}
+			},
+			selectFeature: (featureId: string) => {
+				if (!drawRef.current || !mapLoaded) return;
+
+				const terraDraw = drawRef.current.getTerraDrawInstance();
+				if (!terraDraw) return;
+
+				try {
+					// First deselect any currently selected features
+					const snapshot = terraDraw.getSnapshot();
+					for (const f of snapshot) {
+						if (f.properties?.selected === true) {
+							terraDraw.deselectFeature(String(f.id));
+						}
+					}
+
+					// Select the specified feature
+					terraDraw.selectFeature(featureId);
+
+					// Notify parent of the updated snapshot
+					if (onTerraDrawChangeRef.current) {
+						const newSnapshot = terraDraw.getSnapshot();
+						onTerraDrawChangeRef.current(newSnapshot as TerraDrawFeature[]);
+					}
+				} catch (err) {
+					console.warn("Failed to select feature:", err);
+				}
+			},
 		}));
 
 		useEffect(() => {

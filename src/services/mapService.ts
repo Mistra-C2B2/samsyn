@@ -131,9 +131,12 @@ export class MapService {
 					frontendType = "geojson";
 				}
 
-				// Extract style config for color
+				// Extract style config for color and other style properties
 				const styleConfig = layerResponse.style_config as {
 					color?: string;
+					lineWidth?: number;
+					fillPolygons?: boolean;
+					markerIcon?: "default" | "anchor" | "ship" | "warning" | "circle";
 				};
 
 				// Extract WMS configuration if present
@@ -196,6 +199,9 @@ export class MapService {
 					createdBy: layerResponse.created_by,
 					editable: layerResponse.editable as "creator-only" | "everyone",
 					color: styleConfig?.color,
+					lineWidth: styleConfig?.lineWidth,
+					fillPolygons: styleConfig?.fillPolygons,
+					markerIcon: styleConfig?.markerIcon,
 					data,
 					legend,
 					wmsUrl:

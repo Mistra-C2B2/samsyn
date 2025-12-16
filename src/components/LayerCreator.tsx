@@ -402,6 +402,7 @@ export function LayerCreator({
 						name: "",
 						description: "",
 						icon: type === "Point" ? "default" : undefined,
+						featureType: type, // Store actual type (Marker vs Point, etc.)
 					});
 				}
 			},

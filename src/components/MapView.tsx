@@ -18,15 +18,15 @@ let TerradrawControlClass: any = null;
 // These are based on Lucide icons and will be rendered as map symbols
 const MARKER_ICONS: Record<string, string> = {
 	// Default pin marker
-	default: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`,
+	default: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`,
 	// Anchor icon
 	anchor: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="21"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>`,
 	// Ship icon
 	ship: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M12 10v4"/><path d="M12 2v3"/></svg>`,
 	// Warning triangle
-	warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13" stroke="white" stroke-width="2"/><circle cx="12" cy="17" r="1" fill="white"/></svg>`,
+	warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13" stroke="white" stroke-width="2"/><circle cx="12" cy="17" r="1" fill="white"/></svg>`,
 	// Circle marker
-	circle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>`,
+	circle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="8"/></svg>`,
 };
 
 // Helper function to create a colored SVG and convert to ImageData for MapLibre
@@ -73,6 +73,13 @@ async function loadSvgAsImage(
 // Uses a mutex pattern to prevent concurrent updates causing "already exists" errors
 const iconLoadingPromise: { current: Promise<void> | null } = { current: null };
 
+// Helper to create a color-specific icon ID
+function getMarkerIconId(iconType: string, color: string): string {
+	// Normalize color to create a valid ID (remove # and lowercase)
+	const colorKey = color.replace("#", "").toLowerCase();
+	return `marker-${iconType}-${colorKey}`;
+}
+
 async function loadMarkerIcons(
 	map: maplibregl.Map,
 	color: string,
@@ -88,10 +95,10 @@ async function loadMarkerIcons(
 		>;
 
 		for (const iconType of iconTypes) {
-			const iconId = `marker-${iconType}`;
-			// Remove existing image if it exists (for color updates)
+			const iconId = getMarkerIconId(iconType, color);
+			// Skip if this color variant already exists
 			if (map.hasImage(iconId)) {
-				map.removeImage(iconId);
+				continue;
 			}
 
 			try {
@@ -101,10 +108,9 @@ async function loadMarkerIcons(
 					48,
 				);
 				// Double-check after async operation
-				if (map.hasImage(iconId)) {
-					map.removeImage(iconId);
+				if (!map.hasImage(iconId)) {
+					map.addImage(iconId, imageData, { sdf: false });
 				}
-				map.addImage(iconId, imageData, { sdf: false });
 			} catch (err) {
 				console.warn(`Failed to load marker icon ${iconType}:`, err);
 			}
@@ -269,8 +275,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						terraDraw.updateModeOptions("point", {
 							styles: {
 								pointColor: isMarker ? "transparent" : color,
-								pointOutlineColor: isMarker ? "transparent" : "#ffffff",
-								pointOutlineWidth: isMarker ? 0 : 1,
+								pointOutlineColor: "transparent",
+								pointOutlineWidth: 0,
 							},
 						});
 						// Update linestring style
@@ -279,7 +285,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								lineStringColor: color,
 								lineStringWidth: 3,
 								closingPointColor: color,
-								closingPointOutlineColor: "#ffffff",
+								closingPointOutlineColor: "transparent",
 							},
 						});
 						// Update polygon style
@@ -290,7 +296,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								outlineColor: color,
 								outlineWidth: 2,
 								closingPointColor: color,
-								closingPointOutlineColor: "#ffffff",
+								closingPointOutlineColor: "transparent",
 							},
 						});
 						// Update rectangle style
@@ -412,7 +418,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						terraDraw.updateModeOptions("point", {
 							styles: {
 								pointColor: color,
-								pointOutlineColor: "#ffffff",
+								pointOutlineColor: "transparent",
+								pointOutlineWidth: 0,
 							},
 						});
 						terraDraw.updateModeOptions("linestring", {
@@ -420,7 +427,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								lineStringColor: color,
 								lineStringWidth: 3,
 								closingPointColor: color,
-								closingPointOutlineColor: "#ffffff",
+								closingPointOutlineColor: "transparent",
 							},
 						});
 						terraDraw.updateModeOptions("polygon", {
@@ -430,7 +437,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								outlineColor: color,
 								outlineWidth: 2,
 								closingPointColor: color,
-								closingPointOutlineColor: "#ffffff",
+								closingPointOutlineColor: "transparent",
 							},
 						});
 					} catch (err) {
@@ -454,13 +461,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						const mode = modeMap[feature.type] || feature.type.toLowerCase();
 
 						// Create a GeoJSON feature to add
+						// Markers use Point geometry in GeoJSON (Marker is not a valid GeoJSON type)
+						const geometryType =
+							feature.type === "Marker" ? "Point" : feature.type;
+
 						const geoJsonFeature = {
 							type: "Feature" as const,
 							properties: {
 								mode, // TerraDraw requires a mode property
 							},
 							geometry: {
-								type: feature.type,
+								type: geometryType,
 								coordinates: feature.coordinates,
 							},
 						};
@@ -540,7 +551,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					terraDraw.updateModeOptions("point", {
 						styles: {
 							pointColor: color,
-							pointOutlineColor: "#ffffff",
+							pointOutlineColor: "transparent",
+							pointOutlineWidth: 0,
 						},
 					});
 					// Update linestring style
@@ -549,7 +561,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							lineStringColor: color,
 							lineStringWidth: lineWidth,
 							closingPointColor: color,
-							closingPointOutlineColor: "#ffffff",
+							closingPointOutlineColor: "transparent",
 						},
 					});
 					// Update polygon style
@@ -560,7 +572,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							outlineColor: color,
 							outlineWidth: lineWidth,
 							closingPointColor: color,
-							closingPointOutlineColor: "#ffffff",
+							closingPointOutlineColor: "transparent",
 						},
 					});
 					// Update rectangle style
@@ -600,7 +612,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							selectedLineStringColor: color,
 							selectedLineStringWidth: lineWidth,
 							selectedPointColor: color,
-							selectedPointOutlineColor: "#ffffff",
+							selectedPointOutlineColor: "transparent",
 							selectionPolygonFillOpacity: 0.1,
 							selectionPolygonOutlineColor: color,
 						},
@@ -1129,15 +1141,15 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							"circle-radius": 8,
 							"circle-color": fillColor,
 							"circle-opacity": normalizedOpacity,
-							"circle-stroke-width": 2,
-							"circle-stroke-color": "#ffffff",
+							"circle-stroke-width": 0,
+							"circle-stroke-color": "transparent",
 						},
 					});
 
 					// Add symbol layer for Markers with icon support
 					// First, load the marker icons for this layer's color
 					const markerIconType = layer.markerIcon || "default";
-					const markerIconId = `marker-${markerIconType}`;
+					const markerIconId = getMarkerIconId(markerIconType, fillColor);
 
 					// Load icons asynchronously
 					loadMarkerIcons(map, fillColor).then(() => {
@@ -1488,8 +1500,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			};
 
 			// Load marker icons if not already loaded
-			const iconId = `marker-${markerIcon}`;
 			const color = markerColor || "#3b82f6";
+			const iconId = getMarkerIconId(markerIcon, color);
 
 			loadMarkerIcons(map, color).then(() => {
 				if (!map.hasImage(iconId)) return;
@@ -1508,7 +1520,16 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				}
 
 				// Create or update the layer
-				if (!map.getLayer(MARKER_OVERLAY_LAYER)) {
+				if (map.getLayer(MARKER_OVERLAY_LAYER)) {
+					// Layer exists - update the icon properties
+					map.setLayoutProperty(MARKER_OVERLAY_LAYER, "icon-image", iconId);
+					map.setLayoutProperty(
+						MARKER_OVERLAY_LAYER,
+						"icon-anchor",
+						markerIcon === "default" ? "bottom" : "center",
+					);
+				} else {
+					// Create new layer
 					map.addLayer({
 						id: MARKER_OVERLAY_LAYER,
 						type: "symbol",

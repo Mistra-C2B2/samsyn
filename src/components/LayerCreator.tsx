@@ -108,12 +108,14 @@ interface FeatureCardProps {
 	feature: Feature;
 	onUpdate: (field: keyof Feature, value: unknown) => void;
 	onRemove: () => void;
+	isSelected?: boolean;
 }
 
 const FeatureCard = memo(function FeatureCard({
 	feature,
 	onUpdate,
 	onRemove,
+	isSelected,
 }: FeatureCardProps) {
 	// Local state for immediate UI updates
 	const [localDescription, setLocalDescription] = useState(feature.description);
@@ -135,32 +137,44 @@ const FeatureCard = memo(function FeatureCard({
 	};
 
 	return (
-		<div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<GeometryIcon type={feature.type} />
-					<span className="text-xs text-slate-600">{feature.type}</span>
+		<div
+			className={`rounded-lg border transition-all flex overflow-hidden ${
+				isSelected
+					? "ring-2 ring-teal-300 shadow-md border-teal-400"
+					: "border-slate-200"
+			}`}
+		>
+			{/* Left accent bar for selected feature */}
+			{isSelected && <div className="w-2 bg-teal-500 flex-shrink-0" />}
+			<div
+				className={`p-3 space-y-2 flex-1 ${isSelected ? "bg-teal-100" : "bg-slate-50"}`}
+			>
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<GeometryIcon type={feature.type} />
+						<span className="text-xs text-slate-600">{feature.type}</span>
+					</div>
+					<Button variant="ghost" size="sm" onClick={onRemove}>
+						<Trash2 className="w-3 h-3" />
+					</Button>
 				</div>
-				<Button variant="ghost" size="sm" onClick={onRemove}>
-					<Trash2 className="w-3 h-3" />
-				</Button>
-			</div>
 
-			<Input
-				placeholder="Feature name (required)"
-				value={feature.name}
-				onChange={(e) => onUpdate("name", e.target.value)}
-			/>
+				<Input
+					placeholder="Feature name (optional)"
+					value={feature.name}
+					onChange={(e) => onUpdate("name", e.target.value)}
+				/>
 
-			<Textarea
-				placeholder="Description (optional)"
-				value={localDescription}
-				onChange={(e) => handleDescriptionChange(e.target.value)}
-				rows={2}
-			/>
+				<Textarea
+					placeholder="Description (optional)"
+					value={localDescription}
+					onChange={(e) => handleDescriptionChange(e.target.value)}
+					rows={2}
+				/>
 
-			<div className="text-xs text-slate-500">
-				{getCoordinatesSummary(feature)}
+				<div className="text-xs text-slate-500">
+					{getCoordinatesSummary(feature)}
+				</div>
 			</div>
 		</div>
 	);
@@ -216,6 +230,16 @@ export function LayerCreator({
 				: [],
 		[availableLayers],
 	);
+
+	// Get selected feature IDs from TerraDraw snapshot
+	const selectedFeatureIds = useMemo(() => {
+		if (!terraDrawSnapshot) return new Set<string>();
+		return new Set(
+			terraDrawSnapshot
+				.filter((f) => f.properties?.selected === true)
+				.map((f) => String(f.id)),
+		);
+	}, [terraDrawSnapshot]);
 
 	// Initialize existing features in TerraDraw when editing, and reset on layer change
 	useEffect(() => {
@@ -530,6 +554,7 @@ export function LayerCreator({
 										handleFeatureUpdate(feature.id, field, value)
 									}
 									onRemove={() => handleFeatureRemove(feature.id)}
+									isSelected={selectedFeatureIds.has(feature.id)}
 								/>
 							))}
 						</div>
@@ -563,6 +588,14 @@ export function LayerCreator({
 							{editor.error}
 						</div>
 					)}
+					<Button
+						variant="outline"
+						onClick={onClose}
+						className="w-full"
+						disabled={editor.saving}
+					>
+						Cancel
+					</Button>
 					<Button onClick={handleCreate} className="w-full" disabled={!canSave}>
 						{editor.saving ? (
 							<>

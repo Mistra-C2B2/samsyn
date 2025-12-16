@@ -174,6 +174,7 @@ export interface MapViewRef {
 			| "Circle"
 			| "Freehand",
 		color?: string,
+		isMarker?: boolean,
 	) => void;
 	setDrawMode: (mode: "select" | "delete" | "delete-selection") => void;
 	cancelDrawing: () => void;
@@ -248,6 +249,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					| "Circle"
 					| "Freehand",
 				color?: string,
+				isMarker?: boolean,
 			) => {
 				if (!drawRef.current || !mapLoaded) return;
 
@@ -262,11 +264,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				// Update styles with the selected color if provided
 				if (color) {
 					try {
-						// Update point style
+						// Update point style - make transparent if drawing markers
+						// Markers use point mode but display via icon overlay instead
 						terraDraw.updateModeOptions("point", {
 							styles: {
-								pointColor: color,
-								pointOutlineColor: "#ffffff",
+								pointColor: isMarker ? "transparent" : color,
+								pointOutlineColor: isMarker ? "transparent" : "#ffffff",
+								pointOutlineWidth: isMarker ? 0 : 1,
 							},
 						});
 						// Update linestring style

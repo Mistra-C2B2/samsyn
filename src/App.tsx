@@ -747,8 +747,9 @@ function AppContent() {
 		setDrawingMode(type);
 		setDrawCallback(() => callback);
 		// Map Marker to Point for TerraDraw (same underlying mode)
-		const terraDrawType = type === "Marker" ? "Point" : type;
-		mapViewRef.current?.startDrawing(terraDrawType, color);
+		const isMarker = type === "Marker";
+		const terraDrawType = isMarker ? "Point" : type;
+		mapViewRef.current?.startDrawing(terraDrawType, color, isMarker);
 	};
 
 	const handleSetDrawMode = (

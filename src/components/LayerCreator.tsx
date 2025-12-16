@@ -55,6 +55,8 @@ interface LayerCreatorProps {
 	) => string[];
 	onRemoveFeatureFromMap?: (id: string) => void;
 	onUpdateDrawingStyles?: (styles: DrawingStyles) => void;
+	onPanToFeature?: (coordinates: unknown, geometryType: string) => void;
+	onSelectFeature?: (featureId: string) => void;
 	availableLayers?: Layer[];
 	editingLayer?: Layer | null;
 	drawingMode?: GeometryType | "select" | "delete" | null;
@@ -108,6 +110,7 @@ interface FeatureCardProps {
 	feature: Feature;
 	onUpdate: (field: keyof Feature, value: unknown) => void;
 	onRemove: () => void;
+	onSelect?: () => void;
 	isSelected?: boolean;
 }
 
@@ -115,6 +118,7 @@ const FeatureCard = memo(function FeatureCard({
 	feature,
 	onUpdate,
 	onRemove,
+	onSelect,
 	isSelected,
 }: FeatureCardProps) {
 	// Local state for immediate UI updates
@@ -138,11 +142,21 @@ const FeatureCard = memo(function FeatureCard({
 
 	return (
 		<div
-			className={`rounded-lg border transition-all flex overflow-hidden ${
+			className={`rounded-lg border transition-all flex overflow-hidden cursor-pointer hover:border-teal-300 ${
 				isSelected
 					? "ring-2 ring-teal-300 shadow-md border-teal-400"
 					: "border-slate-200"
 			}`}
+			onClick={onSelect}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onSelect?.();
+				}
+			}}
+			tabIndex={0}
+			role="button"
+			aria-pressed={isSelected}
 		>
 			{/* Left accent bar for selected feature */}
 			{isSelected && <div className="w-2 bg-teal-500 flex-shrink-0" />}
@@ -192,6 +206,8 @@ export function LayerCreator({
 	onAddFeaturesToMap,
 	onRemoveFeatureFromMap,
 	onUpdateDrawingStyles,
+	onPanToFeature,
+	onSelectFeature,
 	availableLayers,
 	editingLayer,
 	drawingMode,
@@ -554,6 +570,10 @@ export function LayerCreator({
 										handleFeatureUpdate(feature.id, field, value)
 									}
 									onRemove={() => handleFeatureRemove(feature.id)}
+									onSelect={() => {
+										onSelectFeature?.(feature.id);
+										onPanToFeature?.(feature.coordinates, feature.type);
+									}}
 									isSelected={selectedFeatureIds.has(feature.id)}
 								/>
 							))}

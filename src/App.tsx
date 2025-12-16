@@ -1136,6 +1136,12 @@ function AppContent() {
 						onUpdateDrawingStyles={(styles: DrawingStyles) =>
 							mapViewRef.current?.updateDrawingStyles(styles)
 						}
+						onPanToFeature={(coordinates, geometryType) =>
+							mapViewRef.current?.panToCoordinates(coordinates, geometryType)
+						}
+						onSelectFeature={(featureId) =>
+							mapViewRef.current?.selectFeature(featureId)
+						}
 						availableLayers={availableLayers}
 						editingLayer={editingLayer}
 						drawingMode={drawingMode}

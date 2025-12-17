@@ -13,7 +13,12 @@ export interface DrawingStyles {
 	fillPolygons: boolean;
 }
 
-export type MarkerIconType = "default" | "anchor" | "ship" | "warning" | "circle";
+export type MarkerIconType =
+	| "default"
+	| "anchor"
+	| "ship"
+	| "warning"
+	| "circle";
 
 export interface UseTerraDrawSyncOptions {
 	editor: LayerEditorHook;

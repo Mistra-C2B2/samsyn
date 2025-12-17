@@ -1,6 +1,7 @@
-import { Edit, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { Edit, Loader2, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import type { Layer } from "../App";
+import { useLayerService } from "../services/layerService";
 import { CategorySelector } from "./CategorySelector";
 import {
 	AlertDialog,
@@ -27,9 +28,12 @@ import { Textarea } from "./ui/textarea";
 
 interface AdminPanelProps {
 	availableLayers: Layer[];
-	onAddLayer: (layer: Layer) => void;
-	onRemoveLayer: (layerId: string) => void;
-	onUpdateLayer: (layerId: string, updates: Partial<Layer>) => void;
+	onAddLayer: (layer: Layer) => void | Promise<void>;
+	onRemoveLayer: (layerId: string) => void | Promise<void>;
+	onUpdateLayer: (
+		layerId: string,
+		updates: Partial<Layer>,
+	) => void | Promise<void>;
 	onClose: () => void;
 }
 
@@ -48,6 +52,9 @@ export function AdminPanel({
 	const [isSaving, setIsSaving] = useState(false);
 	const [layerToDelete, setLayerToDelete] = useState<Layer | null>(null);
 
+	// Layer service for WMS capabilities
+	const layerService = useLayerService();
+
 	// Form state
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
@@ -57,6 +64,13 @@ export function AdminPanel({
 	const [wmsUrl, setWmsUrl] = useState("");
 	const [wmsLayerName, setWmsLayerName] = useState("");
 	const [geotiffUrl, setGeotiffUrl] = useState("");
+
+	// WMS layer discovery state
+	const [availableWmsLayers, setAvailableWmsLayers] = useState<
+		Array<{ name: string; title: string; abstract: string | null }>
+	>([]);
+	const [fetchingCapabilities, setFetchingCapabilities] = useState(false);
+	const [wmsError, setWmsError] = useState<string | null>(null);
 	const [legendType, setLegendType] = useState<"gradient" | "categorical">(
 		"gradient",
 	);
@@ -88,6 +102,50 @@ export function AdminPanel({
 			{ label: "Low", color: "#3b82f6" },
 			{ label: "High", color: "#ef4444" },
 		]);
+		// Reset WMS discovery state
+		setAvailableWmsLayers([]);
+		setWmsError(null);
+	};
+
+	// Fetch WMS GetCapabilities and populate layer list
+	const handleFetchCapabilities = async () => {
+		if (!wmsUrl.trim()) return;
+
+		setFetchingCapabilities(true);
+		setWmsError(null);
+		setAvailableWmsLayers([]);
+
+		try {
+			const capabilities = await layerService.getWMSCapabilities(wmsUrl);
+			setAvailableWmsLayers(capabilities.layers);
+
+			// Auto-fill layer name from service title if not already set
+			if (capabilities.service_title && !name) {
+				setName(capabilities.service_title);
+			}
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Failed to fetch capabilities";
+			setWmsError(message);
+		} finally {
+			setFetchingCapabilities(false);
+		}
+	};
+
+	// Handle WMS layer selection from dropdown
+	const handleSelectWmsLayer = (layerName: string) => {
+		setWmsLayerName(layerName);
+
+		// Auto-fill metadata from selected layer
+		const selectedLayer = availableWmsLayers.find((l) => l.name === layerName);
+		if (selectedLayer) {
+			if (!name) {
+				setName(selectedLayer.title || selectedLayer.name);
+			}
+			if (!description && selectedLayer.abstract) {
+				setDescription(selectedLayer.abstract);
+			}
+		}
 	};
 
 	const loadLayerToForm = (layer: Layer) => {
@@ -141,7 +199,7 @@ export function AdminPanel({
 		setLegendItems(legendItems.filter((_, i) => i !== index));
 	};
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		if (!name) {
 			alert("Please enter a layer name");
 			return;
@@ -149,41 +207,54 @@ export function AdminPanel({
 
 		setIsSaving(true);
 
-		const newLayer: Layer = {
-			id: crypto.randomUUID(),
-			name,
-			type:
-				layerSource === "wms" || layerSource === "geotiff"
-					? "raster"
-					: "vector",
-			visible: true,
-			opacity: 1,
-			description,
-			author,
-			doi,
-			category,
-			legend: {
-				type: legendType,
-				items: legendItems.filter((item) => item.label && item.color),
-			},
-		};
+		try {
+			// Build layer data (without id for updates - keep existing id)
+			const layerData = {
+				name,
+				type:
+					layerSource === "wms" || layerSource === "geotiff"
+						? "raster"
+						: ("vector" as const),
+				visible: true,
+				opacity: 1,
+				description,
+				author,
+				doi,
+				category,
+				legend: {
+					type: legendType,
+					items: legendItems.filter((item) => item.label && item.color),
+				},
+				// Source-specific properties
+				...(layerSource === "wms" && { wmsUrl, wmsLayerName }),
+				...(layerSource === "geotiff" && { geotiffUrl }),
+			};
 
-		// Add source-specific properties
-		if (layerSource === "wms") {
-			newLayer.wmsUrl = wmsUrl;
-			newLayer.wmsLayerName = wmsLayerName;
-		} else if (layerSource === "geotiff") {
-			newLayer.geotiffUrl = geotiffUrl;
-		}
+			if (editingLayerId) {
+				// Update existing layer - don't include new id, keep the original
+				await onUpdateLayer(editingLayerId, layerData);
+			} else {
+				// Create new layer - generate id
+				const newLayer: Layer = {
+					id: crypto.randomUUID(),
+					...layerData,
+				};
+				await onAddLayer(newLayer);
+			}
 
-		if (editingLayerId) {
-			onUpdateLayer(editingLayerId, newLayer);
-		} else {
-			onAddLayer(newLayer);
+			resetForm();
+			setShowAddForm(false);
+		} catch (error) {
+			console.error("Failed to save layer:", error);
+		} finally {
+			setIsSaving(false);
 		}
-		setIsSaving(false);
-		resetForm();
-		setShowAddForm(false);
+	};
+
+	// Start adding a new layer (reset form to ensure clean state)
+	const handleStartAddLayer = () => {
+		resetForm(); // Ensure editingLayerId is null and form is clean
+		setShowAddForm(true);
 	};
 
 	return (
@@ -201,11 +272,7 @@ export function AdminPanel({
 			{!showAddForm ? (
 				<>
 					<div className="px-4 py-3 border-b border-slate-200">
-						<Button
-							onClick={() => setShowAddForm(true)}
-							className="w-full"
-							size="sm"
-						>
+						<Button onClick={handleStartAddLayer} className="w-full" size="sm">
 							<Plus className="w-4 h-4 mr-2" />
 							Add Layer to Library
 						</Button>
@@ -316,16 +383,85 @@ export function AdminPanel({
 						{layerSource === "wms" && (
 							<>
 								<div className="space-y-2">
-									<Label htmlFor="wmsUrl">WMS URL</Label>
-									<Input
-										id="wmsUrl"
-										value={wmsUrl}
-										onChange={(e) => setWmsUrl(e.target.value)}
-										placeholder="https://example.com/wms"
-									/>
+									<Label htmlFor="wmsUrl">WMS Service URL</Label>
+									<div className="flex gap-2">
+										<Input
+											id="wmsUrl"
+											value={wmsUrl}
+											onChange={(e) => {
+												setWmsUrl(e.target.value);
+												// Clear discovered layers when URL changes
+												setAvailableWmsLayers([]);
+												setWmsError(null);
+											}}
+											placeholder="https://example.com/wms"
+											className="flex-1"
+										/>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={handleFetchCapabilities}
+											disabled={!wmsUrl.trim() || fetchingCapabilities}
+										>
+											{fetchingCapabilities ? (
+												<Loader2 className="w-4 h-4 animate-spin" />
+											) : (
+												<Search className="w-4 h-4" />
+											)}
+										</Button>
+									</div>
+									<p className="text-xs text-slate-500">
+										Enter URL and click search to discover available layers
+									</p>
 								</div>
+
+								{/* Error message */}
+								{wmsError && (
+									<div className="text-sm text-red-600 bg-red-50 border border-red-200 p-2 rounded">
+										{wmsError}
+									</div>
+								)}
+
+								{/* Layer selection dropdown */}
+								{availableWmsLayers.length > 0 && (
+									<div className="space-y-2">
+										<Label>
+											Available Layers ({availableWmsLayers.length})
+										</Label>
+										<Select
+											value={wmsLayerName}
+											onValueChange={handleSelectWmsLayer}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select a layer..." />
+											</SelectTrigger>
+											<SelectContent>
+												{availableWmsLayers.map((layer) => (
+													<SelectItem key={layer.name} value={layer.name}>
+														<div className="flex flex-col items-start">
+															<span className="font-medium">
+																{layer.title || layer.name}
+															</span>
+															{layer.title !== layer.name && (
+																<span className="text-xs text-slate-500">
+																	{layer.name}
+																</span>
+															)}
+														</div>
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+
+								{/* Manual layer name input (always available) */}
 								<div className="space-y-2">
-									<Label htmlFor="wmsLayerName">WMS Layer Name</Label>
+									<Label htmlFor="wmsLayerName">
+										Layer Name{" "}
+										{availableWmsLayers.length > 0 && "(or enter manually)"}
+									</Label>
 									<Input
 										id="wmsLayerName"
 										value={wmsLayerName}

@@ -520,6 +520,26 @@ export class LayerService {
 
 		return layerUpdate;
 	}
+
+	/**
+	 * Fetch WMS GetCapabilities via backend proxy (dev mode only)
+	 * GET /api/v1/wms/capabilities
+	 *
+	 * @param wmsUrl - Base URL of the WMS service
+	 * @returns Parsed capabilities with service title and layer list
+	 */
+	async getWMSCapabilities(wmsUrl: string): Promise<{
+		service_title: string;
+		layers: Array<{
+			name: string;
+			title: string;
+			abstract: string | null;
+			queryable: boolean;
+		}>;
+	}> {
+		const params = new URLSearchParams({ url: wmsUrl });
+		return this.client.get(`/api/v1/wms/capabilities?${params.toString()}`);
+	}
 }
 
 /**

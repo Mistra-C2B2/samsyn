@@ -8,8 +8,8 @@ import {
 } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
-import { Legend } from "./Legend";
 import { generateFeaturePopupHTML } from "../utils/featurePopup";
+import { Legend } from "./Legend";
 
 // TerraDraw is loaded dynamically to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -629,10 +629,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					console.warn("Failed to update drawing styles:", err);
 				}
 			},
-			panToCoordinates: (
-				coordinates: unknown,
-				geometryType: string,
-			) => {
+			panToCoordinates: (coordinates: unknown, geometryType: string) => {
 				if (!mapRef.current || !mapLoaded) return;
 
 				const map = mapRef.current;
@@ -647,7 +644,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							zoom: Math.max(map.getZoom(), 12),
 							duration: 1000,
 						});
-					} else if (geometryType === "LineString" || geometryType === "Freehand") {
+					} else if (
+						geometryType === "LineString" ||
+						geometryType === "Freehand"
+					) {
 						// LineString: [[lng, lat], ...]
 						const coords = coordinates as [number, number][];
 						const bounds = new maplibregl.LngLatBounds();
@@ -1070,6 +1070,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					`${layerId}-circle`,
 					`${layerId}-symbol`,
 					`${layerId}-marker`,
+					`${layerId}-raster`,
 				];
 
 				layerVariations.forEach((id) => {
@@ -1095,6 +1096,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const fillLayerId = `${layerId}-fill`;
 				const lineLayerId = `${layerId}-line`;
 				const circleLayerId = `${layerId}-circle`;
+				const rasterLayerId = `${layerId}-raster`;
 
 				if (map.getLayer(fillLayerId)) {
 					map.setPaintProperty(fillLayerId, "fill-opacity", opacity);
@@ -1107,6 +1109,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					const circleOpacity =
 						layerType === "heatmap" ? opacity * 0.6 : opacity;
 					map.setPaintProperty(circleLayerId, "circle-opacity", circleOpacity);
+				}
+				if (map.getLayer(rasterLayerId)) {
+					map.setPaintProperty(rasterLayerId, "raster-opacity", opacity);
 				}
 			};
 
@@ -1426,6 +1431,52 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						opacity: layer.opacity,
 						dataHash: currentDataHash,
 					});
+				} else if (
+					layer.type === "raster" &&
+					layer.wmsUrl &&
+					layer.wmsLayerName
+				) {
+					// WMS layer rendering
+					const wmsBaseUrl = layer.wmsUrl.replace(/\/$/, ""); // Remove trailing slash
+					const wmsParams = new URLSearchParams({
+						SERVICE: "WMS",
+						VERSION: "1.3.0",
+						REQUEST: "GetMap",
+						LAYERS: layer.wmsLayerName,
+						STYLES: "", // Required by WMS spec, empty = default style
+						FORMAT: "image/png",
+						TRANSPARENT: "true",
+						CRS: "EPSG:3857",
+						WIDTH: "256",
+						HEIGHT: "256",
+					});
+
+					// MapLibre expects {bbox-epsg-3857} placeholder for WMS tile requests
+					const tileUrlTemplate = `${wmsBaseUrl}?${wmsParams.toString()}&BBOX={bbox-epsg-3857}`;
+
+					// Add WMS as a raster tile source
+					map.addSource(layer.id, {
+						type: "raster",
+						tiles: [tileUrlTemplate],
+						tileSize: 256,
+					});
+
+					// Add raster layer
+					map.addLayer({
+						id: `${layer.id}-raster`,
+						type: "raster",
+						source: layer.id,
+						paint: {
+							"raster-opacity": layer.opacity,
+						},
+					});
+
+					// Track state for this layer (use WMS URL + layer name as hash since there's no data)
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}`,
+					});
 				}
 			});
 
@@ -1442,8 +1493,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const layerId = visibleLayerIds[i];
 
 				// Get all map layer IDs for this layer and move them to the top
-				// Order matters: fill first (bottom), then lines, then circles/symbols/markers (top)
+				// Order matters: raster first (bottom), then fill, lines, circles/symbols/markers (top)
 				const mapLayerIds = [
+					`${layerId}-raster`,
 					`${layerId}-fill`,
 					`${layerId}-line`,
 					`${layerId}-line-solid`,

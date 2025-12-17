@@ -1,44 +1,33 @@
 import { useUser } from "@clerk/clerk-react";
-import {
-	Loader2,
-	MapPin,
-	Milestone,
-	Plus,
-	Square,
-	Trash2,
-	X,
-} from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { Layer } from "../App";
 import { DrawingProvider } from "../contexts/DrawingContext";
-import { useDebouncedCallback } from "../hooks/useDebounce";
+import {
+	type DrawingStyles,
+	type MarkerIconType,
+	useTerraDrawSync,
+} from "../hooks/layer-editor/useTerraDrawSync";
 import {
 	type Feature,
 	type GeometryType,
 	useLayerEditor,
 } from "../hooks/useLayerEditor";
 import { LayerCreatorErrorBoundary } from "./LayerCreatorErrorBoundary";
-import { DrawingModePanel } from "./layer-creator/DrawingModePanel";
-import { LayerMetadataForm } from "./layer-creator/LayerMetadataForm";
-import { PermissionsSelector } from "./layer-creator/PermissionsSelector";
-import { StyleSettingsPanel } from "./layer-creator/StyleSettingsPanel";
+import {
+	DrawingModePanel,
+	FeaturesList,
+	LayerCreatorFooter,
+	LayerMetadataForm,
+	PermissionsSelector,
+	StyleSettingsPanel,
+} from "./layer-creator";
 import type { TerraDrawFeature } from "./MapView";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface DrawingStyles {
-	color: string;
-	lineWidth: number;
-	fillPolygons: boolean;
-}
-
-type MarkerIconType = "default" | "anchor" | "ship" | "warning" | "circle";
 
 interface LayerCreatorProps {
 	onCreateLayer: (layer: Layer) => void | Promise<void>;
@@ -61,142 +50,9 @@ interface LayerCreatorProps {
 	editingLayer?: Layer | null;
 	drawingMode?: GeometryType | "select" | "delete" | null;
 	terraDrawSnapshot?: TerraDrawFeature[];
-	// For marker icon overlay
 	onMarkerIconChange?: (icon: MarkerIconType) => void;
 	onMarkerColorChange?: (color: string) => void;
 }
-
-// ============================================================================
-// Helper Components
-// ============================================================================
-
-function GeometryIcon({ type }: { type: GeometryType }) {
-	switch (type) {
-		case "Point":
-			return <MapPin className="w-4 h-4" />;
-		case "LineString":
-			return <Milestone className="w-4 h-4" />;
-		case "Polygon":
-			return <Square className="w-4 h-4" />;
-	}
-}
-
-function getCoordinatesSummary(feature: Feature): string {
-	const coords = feature.coordinates as number[] | number[][] | number[][][];
-	if (!coords) return "";
-
-	if (feature.type === "Point") {
-		const [lng, lat] = coords as number[];
-		if (typeof lng === "number" && typeof lat === "number") {
-			return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-		}
-		return "";
-	}
-	if (feature.type === "LineString") {
-		return `${(coords as number[][]).length} points`;
-	}
-	if (feature.type === "Polygon") {
-		const rings = coords as number[][][];
-		return `${rings[0]?.length ? rings[0].length - 1 : 0} vertices`;
-	}
-	return "";
-}
-
-// ============================================================================
-// Feature Card Component
-// ============================================================================
-
-interface FeatureCardProps {
-	feature: Feature;
-	onUpdate: (field: keyof Feature, value: unknown) => void;
-	onRemove: () => void;
-	onSelect?: () => void;
-	isSelected?: boolean;
-}
-
-const FeatureCard = memo(function FeatureCard({
-	feature,
-	onUpdate,
-	onRemove,
-	onSelect,
-	isSelected,
-}: FeatureCardProps) {
-	// Local state for immediate UI updates
-	const [localDescription, setLocalDescription] = useState(feature.description);
-
-	// Update local state when feature prop changes
-	useEffect(() => {
-		setLocalDescription(feature.description);
-	}, [feature.description]);
-
-	// Debounced callback for description updates (300ms delay)
-	const debouncedDescriptionUpdate = useDebouncedCallback(
-		(value: string) => onUpdate("description", value),
-		300,
-	);
-
-	const handleDescriptionChange = (value: string) => {
-		setLocalDescription(value);
-		debouncedDescriptionUpdate(value);
-	};
-
-	return (
-		<div
-			className={`rounded-lg border transition-all flex overflow-hidden cursor-pointer hover:border-teal-300 ${
-				isSelected
-					? "ring-2 ring-teal-300 shadow-md border-teal-400"
-					: "border-slate-200"
-			}`}
-			onClick={onSelect}
-			onKeyDown={(e) => {
-				// Only handle keyboard selection if not typing in an input/textarea
-				const target = e.target as HTMLElement;
-				const isInput =
-					target.tagName === "INPUT" || target.tagName === "TEXTAREA";
-				if ((e.key === "Enter" || e.key === " ") && !isInput) {
-					e.preventDefault();
-					onSelect?.();
-				}
-			}}
-			tabIndex={0}
-			role="button"
-			aria-pressed={isSelected}
-		>
-			{/* Left accent bar for selected feature */}
-			{isSelected && <div className="w-2 bg-teal-500 flex-shrink-0" />}
-			<div
-				className={`p-3 space-y-2 flex-1 ${isSelected ? "bg-teal-100" : "bg-slate-50"}`}
-			>
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<GeometryIcon type={feature.type} />
-						<span className="text-xs text-slate-600">{feature.type}</span>
-					</div>
-					<Button variant="ghost" size="sm" onClick={onRemove}>
-						<Trash2 className="w-3 h-3" />
-					</Button>
-				</div>
-
-				<Input
-					placeholder="Feature name (optional)"
-					value={feature.name}
-					onChange={(e) => onUpdate("name", e.target.value)}
-				/>
-
-				<Textarea
-					placeholder="Description (optional)"
-					value={localDescription}
-					onChange={(e) => handleDescriptionChange(e.target.value)}
-					rows={2}
-				/>
-
-				<div className="text-xs text-slate-500">
-					{getCoordinatesSummary(feature)}
-				</div>
-			</div>
-		</div>
-	);
-});
 
 // ============================================================================
 // Main Component
@@ -232,9 +88,15 @@ export function LayerCreator({
 
 	const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
-	// Track if we've initialized existing features in TerraDraw
-	const initializedFeaturesRef = useRef(false);
-	const prevEditingLayerIdRef = useRef(editingLayer?.id);
+	// Custom hook for TerraDraw synchronization
+	useTerraDrawSync({
+		editor,
+		editingLayer,
+		onAddFeaturesToMap,
+		onUpdateDrawingStyles,
+		onMarkerIconChange,
+		onMarkerColorChange,
+	});
 
 	// Get unique categories from existing layers
 	const existingCategories = useMemo(
@@ -261,174 +123,6 @@ export function LayerCreator({
 		);
 	}, [terraDrawSnapshot]);
 
-	// Initialize existing features in TerraDraw when editing, and reset on layer change
-	useEffect(() => {
-		const editingLayerId = editingLayer?.id;
-
-		// Reset initialization flag when editingLayer changes
-		if (prevEditingLayerIdRef.current !== editingLayerId) {
-			initializedFeaturesRef.current = false;
-			prevEditingLayerIdRef.current = editingLayerId;
-		}
-
-		// Debug logging
-		console.log("[LayerCreator] Edit mode check:", {
-			initialized: initializedFeaturesRef.current,
-			isEditMode: editor.isEditMode,
-			pendingFeaturesCount: editor.pendingFeatures.length,
-			hasOnAddFeaturesToMap: !!onAddFeaturesToMap,
-			editingLayerId,
-		});
-
-		// Initialize pending features in TerraDraw when editing
-		if (
-			!initializedFeaturesRef.current &&
-			editor.isEditMode &&
-			editor.pendingFeatures.length > 0 &&
-			onAddFeaturesToMap
-		) {
-			console.log(
-				"[LayerCreator] Adding features to TerraDraw:",
-				editor.pendingFeatures,
-			);
-			const featuresToAdd = editor.pendingFeatures.map((f) => ({
-				id: f.id,
-				type: f.type,
-				coordinates: f.coordinates,
-			}));
-
-			const addedIds = onAddFeaturesToMap(featuresToAdd, editor.layerColor);
-			console.log("[LayerCreator] Added feature IDs:", addedIds);
-
-			// Update features with new TerraDraw IDs
-			if (addedIds.length > 0) {
-				const idMappings: Array<{ oldId: string; newId: string }> = [];
-				editor.pendingFeatures.forEach((feature, index) => {
-					if (addedIds[index]) {
-						idMappings.push({ oldId: feature.id, newId: addedIds[index] });
-					}
-				});
-
-				if (idMappings.length > 0) {
-					editor.remapFeatureIds(idMappings);
-				}
-			}
-
-			initializedFeaturesRef.current = true;
-		}
-	}, [
-		editingLayer?.id,
-		editor.isEditMode,
-		editor.pendingFeatures,
-		editor.layerColor,
-		editor.remapFeatureIds,
-		onAddFeaturesToMap,
-	]);
-
-	// Track features added via GeoJSON import to prevent duplicate adds
-	const importedFeaturesRef = useRef<Set<string>>(new Set());
-
-	// Add pending features from GeoJSON import to TerraDraw (for create mode)
-	useEffect(() => {
-		if (
-			!editor.isEditMode &&
-			editor.pendingFeatures.length > 0 &&
-			onAddFeaturesToMap
-		) {
-			// Filter out features we've already added
-			const newFeatures = editor.pendingFeatures.filter(
-				(f) => !importedFeaturesRef.current.has(f.id),
-			);
-
-			if (newFeatures.length > 0) {
-				const featuresToAdd = newFeatures.map((f) => ({
-					id: f.id,
-					type: f.type,
-					coordinates: f.coordinates,
-				}));
-
-				const addedIds = onAddFeaturesToMap(featuresToAdd, editor.layerColor);
-
-				// Update features with new TerraDraw IDs
-				if (addedIds.length > 0) {
-					const idMappings: Array<{ oldId: string; newId: string }> = [];
-					newFeatures.forEach((feature, index) => {
-						if (addedIds[index]) {
-							idMappings.push({ oldId: feature.id, newId: addedIds[index] });
-							// Track this feature as added
-							importedFeaturesRef.current.add(feature.id);
-						}
-					});
-
-					if (idMappings.length > 0) {
-						editor.remapFeatureIds(idMappings);
-					}
-				}
-			}
-		}
-	}, [
-		editor.isEditMode,
-		editor.pendingFeatures,
-		editor.layerColor,
-		editor.remapFeatureIds,
-		onAddFeaturesToMap,
-	]);
-
-	// Cleanup on unmount
-	useEffect(() => {
-		return () => {
-			// Reset editor state when component unmounts
-			editor.reset();
-		};
-	}, [editor.reset]);
-
-	// Clean up refs on unmount
-	useEffect(() => {
-		return () => {
-			initializedFeaturesRef.current = false;
-			prevEditingLayerIdRef.current = undefined;
-			importedFeaturesRef.current.clear();
-		};
-	}, []);
-
-	// Debounced style update to avoid excessive TerraDraw calls
-	const debouncedUpdateStyles = useDebouncedCallback(
-		(styles: DrawingStyles) => {
-			if (onUpdateDrawingStyles) {
-				onUpdateDrawingStyles(styles);
-			}
-		},
-		100, // 100ms debounce for responsive feel without overwhelming TerraDraw
-	);
-
-	// Update drawing styles when they change
-	useEffect(() => {
-		debouncedUpdateStyles({
-			color: editor.layerColor,
-			lineWidth: editor.lineWidth,
-			fillPolygons: editor.fillPolygons,
-		});
-	}, [
-		editor.layerColor,
-		editor.lineWidth,
-		editor.fillPolygons,
-		debouncedUpdateStyles,
-	]);
-
-	// Notify parent that marker icon is always "default" (location marker)
-	useEffect(() => {
-		if (onMarkerIconChange) {
-			onMarkerIconChange("default");
-		}
-	}, [onMarkerIconChange]);
-
-	// Notify parent of color changes for marker overlay rendering
-	useEffect(() => {
-		if (onMarkerColorChange) {
-			onMarkerColorChange(editor.layerColor);
-		}
-	}, [editor.layerColor, onMarkerColorChange]);
-
 	// Handle drawing a new feature
 	const handleAddFeatureByDrawing = (type: GeometryType) => {
 		if (!onStartDrawing) return;
@@ -446,7 +140,7 @@ export function LayerCreator({
 						name: "",
 						description: "",
 						icon: type === "Point" ? "default" : undefined,
-						featureType: type, // Store actual type (Marker vs Point, etc.)
+						featureType: type,
 					});
 				}
 			},
@@ -489,7 +183,6 @@ export function LayerCreator({
 	// Memoized handlers for feature cards to prevent unnecessary re-renders
 	const handleFeatureUpdate = useCallback(
 		(featureId: string, field: keyof Feature, value: unknown) => {
-			// Only update metadata fields (name, description, icon)
 			if (field === "name" || field === "description" || field === "icon") {
 				editor.updateFeature(featureId, { [field]: value });
 			}
@@ -502,6 +195,20 @@ export function LayerCreator({
 			editor.removeFeature(featureId);
 		},
 		[editor.removeFeature],
+	);
+
+	const handleFeatureSelect = useCallback(
+		(featureId: string) => {
+			onSelectFeature?.(featureId);
+		},
+		[onSelectFeature],
+	);
+
+	const handlePanToFeature = useCallback(
+		(_featureId: string, coordinates: unknown, geometryType: string) => {
+			onPanToFeature?.(coordinates, geometryType);
+		},
+		[onPanToFeature],
 	);
 
 	return (
@@ -526,7 +233,6 @@ export function LayerCreator({
 
 				{/* Content */}
 				<div className="flex-1 overflow-y-auto p-4 space-y-4">
-					{/* Layer Metadata Form */}
 					<LayerMetadataForm
 						layerName={editor.layerName}
 						setLayerName={editor.setLayerName}
@@ -537,10 +243,8 @@ export function LayerCreator({
 						existingCategories={existingCategories}
 					/>
 
-					{/* Drawing Mode Panel */}
 					<DrawingModePanel onStartDrawing={handleAddFeatureByDrawing} />
 
-					{/* Style Settings Panel */}
 					<StyleSettingsPanel
 						layerColor={editor.layerColor}
 						setLayerColor={editor.setLayerColor}
@@ -550,48 +254,16 @@ export function LayerCreator({
 						setFillPolygons={editor.setFillPolygons}
 					/>
 
-					{/* Features List */}
-					{editor.features.length > 0 && (
-						<div className="space-y-3 border-t border-slate-200 pt-4">
-							<div className="flex items-center justify-between">
-								<Label>Features ({editor.features.length})</Label>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={editor.clearFeatures}
-									className="text-xs text-slate-500 hover:text-red-600"
-								>
-									Clear All
-								</Button>
-							</div>
-							{editor.features.map((feature) => (
-								<FeatureCard
-									key={feature.id}
-									feature={feature}
-									onUpdate={(field, value) =>
-										handleFeatureUpdate(feature.id, field, value)
-									}
-									onRemove={() => handleFeatureRemove(feature.id)}
-									onSelect={() => {
-										onSelectFeature?.(feature.id);
-										onPanToFeature?.(feature.coordinates, feature.type);
-									}}
-									isSelected={selectedFeatureIds.has(feature.id)}
-								/>
-							))}
-						</div>
-					)}
+					<FeaturesList
+						features={editor.features}
+						selectedFeatureIds={selectedFeatureIds}
+						onUpdateFeature={handleFeatureUpdate}
+						onRemoveFeature={handleFeatureRemove}
+						onSelectFeature={handleFeatureSelect}
+						onPanToFeature={handlePanToFeature}
+						onClearAll={editor.clearFeatures}
+					/>
 
-					{/* Empty State */}
-					{editor.features.length === 0 && (
-						<div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center">
-							<p className="text-sm text-slate-600">
-								Click a button above to start drawing features on the map
-							</p>
-						</div>
-					)}
-
-					{/* Permissions Selector */}
 					<PermissionsSelector
 						editableBy={editor.editableBy}
 						setEditableBy={editor.setEditableBy}
@@ -599,39 +271,15 @@ export function LayerCreator({
 				</div>
 
 				{/* Footer */}
-				<div className="p-4 border-t border-slate-200 space-y-3">
-					{saveWarning && (
-						<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-600">
-							{saveWarning}
-						</div>
-					)}
-					{editor.error && (
-						<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-							{editor.error}
-						</div>
-					)}
-					<Button
-						variant="outline"
-						onClick={onClose}
-						className="w-full"
-						disabled={editor.saving}
-					>
-						Cancel
-					</Button>
-					<Button onClick={handleCreate} className="w-full" disabled={!canSave}>
-						{editor.saving ? (
-							<>
-								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
-								{editor.isEditMode ? "Saving..." : "Creating..."}
-							</>
-						) : (
-							<>
-								<Plus className="w-4 h-4 mr-2" />
-								{editor.isEditMode ? "Save Changes" : "Create Layer"}
-							</>
-						)}
-					</Button>
-				</div>
+				<LayerCreatorFooter
+					saveWarning={saveWarning}
+					error={editor.error}
+					saving={editor.saving}
+					canSave={canSave}
+					isEditMode={editor.isEditMode}
+					onCancel={onClose}
+					onCreate={handleCreate}
+				/>
 			</div>
 		</DrawingProvider>
 	);
@@ -641,7 +289,6 @@ export function LayerCreator({
 // Export with Error Boundary
 // ============================================================================
 
-// Export wrapped version with error boundary
 export function LayerCreatorWithErrorBoundary(
 	props: LayerCreatorProps & { onReset?: () => void },
 ) {

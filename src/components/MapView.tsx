@@ -9,6 +9,7 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
 import { Legend } from "./Legend";
+import { generateFeaturePopupHTML } from "../utils/featurePopup";
 
 // TerraDraw is loaded dynamically to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1273,14 +1274,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 									}
 									if (event.features?.[0]) {
 										const feature = event.features[0];
-										const name = feature.properties.name || "Unnamed";
-										const description = feature.properties.description || "";
 										new maplibregl.Popup()
 											.setLngLat(event.lngLat)
 											.setHTML(
-												`<strong>${name}</strong>${
-													description ? `<br/>${description}` : ""
-												}`,
+												generateFeaturePopupHTML({
+													layerName: layer.name,
+													featureName: feature.properties.name,
+													description: feature.properties.description,
+												}),
 											)
 											.addTo(map);
 									}
@@ -1303,16 +1304,22 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						if (onFeatureClickRef.current) {
 							onFeatureClickRef.current(layer.id);
 						}
-						if (e.features?.[0]) {
-							const feature = e.features[0];
-							const name = feature.properties.name || "Unnamed";
-							const description = feature.properties.description || "";
+						const event = e as {
+							features?: Array<{
+								properties: { name?: string; description?: string };
+							}>;
+							lngLat: maplibregl.LngLat;
+						};
+						if (event.features?.[0]) {
+							const feature = event.features[0];
 							new maplibregl.Popup()
-								.setLngLat(e.lngLat)
+								.setLngLat(event.lngLat)
 								.setHTML(
-									`<strong>${name}</strong>${
-										description ? `<br/>${description}` : ""
-									}`,
+									generateFeaturePopupHTML({
+										layerName: layer.name,
+										featureName: feature.properties.name,
+										description: feature.properties.description,
+									}),
 								)
 								.addTo(map);
 						}
@@ -1323,16 +1330,22 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						if (onFeatureClickRef.current) {
 							onFeatureClickRef.current(layer.id);
 						}
-						if (e.features?.[0]) {
-							const feature = e.features[0];
-							const name = feature.properties.name || "Unnamed";
-							const description = feature.properties.description || "";
+						const event = e as {
+							features?: Array<{
+								properties: { name?: string; description?: string };
+							}>;
+							lngLat: maplibregl.LngLat;
+						};
+						if (event.features?.[0]) {
+							const feature = event.features[0];
 							new maplibregl.Popup()
-								.setLngLat(e.lngLat)
+								.setLngLat(event.lngLat)
 								.setHTML(
-									`<strong>${name}</strong>${
-										description ? `<br/>${description}` : ""
-									}`,
+									generateFeaturePopupHTML({
+										layerName: layer.name,
+										featureName: feature.properties.name,
+										description: feature.properties.description,
+									}),
 								)
 								.addTo(map);
 						}

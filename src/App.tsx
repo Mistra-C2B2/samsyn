@@ -136,7 +136,9 @@ function AppContent() {
 		string | null
 	>(null);
 	const [editingLayer, setEditingLayer] = useState<Layer | null>(null);
-	const [editingLayerOriginalIndex, setEditingLayerOriginalIndex] = useState<number | null>(null);
+	const [editingLayerOriginalIndex, setEditingLayerOriginalIndex] = useState<
+		number | null
+	>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
 	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
@@ -799,7 +801,9 @@ function AppContent() {
 			setCurrentMap((prev) => {
 				if (!prev) return prev;
 
-				const currentIndex = prev.layers.findIndex((l) => l.id === editingLayer.id);
+				const currentIndex = prev.layers.findIndex(
+					(l) => l.id === editingLayer.id,
+				);
 				// Only move if layer is currently at index 0
 				if (currentIndex !== 0) return prev;
 

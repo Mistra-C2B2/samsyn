@@ -29,6 +29,11 @@ from app.api.v1 import comments
 
 api_router.include_router(comments.router)
 
+# WMS Proxy (dev mode only)
+from app.api.v1 import wms
+
+api_router.include_router(wms.router)
+
 # Future routers will be added in later phases
 # from app.api.v1 import users
 # api_router.include_router(users.router)

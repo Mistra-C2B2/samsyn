@@ -24,22 +24,34 @@ export function generateFeaturePopupHTML(data: FeaturePopupData): string {
 				<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
 				<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
 			</div>
-			${hasFeatureData ? `
+			${
+				hasFeatureData
+					? `
 				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
-					${featureName ? `
+					${
+						featureName
+							? `
 						<div style="margin-bottom: 4px;">
 							<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Feature</span>
 							<div style="color: #334155;">${featureName}</div>
 						</div>
-					` : ""}
-					${description ? `
+					`
+							: ""
+					}
+					${
+						description
+							? `
 						<div>
 							<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Description</span>
 							<div style="color: #334155;">${description}</div>
 						</div>
-					` : ""}
+					`
+							: ""
+					}
 				</div>
-			` : ""}
+			`
+					: ""
+			}
 		</div>
 	`.trim();
 }

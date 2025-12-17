@@ -27,7 +27,6 @@ export function StyleSettingsPanel({
 	fillPolygons,
 	setFillPolygons,
 }: StyleSettingsPanelProps) {
-
 	return (
 		<div className="space-y-4 border-t border-slate-200 pt-4">
 			<Label className="text-sm font-medium">Style Settings</Label>
@@ -96,7 +95,6 @@ export function StyleSettingsPanel({
 					</button>
 				</div>
 			</div>
-
 		</div>
 	);
 }

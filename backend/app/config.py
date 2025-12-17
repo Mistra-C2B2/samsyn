@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     CLERK_WEBHOOK_SECRET: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
     TITILER_URL: str = ""
+    DEV_MODE: bool = True  # Enable dev-only features like WMS proxy
 
     model_config = SettingsConfigDict(env_file=".env")
 

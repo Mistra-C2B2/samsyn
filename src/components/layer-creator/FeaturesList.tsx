@@ -10,10 +10,18 @@ import { FeatureCard } from "./FeatureCard";
 export interface FeaturesListProps {
 	features: Feature[];
 	selectedFeatureIds: Set<string>;
-	onUpdateFeature: (featureId: string, field: keyof Feature, value: unknown) => void;
+	onUpdateFeature: (
+		featureId: string,
+		field: keyof Feature,
+		value: unknown,
+	) => void;
 	onRemoveFeature: (featureId: string) => void;
 	onSelectFeature: (featureId: string) => void;
-	onPanToFeature: (featureId: string, coordinates: unknown, geometryType: string) => void;
+	onPanToFeature: (
+		featureId: string,
+		coordinates: unknown,
+		geometryType: string,
+	) => void;
 	onClearAll: () => void;
 }
 

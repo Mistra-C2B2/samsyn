@@ -1,0 +1,21 @@
+/* ============================================================================
+   MapLibre Style Overrides
+   ============================================================================
+   Custom styles for MapLibre GL components.
+   These override MapLibre's default styles for better integration with our UI.
+*/
+
+/* Popup close button */
+.maplibregl-popup-close-button {
+  padding: 8px 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: #1e293b;
+  background-color: #f1f5f9;
+  border-radius: 4px;
+}

@@ -903,6 +903,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			}, 500);
 
 			mapRef.current = map;
+			// Expose map globally for debugging/testing
+			(window as unknown as { map: maplibregl.Map }).map = map;
 
 			return () => {
 				clearTimeout(timeoutId);
@@ -1440,7 +1442,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const layerId = visibleLayerIds[i];
 
 				// Get all map layer IDs for this layer and move them to the top
-				// Order matters: fill first (bottom), then lines, then circles/symbols (top)
+				// Order matters: fill first (bottom), then lines, then circles/symbols/markers (top)
 				const mapLayerIds = [
 					`${layerId}-fill`,
 					`${layerId}-line`,
@@ -1449,12 +1451,26 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					`${layerId}-line-dotted`,
 					`${layerId}-circle`,
 					`${layerId}-symbol`,
+					`${layerId}-marker`,
 				].filter((id) => map.getLayer(id));
 
 				// Move each sublayer to the top (no beforeId = move to top)
 				for (const mapLayerId of mapLayerIds) {
 					map.moveLayer(mapLayerId);
 				}
+			}
+
+			// Move TerraDraw layers to the very top so editing features appear above all other layers
+			const terraDrawLayers = [
+				"td-polygon",
+				"td-polygon-outline",
+				"td-linestring",
+				"td-point",
+				"td-point-marker",
+			].filter((id) => map.getLayer(id));
+
+			for (const tdLayerId of terraDrawLayers) {
+				map.moveLayer(tdLayerId);
 			}
 		}, [layers, mapLoaded]);
 

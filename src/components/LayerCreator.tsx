@@ -411,12 +411,12 @@ export function LayerCreator({
 		debouncedUpdateStyles,
 	]);
 
-	// Notify parent of marker icon changes for overlay rendering
+	// Notify parent that marker icon is always "default" (location marker)
 	useEffect(() => {
 		if (onMarkerIconChange) {
-			onMarkerIconChange(editor.markerIcon);
+			onMarkerIconChange("default");
 		}
-	}, [editor.markerIcon, onMarkerIconChange]);
+	}, [onMarkerIconChange]);
 
 	// Notify parent of color changes for marker overlay rendering
 	useEffect(() => {
@@ -544,8 +544,6 @@ export function LayerCreator({
 						setLineWidth={editor.setLineWidth}
 						fillPolygons={editor.fillPolygons}
 						setFillPolygons={editor.setFillPolygons}
-						markerIcon={editor.markerIcon}
-						setMarkerIcon={editor.setMarkerIcon}
 					/>
 
 					{/* Features List */}

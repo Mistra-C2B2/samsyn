@@ -547,10 +547,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const fillOpacity = fillPolygons ? 0.3 : 0;
 
 				try {
-					// Update point style
+					// Update point style - keep transparent if drawing markers
+					// Markers use point mode but display via icon overlay instead
+					const isMarkerMode = drawingMode === "Marker";
 					terraDraw.updateModeOptions("point", {
 						styles: {
-							pointColor: color,
+							pointColor: isMarkerMode ? "transparent" : color,
 							pointOutlineColor: "transparent",
 							pointOutlineWidth: 0,
 						},
@@ -611,7 +613,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							selectedPolygonOutlineWidth: lineWidth,
 							selectedLineStringColor: color,
 							selectedLineStringWidth: lineWidth,
-							selectedPointColor: color,
+							selectedPointColor: isMarkerMode ? "transparent" : color,
 							selectedPointOutlineColor: "transparent",
 							selectionPolygonFillOpacity: 0.1,
 							selectionPolygonOutlineColor: color,

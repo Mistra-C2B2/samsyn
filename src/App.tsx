@@ -136,6 +136,7 @@ function AppContent() {
 		string | null
 	>(null);
 	const [editingLayer, setEditingLayer] = useState<Layer | null>(null);
+	const [editingLayerOriginalIndex, setEditingLayerOriginalIndex] = useState<number | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
 	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
@@ -788,7 +789,53 @@ function AppContent() {
 		[drawCallback, drawingMode],
 	);
 
+	// Restore layer to its original position after editing
+	const restoreLayerPosition = () => {
+		if (!editingLayer || editingLayerOriginalIndex === null) return;
+
+		// Only restore if the layer originally wasn't at index 0
+		if (editingLayerOriginalIndex > 0) {
+			// Use functional update to get latest state (not stale closure)
+			setCurrentMap((prev) => {
+				if (!prev) return prev;
+
+				const currentIndex = prev.layers.findIndex((l) => l.id === editingLayer.id);
+				// Only move if layer is currently at index 0
+				if (currentIndex !== 0) return prev;
+
+				const newLayers = [...prev.layers];
+				const [movedLayer] = newLayers.splice(0, 1);
+				newLayers.splice(editingLayerOriginalIndex, 0, movedLayer);
+
+				return { ...prev, layers: newLayers };
+			});
+		}
+
+		setEditingLayerOriginalIndex(null);
+	};
+
 	const handleEditLayer = (layer: Layer) => {
+		if (!currentMap) return;
+
+		// Clear any previous TerraDraw state to ensure layer stays visible initially
+		setTerraDrawSnapshot([]);
+
+		// Find the original index of the layer
+		const originalIndex = currentMap.layers.findIndex((l) => l.id === layer.id);
+		setEditingLayerOriginalIndex(originalIndex);
+
+		// Move the layer to index 0 (first position) so it renders on top of the map
+		// Using same logic as reorderLayers which works correctly
+		if (originalIndex > 0) {
+			const newLayers = Array.from(currentMap.layers);
+			const [removed] = newLayers.splice(originalIndex, 1);
+			newLayers.splice(0, 0, removed);
+			setCurrentMap((prev) => {
+				if (!prev) return prev;
+				return { ...prev, layers: newLayers };
+			});
+		}
+
 		setEditingLayer(layer);
 		setShowLayerManager(false);
 		setShowLayerCreator(true);
@@ -819,10 +866,13 @@ function AppContent() {
 				toast.success("Layer created");
 			}
 
+			// Restore layer to original position before clearing editing state
+			restoreLayerPosition();
 			setShowLayerCreator(false);
 			setEditingLayer(null);
 			// Clear any TerraDraw drawings after layer is created
 			mapViewRef.current?.clearDrawings();
+			setTerraDrawSnapshot([]);
 		} catch (error) {
 			console.error("Layer operation failed:", error);
 			toast.error(
@@ -1091,6 +1141,8 @@ function AppContent() {
 					<LayerCreator
 						onCreateLayer={handleCreateLayer}
 						onClose={() => {
+							// Restore layer to original position before clearing editing state
+							restoreLayerPosition();
 							setShowLayerCreator(false);
 							setEditingLayer(null);
 							// Clear any TerraDraw drawings when layer creator is closed

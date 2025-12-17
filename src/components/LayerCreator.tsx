@@ -149,7 +149,11 @@ const FeatureCard = memo(function FeatureCard({
 			}`}
 			onClick={onSelect}
 			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
+				// Only handle keyboard selection if not typing in an input/textarea
+				const target = e.target as HTMLElement;
+				const isInput =
+					target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+				if ((e.key === "Enter" || e.key === " ") && !isInput) {
 					e.preventDefault();
 					onSelect?.();
 				}

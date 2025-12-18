@@ -20,6 +20,16 @@ import type { Layer } from "../App";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "./ui/alert-dialog";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -106,6 +116,7 @@ export function LayerManager({
 	const [selectedLayerInfo, setSelectedLayerInfo] = useState<Layer | null>(
 		null,
 	);
+	const [layerToDelete, setLayerToDelete] = useState<Layer | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortBy, setSortBy] = useState<"name" | "type" | "category">("name");
 	const [filterType, setFilterType] = useState<string>("all");
@@ -560,7 +571,7 @@ export function LayerManager({
 												size="sm"
 												onClick={(e) => {
 													e.stopPropagation();
-													onRemoveLayer(layer.id);
+													setLayerToDelete(layer);
 												}}
 												className="flex-shrink-0"
 											>
@@ -755,6 +766,58 @@ export function LayerManager({
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{/* Delete Confirmation Dialog */}
+			<AlertDialog
+				open={!!layerToDelete}
+				onOpenChange={() => setLayerToDelete(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{layerToDelete &&
+							availableLayers.some((l) => l.id === layerToDelete.id)
+								? "Remove layer?"
+								: "Delete layer?"}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{layerToDelete && (
+								<>
+									{availableLayers.some((l) => l.id === layerToDelete.id) ? (
+										<>
+											This will remove the layer "{layerToDelete.name}" from
+											this map. The layer will still be available in the
+											library.
+										</>
+									) : (
+										<>
+											This will permanently delete the layer "
+											{layerToDelete.name}". This action cannot be undone.
+										</>
+									)}
+								</>
+							)}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (layerToDelete) {
+									onRemoveLayer(layerToDelete.id);
+									setLayerToDelete(null);
+								}
+							}}
+							className="bg-red-600 hover:bg-red-700"
+						>
+							{layerToDelete &&
+							availableLayers.some((l) => l.id === layerToDelete.id)
+								? "Remove Layer"
+								: "Delete Layer"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

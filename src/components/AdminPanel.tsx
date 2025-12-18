@@ -96,6 +96,10 @@ export function AdminPanel({
 		{ label: "Low", color: "#3b82f6" },
 		{ label: "High", color: "#ef4444" },
 	]);
+	// WMS legend state
+	const [legendSource, setLegendSource] = useState<"manual" | "wms">("manual");
+	const [wmsLegendUrl, setWmsLegendUrl] = useState<string | null>(null);
+	const [legendImageError, setLegendImageError] = useState(false);
 
 	// Get unique categories from existing layers
 	const existingCategories = Array.from(
@@ -123,6 +127,10 @@ export function AdminPanel({
 		setWmsError(null);
 		setWmsLayerFilter("");
 		setWmsTimeDimension(null);
+		// Reset WMS legend state
+		setLegendSource("manual");
+		setWmsLegendUrl(null);
+		setLegendImageError(false);
 	};
 
 	// Fetch WMS GetCapabilities and populate layer list
@@ -175,6 +183,14 @@ export function AdminPanel({
 				});
 			} else {
 				setWmsTimeDimension(null);
+			}
+
+			// Construct WMS legend URL
+			if (wmsUrl) {
+				const baseUrl = wmsUrl.split("?")[0];
+				const legendUrl = `${baseUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=${encodeURIComponent(layerName)}&FORMAT=image/png`;
+				setWmsLegendUrl(legendUrl);
+				setLegendImageError(false);
 			}
 		}
 	};
@@ -252,14 +268,23 @@ export function AdminPanel({
 				author,
 				doi,
 				category,
-				legend: {
-					type: legendType,
-					items: legendItems.filter((item) => item.label && item.color),
-				},
+				// Include manual legend only if not using WMS legend
+				...(!(layerSource === "wms" && legendSource === "wms") && {
+					legend: {
+						type: legendType,
+						items: legendItems.filter((item) => item.label && item.color),
+					},
+				}),
 				// Source-specific properties
 				...(layerSource === "wms" && {
 					wmsUrl,
 					wmsLayerName,
+					// Include WMS legend URL if using WMS legend source
+					...(legendSource === "wms" &&
+						wmsLegendUrl &&
+						!legendImageError && {
+							wmsLegendUrl,
+						}),
 					// Include time dimension if present
 					...(wmsTimeDimension && {
 						wmsTimeDimension,
@@ -692,82 +717,140 @@ export function AdminPanel({
 							<h3 className="text-sm text-slate-700 mb-3">Legend</h3>
 
 							<div className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="legendType">Legend Type</Label>
-									<Select
-										value={legendType}
-										onValueChange={(v) =>
-											setLegendType(v as "gradient" | "categorical")
-										}
-									>
-										<SelectTrigger id="legendType">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="gradient">
-												Gradient (continuous)
-											</SelectItem>
-											<SelectItem value="categorical">
-												Categorical (discrete)
-											</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
+								{/* Legend source toggle for WMS layers */}
+								{layerSource === "wms" && wmsLegendUrl && (
+									<div className="space-y-2">
+										<Label>Legend Source</Label>
+										<div className="flex gap-4">
+											<label className="flex items-center gap-2 text-sm cursor-pointer">
+												<input
+													type="radio"
+													name="legendSource"
+													checked={legendSource === "wms"}
+													onChange={() => setLegendSource("wms")}
+													className="text-teal-600"
+												/>
+												Fetch from WMS
+											</label>
+											<label className="flex items-center gap-2 text-sm cursor-pointer">
+												<input
+													type="radio"
+													name="legendSource"
+													checked={legendSource === "manual"}
+													onChange={() => setLegendSource("manual")}
+													className="text-teal-600"
+												/>
+												Define manually
+											</label>
+										</div>
+									</div>
+								)}
 
-								<div className="space-y-2">
-									<Label>Legend Items</Label>
-									<div className="space-y-2 mt-2">
-										{legendItems.map((item, index) => (
-											<div
-												key={`legend-item-${item.label}-${index}`}
-												className="flex items-center gap-2"
-											>
-												<Input
-													value={item.label}
-													onChange={(e) =>
-														handleUpdateLegendItem(
-															index,
-															"label",
-															e.target.value,
-														)
-													}
-													placeholder="Label"
-													className="flex-1"
-												/>
-												<Input
-													type="color"
-													value={item.color}
-													onChange={(e) =>
-														handleUpdateLegendItem(
-															index,
-															"color",
-															e.target.value,
-														)
-													}
-													className="w-16"
-												/>
-												{legendItems.length > 2 && (
-													<Button
-														variant="ghost"
-														size="sm"
-														onClick={() => handleRemoveLegendItem(index)}
-													>
-														<Trash2 className="w-4 h-4 text-red-500" />
-													</Button>
+								{/* WMS Legend Preview */}
+								{layerSource === "wms" &&
+									legendSource === "wms" &&
+									wmsLegendUrl && (
+										<div className="space-y-2">
+											<Label>Legend Preview</Label>
+											<div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+												{legendImageError ? (
+													<div className="text-sm text-amber-600">
+														Could not load legend from WMS server. Try "Define
+														manually" instead.
+													</div>
+												) : (
+													<img
+														src={wmsLegendUrl}
+														alt="WMS Legend"
+														className="max-w-full"
+														onError={() => setLegendImageError(true)}
+													/>
 												)}
 											</div>
-										))}
-									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={handleAddLegendItem}
-										className="w-full mt-2"
-									>
-										<Plus className="w-4 h-4 mr-2" />
-										Add Item
-									</Button>
-								</div>
+										</div>
+									)}
+
+								{/* Manual legend configuration */}
+								{(layerSource !== "wms" || legendSource === "manual") && (
+									<>
+										<div className="space-y-2">
+											<Label htmlFor="legendType">Legend Type</Label>
+											<Select
+												value={legendType}
+												onValueChange={(v) =>
+													setLegendType(v as "gradient" | "categorical")
+												}
+											>
+												<SelectTrigger id="legendType">
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="gradient">
+														Gradient (continuous)
+													</SelectItem>
+													<SelectItem value="categorical">
+														Categorical (discrete)
+													</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+
+										<div className="space-y-2">
+											<Label>Legend Items</Label>
+											<div className="space-y-2 mt-2">
+												{legendItems.map((item, index) => (
+													<div
+														key={`legend-item-${item.label}-${index}`}
+														className="flex items-center gap-2"
+													>
+														<Input
+															value={item.label}
+															onChange={(e) =>
+																handleUpdateLegendItem(
+																	index,
+																	"label",
+																	e.target.value,
+																)
+															}
+															placeholder="Label"
+															className="flex-1"
+														/>
+														<Input
+															type="color"
+															value={item.color}
+															onChange={(e) =>
+																handleUpdateLegendItem(
+																	index,
+																	"color",
+																	e.target.value,
+																)
+															}
+															className="w-16"
+														/>
+														{legendItems.length > 2 && (
+															<Button
+																variant="ghost"
+																size="sm"
+																onClick={() => handleRemoveLegendItem(index)}
+															>
+																<Trash2 className="w-4 h-4 text-red-500" />
+															</Button>
+														)}
+													</div>
+												))}
+											</div>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={handleAddLegendItem}
+												className="w-full mt-2"
+											>
+												<Plus className="w-4 h-4 mr-2" />
+												Add Item
+											</Button>
+										</div>
+									</>
+								)}
 							</div>
 						</div>
 					</div>

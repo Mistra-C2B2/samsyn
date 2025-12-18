@@ -56,7 +56,7 @@ WMS can provide its own styled legend image.
 wmsLegendUrl?: string;
 ```
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 

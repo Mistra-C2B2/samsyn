@@ -74,6 +74,7 @@ export interface Layer {
 		default?: string;
 		current?: string; // Currently selected time value (e.g., "2024-01-01/2024-06-01")
 	};
+	wmsLegendUrl?: string; // URL to GetLegendGraphic image
 	// GeoTIFF properties
 	geotiffUrl?: string;
 	// Vector properties

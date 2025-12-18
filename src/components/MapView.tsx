@@ -1532,11 +1532,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 					// Build the property expression based on interval
 					// For YEAR interval: property is just the year (e.g., "2023")
-					// For MONTH interval: property is year-month (e.g., "2023-01")
-					// We'll use the start date's year/month as the primary property
+					// For MONTH interval: uses numeric encoding (year * 12 + month_index)
 					let valueExpression: maplibregl.ExpressionSpecification;
+					let propertyNames: string[] = []; // Used for hover to calculate total
+
 					if (interval === "YEAR") {
 						const yearProperty = dateRange.start.substring(0, 4);
+						propertyNames = [yearProperty];
 						valueExpression = ["coalesce", ["get", yearProperty], 0];
 					} else {
 						// For MONTH/DAY, sum all month properties in the date range
@@ -1546,27 +1548,26 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						const [startYear, startMonth] = dateRange.start.split("-").map(Number);
 						const [endYear, endMonth] = dateRange.end.split("-").map(Number);
 
-						const monthProperties: string[] = [];
 						let currentYear = startYear;
 						let currentMonth = startMonth; // 1-indexed from the date string
 
 						while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
 							// GFW encoding: year * 12 + month_index (where month_index is 0-based)
 							const monthEncoded = currentYear * 12 + (currentMonth - 1);
-							monthProperties.push(String(monthEncoded));
+							propertyNames.push(String(monthEncoded));
 							currentMonth++;
 							if (currentMonth > 12) {
 								currentMonth = 1;
 								currentYear++;
 							}
 						}
-						console.log("[GFW MapView] Month properties to sum (encoded):", monthProperties);
+						console.log("[GFW MapView] Month properties to sum (encoded):", propertyNames);
 						// Sum all month values using + expression
-						if (monthProperties.length === 1) {
-							valueExpression = ["coalesce", ["get", monthProperties[0]], 0];
+						if (propertyNames.length === 1) {
+							valueExpression = ["coalesce", ["get", propertyNames[0]], 0];
 						} else {
 							// Build a sum expression: ["+", ["coalesce", ["get", "2023-01"], 0], ["coalesce", ["get", "2023-02"], 0], ...]
-							const sumParts: maplibregl.ExpressionSpecification[] = monthProperties.map(
+							const sumParts: maplibregl.ExpressionSpecification[] = propertyNames.map(
 								(prop) => ["coalesce", ["get", prop], 0] as maplibregl.ExpressionSpecification
 							);
 							valueExpression = ["+", ...sumParts] as maplibregl.ExpressionSpecification;
@@ -1624,6 +1625,51 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							],
 							"fill-opacity": layer.opacity,
 						},
+					});
+
+					// Add hover interaction for GFW layer
+					const gfwLayerId = `${layer.id}-fill`;
+					const gfwPopup = new maplibregl.Popup({
+						closeButton: false,
+						closeOnClick: false,
+						className: "gfw-hover-popup",
+					});
+
+					// Store property names for hover calculation
+					const hoverPropertyNames = [...propertyNames];
+
+					map.on("mousemove", gfwLayerId, (e) => {
+						if (!e.features || e.features.length === 0) return;
+
+						map.getCanvas().style.cursor = "pointer";
+						const feature = e.features[0];
+						const properties = feature.properties || {};
+
+						// Calculate total fishing hours from all properties
+						let totalHours = 0;
+						for (const prop of hoverPropertyNames) {
+							const value = properties[prop];
+							if (typeof value === "number") {
+								totalHours += value;
+							}
+						}
+
+						// Format the hours nicely
+						const formattedHours = totalHours < 1
+							? totalHours.toFixed(2)
+							: totalHours < 10
+								? totalHours.toFixed(1)
+								: Math.round(totalHours).toLocaleString();
+
+						gfwPopup
+							.setLngLat(e.lngLat)
+							.setHTML(`<div class="text-sm font-medium">${formattedHours} fishing hours</div>`)
+							.addTo(map);
+					});
+
+					map.on("mouseleave", gfwLayerId, () => {
+						map.getCanvas().style.cursor = "";
+						gfwPopup.remove();
 					});
 
 					// Track state for this layer

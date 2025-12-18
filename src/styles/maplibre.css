@@ -19,3 +19,17 @@
   background-color: #f1f5f9;
   border-radius: 4px;
 }
+
+/* GFW Hover Popup - compact tooltip style */
+.gfw-hover-popup .maplibregl-popup-content {
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.9);
+  color: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+}
+
+.gfw-hover-popup .maplibregl-popup-tip {
+  border-top-color: rgba(15, 23, 42, 0.9);
+}

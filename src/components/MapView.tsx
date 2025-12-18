@@ -820,12 +820,40 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				zoom: initZoom,
 				basemap: initBasemap,
 			} = initialPropsRef.current;
+
+			// GFW API configuration for transformRequest
+			const GFW_API_BASE = "https://gateway.api.globalfishingwatch.org";
+			const GFW_API_TOKEN = import.meta.env.VITE_GFW_API_TOKEN;
+
+			// Debug: Log if GFW token is loaded
+			if (!GFW_API_TOKEN) {
+				console.warn(
+					"GFW API token not found. Set VITE_GFW_API_TOKEN in .env.local and restart dev server.",
+				);
+			}
+
 			const map = new maplibregl.Map({
 				container: mapContainerRef.current,
 				style: getBasemapStyle(initBasemap),
 				center: [initCenter[1], initCenter[0]], // uses [lng, lat]
 				zoom: initZoom - 1,
 				attributionControl: false, // Disable default attribution
+				// Add Authorization header for GFW API tile requests
+				transformRequest: (url: string) => {
+					if (url.startsWith(GFW_API_BASE)) {
+						if (!GFW_API_TOKEN) {
+							console.error("GFW API request without token:", url);
+							return { url };
+						}
+						return {
+							url,
+							headers: {
+								Authorization: `Bearer ${GFW_API_TOKEN}`,
+							},
+						};
+					}
+					return { url };
+				},
 			});
 
 			// Add attribution control to bottom-left
@@ -1067,6 +1095,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 			// Helper to create a simple hash of layer data for comparison
 			const getDataHash = (layer: Layer): string => {
+				// For GFW layers, include the date range in the hash
+				if (layer.gfw4WingsDataset) {
+					return `gfw-${layer.gfw4WingsDataset}-${layer.gfw4WingsInterval}-${layer.gfw4WingsDateRange?.start}-${layer.gfw4WingsDateRange?.end}`;
+				}
 				if (!layer.data) return "";
 				return JSON.stringify(layer.data);
 			};
@@ -1488,6 +1520,117 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						visible: true,
 						opacity: layer.opacity,
 						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}`,
+					});
+				} else if (layer.gfw4WingsDataset) {
+					// GFW 4Wings layer rendering using MVT (vector tiles)
+					const dataset = layer.gfw4WingsDataset;
+					const interval = layer.gfw4WingsInterval || "YEAR";
+					const dateRange = layer.gfw4WingsDateRange || {
+						start: "2023-01-01",
+						end: "2023-12-31",
+					};
+
+					// Build the property expression based on interval
+					// For YEAR interval: property is just the year (e.g., "2023")
+					// For MONTH interval: property is year-month (e.g., "2023-01")
+					// We'll use the start date's year/month as the primary property
+					let valueExpression: maplibregl.ExpressionSpecification;
+					if (interval === "YEAR") {
+						const yearProperty = dateRange.start.substring(0, 4);
+						valueExpression = ["coalesce", ["get", yearProperty], 0];
+					} else {
+						// For MONTH/DAY, sum all month properties in the date range
+						// GFW uses numeric encoding for month properties: year * 12 + month_index (0-based)
+						// e.g., January 2023 = 2023 * 12 + 0 = 24276
+						// Parse dates directly from strings to avoid timezone issues
+						const [startYear, startMonth] = dateRange.start.split("-").map(Number);
+						const [endYear, endMonth] = dateRange.end.split("-").map(Number);
+
+						const monthProperties: string[] = [];
+						let currentYear = startYear;
+						let currentMonth = startMonth; // 1-indexed from the date string
+
+						while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+							// GFW encoding: year * 12 + month_index (where month_index is 0-based)
+							const monthEncoded = currentYear * 12 + (currentMonth - 1);
+							monthProperties.push(String(monthEncoded));
+							currentMonth++;
+							if (currentMonth > 12) {
+								currentMonth = 1;
+								currentYear++;
+							}
+						}
+						console.log("[GFW MapView] Month properties to sum (encoded):", monthProperties);
+						// Sum all month values using + expression
+						if (monthProperties.length === 1) {
+							valueExpression = ["coalesce", ["get", monthProperties[0]], 0];
+						} else {
+							// Build a sum expression: ["+", ["coalesce", ["get", "2023-01"], 0], ["coalesce", ["get", "2023-02"], 0], ...]
+							const sumParts: maplibregl.ExpressionSpecification[] = monthProperties.map(
+								(prop) => ["coalesce", ["get", prop], 0] as maplibregl.ExpressionSpecification
+							);
+							valueExpression = ["+", ...sumParts] as maplibregl.ExpressionSpecification;
+						}
+					}
+
+					// Build tile URL with query parameters - use MVT format for vector tiles
+					const params = new URLSearchParams({
+						format: "MVT",
+						interval: interval,
+						"datasets[0]": dataset,
+						"date-range": `${dateRange.start},${dateRange.end}`,
+					});
+
+					const tileUrl = `https://gateway.api.globalfishingwatch.org/v3/4wings/tile/heatmap/{z}/{x}/{y}?${params.toString()}`;
+					console.log("[GFW MapView] Building tile URL:", {
+						interval,
+						dateRange: `${dateRange.start},${dateRange.end}`,
+						fullUrl: tileUrl.replace("{z}/{x}/{y}", "0/0/0"),
+					});
+
+					map.addSource(layer.id, {
+						type: "vector",
+						tiles: [tileUrl],
+						minzoom: 0,
+						maxzoom: 12,
+						attribution: "&copy; Global Fishing Watch",
+					});
+
+					// Add fill layer for the heatmap visualization
+					// The MVT layer name is "main" and the value property depends on interval
+					map.addLayer({
+						id: `${layer.id}-fill`,
+						type: "fill",
+						source: layer.id,
+						"source-layer": "main",
+						paint: {
+							// Color based on fishing hours - using a heatmap color ramp
+							"fill-color": [
+								"interpolate",
+								["linear"],
+								valueExpression,
+								0,
+								"rgba(12, 39, 108, 0)",
+								1,
+								"rgba(18, 83, 167, 0.6)",
+								10,
+								"rgba(59, 144, 136, 0.7)",
+								100,
+								"rgba(138, 189, 107, 0.8)",
+								1000,
+								"rgba(237, 242, 82, 0.9)",
+								10000,
+								"rgba(255, 68, 68, 1)",
+							],
+							"fill-opacity": layer.opacity,
+						},
+					});
+
+					// Track state for this layer
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: `gfw-${dataset}-${interval}-${dateRange.start}-${dateRange.end}`,
 					});
 				}
 			});

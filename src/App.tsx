@@ -87,6 +87,12 @@ export interface Layer {
 		timestamp: Date;
 		data: unknown;
 	}>;
+	// GFW 4Wings properties
+	gfw4WingsDataset?: string;
+	gfw4WingsInterval?: "DAY" | "MONTH" | "YEAR";
+	gfw4WingsDateRange?: { start: string; end: string };
+	// Flag for layers that exist only in frontend (need backend creation when added to map)
+	isLocalOnly?: boolean;
 }
 
 export interface UserMap {
@@ -164,6 +170,33 @@ function AppContent() {
 	const layerService = useLayerService();
 	const mapService = useMapService();
 
+	// Pre-configured Global Fishing Watch layer (available without backend setup)
+	const DEFAULT_GFW_LAYER: Layer = useMemo(
+		() => ({
+			id: "gfw-fishing-effort-default",
+			name: "Global Fishing Effort",
+			type: "vector", // Uses MVT vector tiles
+			visible: true,
+			opacity: 0.7,
+			description:
+				"Apparent fishing activity based on AIS data from Global Fishing Watch",
+			author: "Global Fishing Watch",
+			category: "Fishing Activity",
+			isGlobal: true,
+			isLocalOnly: true, // Not in backend - needs creation when added to map
+			gfw4WingsDataset: "public-global-fishing-effort:latest",
+			gfw4WingsInterval: "MONTH",
+			gfw4WingsDateRange: { start: "2020-01-01", end: "2024-12-31" },
+			// Temporal layer properties for TimeSlider integration
+			temporal: true,
+			timeRange: {
+				start: new Date("2020-01-01"),
+				end: new Date("2024-12-31"),
+			},
+		}),
+		[],
+	);
+
 	// Function to load layers from API (only library layers with is_global=true)
 	const loadLayers = useCallback(async () => {
 		setLayersLoading(true);
@@ -171,20 +204,23 @@ function AppContent() {
 			// Only load library layers (is_global=true) - these are created via Admin Panel
 			const layerList = await layerService.listLayers({ is_global: true });
 			// Transform each layer to frontend format
-			const layers = await Promise.all(
+			const backendLayers = await Promise.all(
 				layerList.map(async (listItem) => {
 					const fullLayer = await layerService.getLayer(listItem.id);
 					return layerService.transformToLayer(fullLayer);
 				}),
 			);
-			setAvailableLayers(layers);
+			// Merge default GFW layer with backend layers
+			setAvailableLayers([DEFAULT_GFW_LAYER, ...backendLayers]);
 		} catch (error) {
 			console.error("Failed to load layers:", error);
 			toast.error("Failed to load layer library");
+			// Still show default GFW layer even if backend fails
+			setAvailableLayers([DEFAULT_GFW_LAYER]);
 		} finally {
 			setLayersLoading(false);
 		}
-	}, [layerService]);
+	}, [layerService, DEFAULT_GFW_LAYER]);
 
 	// Function to load maps from API
 	const loadMaps = useCallback(async () => {
@@ -251,8 +287,8 @@ function AppContent() {
 
 	// Temporal state management
 	const [currentTimeRange, setCurrentTimeRange] = useState<[Date, Date]>([
-		new Date("2023-04-01"),
-		new Date("2023-10-01"),
+		new Date("2023-01-01"),
+		new Date("2023-12-31"),
 	]);
 
 	// Check if any temporal layers are visible
@@ -299,6 +335,62 @@ function AppContent() {
 				terraDrawSnapshot.length > 0
 			) {
 				return { ...layer, visible: false };
+			}
+
+			// For GFW layers, update the date range based on currentTimeRange
+			// Use MONTH interval for ranges < 12 months, YEAR for larger ranges
+			if (layer.gfw4WingsDataset && layer.temporal) {
+				// Format date without timezone issues (use local date components)
+				const formatDate = (year: number, month: number, day: number) => {
+					const m = String(month).padStart(2, "0");
+					const d = String(day).padStart(2, "0");
+					return `${year}-${m}-${d}`;
+				};
+
+				// Calculate range in months
+				const startDate = currentTimeRange[0];
+				const endDate = currentTimeRange[1];
+				const monthsDiff =
+					(endDate.getFullYear() - startDate.getFullYear()) * 12 +
+					(endDate.getMonth() - startDate.getMonth());
+
+				// Use MONTH for ranges < 12 months, YEAR for 12+ months
+				const useMonthInterval = monthsDiff < 12;
+				const interval: "MONTH" | "YEAR" = useMonthInterval ? "MONTH" : "YEAR";
+
+				let dateRange: { start: string; end: string };
+				if (useMonthInterval) {
+					// Use actual month dates for MONTH interval
+					dateRange = {
+						start: formatDate(
+							startDate.getFullYear(),
+							startDate.getMonth() + 1,
+							1,
+						),
+						end: formatDate(
+							endDate.getFullYear(),
+							endDate.getMonth() + 1,
+							new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate(),
+						),
+					};
+				} else {
+					// Snap to full years for YEAR interval
+					dateRange = {
+						start: formatDate(startDate.getFullYear(), 1, 1),
+						end: formatDate(endDate.getFullYear(), 12, 31),
+					};
+				}
+
+				console.log("[GFW] Date range for request:", {
+					...dateRange,
+					interval,
+					monthsDiff,
+				});
+				return {
+					...layer,
+					gfw4WingsDateRange: dateRange,
+					gfw4WingsInterval: interval,
+				};
 			}
 
 			if (!layer.temporal || !layer.temporalData) return layer;
@@ -660,10 +752,12 @@ function AppContent() {
 
 		try {
 			// Check if this is an existing library layer or a new map-specific layer
+			// Also check isLocalOnly flag - these layers exist in frontend but not backend
 			const existsInLibrary = availableLayers.some((l) => l.id === layer.id);
+			const needsBackendCreation = !existsInLibrary || layer.isLocalOnly;
 			let layerId = layer.id;
 
-			if (!existsInLibrary) {
+			if (needsBackendCreation) {
 				// Create new map-specific layer via API (is_global=false by default)
 				// These layers are NOT added to the library - they only exist on this map
 				const createData = layerService.transformToLayerCreate(layer);

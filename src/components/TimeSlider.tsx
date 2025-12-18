@@ -1,10 +1,24 @@
 import { RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "./ui/select";
 import { Slider } from "./ui/slider";
 
-type TimeScale = "days" | "months" | "years";
+// Generate years from 2020 to current year
+const MIN_YEAR = 2020;
+const currentYear = new Date().getFullYear();
+const AVAILABLE_YEARS = Array.from(
+	{ length: currentYear - MIN_YEAR + 1 },
+	(_, i) => MIN_YEAR + i,
+);
+
+type TimeScale = "months" | "years";
 
 interface TimeSliderProps {
 	startDate: Date;
@@ -44,6 +58,30 @@ export function TimeSlider({
 		]);
 	}, [currentRange, effectiveStartDate, totalDuration]);
 
+	// Calculate months between two dates
+	const getMonthsDiff = (start: Date, end: Date) => {
+		return (
+			(end.getFullYear() - start.getFullYear()) * 12 +
+			(end.getMonth() - start.getMonth())
+		);
+	};
+
+	// Enforce 12-month limit when switching to months scale
+	useEffect(() => {
+		if (scale === "months") {
+			const monthsDiff = getMonthsDiff(currentRange[0], currentRange[1]);
+			if (monthsDiff > 11) {
+				// Cap the range at 12 months, keeping the end date
+				const newStartTime = new Date(
+					currentRange[1].getFullYear(),
+					currentRange[1].getMonth() - 11,
+					1,
+				);
+				onRangeChange([newStartTime, currentRange[1]]);
+			}
+		}
+	}, [scale]); // Only run when scale changes
+
 	const handleSliderChange = (values: number[]) => {
 		setSliderValues(values);
 		const startPosition = (values[0] / 100) * totalDuration;
@@ -63,6 +101,18 @@ export function TimeSlider({
 				newEndTime.getMonth() + 1,
 				0,
 			); // Last day of month
+
+			// Enforce 12-month maximum for months scale
+			const monthsDiff = getMonthsDiff(newStartTime, newEndTime);
+			if (monthsDiff > 11) {
+				// Max 12 months (0-11 = 12 months)
+				// Keep the end fixed and move start forward
+				newStartTime = new Date(
+					newEndTime.getFullYear(),
+					newEndTime.getMonth() - 11,
+					1,
+				);
+			}
 		} else if (scale === "years") {
 			newStartTime = new Date(newStartTime.getFullYear(), 0, 1);
 			newEndTime = new Date(newEndTime.getFullYear(), 11, 31);
@@ -74,27 +124,17 @@ export function TimeSlider({
 	const formatDate = (date: Date) => {
 		if (scale === "years") {
 			return date.getFullYear().toString();
-		} else if (scale === "months") {
-			return date.toLocaleDateString("en-US", {
-				year: "numeric",
-				month: "short",
-			});
-		} else {
-			return date.toLocaleDateString("en-US", {
-				year: "numeric",
-				month: "short",
-				day: "numeric",
-			});
 		}
+		// months scale
+		return date.toLocaleDateString("en-US", {
+			year: "numeric",
+			month: "short",
+		});
 	};
 
-	const formatDateInput = (date: Date) => {
-		return date.toISOString().split("T")[0];
-	};
-
-	const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const newDate = new Date(e.target.value);
-		if (!Number.isNaN(newDate.getTime()) && newDate < customEndDate) {
+	const handleStartYearChange = (year: string) => {
+		const newDate = new Date(Number(year), 0, 1); // Jan 1 of selected year
+		if (newDate < customEndDate) {
 			setCustomStartDate(newDate);
 			// Adjust current range if it's outside new bounds
 			if (currentRange[0] < newDate) {
@@ -103,9 +143,9 @@ export function TimeSlider({
 		}
 	};
 
-	const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const newDate = new Date(e.target.value);
-		if (!Number.isNaN(newDate.getTime()) && newDate > customStartDate) {
+	const handleEndYearChange = (year: string) => {
+		const newDate = new Date(Number(year), 11, 31); // Dec 31 of selected year
+		if (newDate > customStartDate) {
 			setCustomEndDate(newDate);
 			// Adjust current range if it's outside new bounds
 			if (currentRange[1] > newDate) {
@@ -128,24 +168,42 @@ export function TimeSlider({
 			<div className="flex flex-col gap-2.5">
 				{/* Top Row: Range inputs and Scale buttons */}
 				<div className="flex items-center gap-2">
-					<div className="flex items-center gap-1.5 bg-slate-50 rounded px-2 py-1 border border-slate-200">
-						<Input
-							type="date"
-							value={formatDateInput(customStartDate)}
-							onChange={handleStartDateChange}
-							className="h-5 text-[11px] px-1.5 border-0 bg-transparent w-[100px] focus-visible:ring-0"
-							min={formatDateInput(startDate)}
-							max={formatDateInput(customEndDate)}
-						/>
+					<div className="flex items-center gap-1.5">
+						<Select
+							value={customStartDate.getFullYear().toString()}
+							onValueChange={handleStartYearChange}
+						>
+							<SelectTrigger className="h-7 w-[75px] text-xs">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{AVAILABLE_YEARS.filter(
+									(y) => y <= customEndDate.getFullYear(),
+								).map((year) => (
+									<SelectItem key={year} value={year.toString()}>
+										{year}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 						<span className="text-xs text-slate-400">→</span>
-						<Input
-							type="date"
-							value={formatDateInput(customEndDate)}
-							onChange={handleEndDateChange}
-							className="h-5 text-[11px] px-1.5 border-0 bg-transparent w-[100px] focus-visible:ring-0"
-							min={formatDateInput(customStartDate)}
-							max={formatDateInput(endDate)}
-						/>
+						<Select
+							value={customEndDate.getFullYear().toString()}
+							onValueChange={handleEndYearChange}
+						>
+							<SelectTrigger className="h-7 w-[75px] text-xs">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{AVAILABLE_YEARS.filter(
+									(y) => y >= customStartDate.getFullYear(),
+								).map((year) => (
+									<SelectItem key={year} value={year.toString()}>
+										{year}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 
 					{hasCustomRange && (
@@ -163,18 +221,6 @@ export function TimeSlider({
 					<div className="flex-1" />
 
 					<div className="flex gap-1">
-						<Button
-							variant={scale === "days" ? "default" : "outline"}
-							size="sm"
-							onClick={() => setScale("days")}
-							className={
-								scale === "days"
-									? "bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-600"
-									: "hover:border-teal-400 hover:bg-white hover:text-slate-900"
-							}
-						>
-							Days
-						</Button>
 						<Button
 							variant={scale === "months" ? "default" : "outline"}
 							size="sm"
@@ -208,7 +254,7 @@ export function TimeSlider({
 						value={sliderValues}
 						onValueChange={handleSliderChange}
 						max={100}
-						step={scale === "days" ? 0.1 : scale === "months" ? 1 : 5}
+						step={scale === "months" ? 1 : 5}
 						className="w-full [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-thumb]]:size-3"
 					/>
 					<div className="flex justify-between mt-1.5 text-[10px] text-slate-500">

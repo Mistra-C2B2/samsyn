@@ -214,6 +214,25 @@ export type GeometryType =
 	| "MultiPolygon";
 
 /**
+ * WMS dimension from GetCapabilities (e.g., TIME, ELEVATION)
+ */
+export interface WMSDimension {
+	name: string; // "time", "elevation", etc.
+	extent: string; // "2011-01-01/2024-09-01/P1M" or comma-separated values
+	units?: string | null; // "ISO8601" for time
+	default?: string | null; // default value
+}
+
+/**
+ * WMS time dimension configuration for temporal layers
+ */
+export interface WMSTimeDimension {
+	extent: string; // Original extent from GetCapabilities
+	default?: string; // Default value
+	current?: string; // Currently selected time value (e.g., "2024-01-01/2024-06-01")
+}
+
+/**
  * WMS (Web Map Service) source configuration
  */
 export interface WMSSourceConfig {
@@ -224,6 +243,7 @@ export interface WMSSourceConfig {
 	transparent?: boolean; // default: true
 	temporal?: boolean | null;
 	dimensions?: Record<string, string> | null; // e.g., TIME, ELEVATION
+	timeDimension?: WMSTimeDimension | null; // Parsed time dimension config
 }
 
 /**

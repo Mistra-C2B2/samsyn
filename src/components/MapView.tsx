@@ -1099,6 +1099,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				if (layer.gfw4WingsDataset) {
 					return `gfw-${layer.gfw4WingsDataset}-${layer.gfw4WingsInterval}-${layer.gfw4WingsDateRange?.start}-${layer.gfw4WingsDateRange?.end}`;
 				}
+				// For WMS temporal layers, include the time dimension in the hash
+				if (layer.wmsUrl && layer.wmsTimeDimension?.current) {
+					return `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${layer.wmsTimeDimension.current}`;
+				}
 				if (!layer.data) return "";
 				return JSON.stringify(layer.data);
 			};
@@ -1495,6 +1499,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						HEIGHT: "256",
 					});
 
+					// Add TIME parameter if layer has temporal dimension with current value
+					if (layer.wmsTimeDimension?.current) {
+						wmsParams.set("TIME", layer.wmsTimeDimension.current);
+					}
+
 					// MapLibre expects {bbox-epsg-3857} placeholder for WMS tile requests
 					const tileUrlTemplate = `${wmsBaseUrl}?${wmsParams.toString()}&BBOX={bbox-epsg-3857}`;
 
@@ -1515,11 +1524,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						},
 					});
 
-					// Track state for this layer (use WMS URL + layer name as hash since there's no data)
+					// Track state for this layer (include time dimension in hash for change detection)
+					const wmsTimeHash = layer.wmsTimeDimension?.current || "";
 					previousLayerState.set(layer.id, {
 						visible: true,
 						opacity: layer.opacity,
-						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}`,
+						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${wmsTimeHash}`,
 					});
 				} else if (layer.gfw4WingsDataset) {
 					// GFW 4Wings layer rendering using MVT (vector tiles)

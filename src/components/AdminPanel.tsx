@@ -67,10 +67,26 @@ export function AdminPanel({
 
 	// WMS layer discovery state
 	const [availableWmsLayers, setAvailableWmsLayers] = useState<
-		Array<{ name: string; title: string; abstract: string | null }>
+		Array<{
+			name: string;
+			title: string;
+			abstract: string | null;
+			dimensions: Array<{
+				name: string;
+				extent: string;
+				units: string | null;
+				default: string | null;
+			}>;
+		}>
 	>([]);
 	const [fetchingCapabilities, setFetchingCapabilities] = useState(false);
 	const [wmsError, setWmsError] = useState<string | null>(null);
+	const [wmsLayerFilter, setWmsLayerFilter] = useState("");
+	// WMS time dimension state (auto-populated when selecting a temporal layer)
+	const [wmsTimeDimension, setWmsTimeDimension] = useState<{
+		extent: string;
+		default?: string;
+	} | null>(null);
 	const [legendType, setLegendType] = useState<"gradient" | "categorical">(
 		"gradient",
 	);
@@ -105,6 +121,8 @@ export function AdminPanel({
 		// Reset WMS discovery state
 		setAvailableWmsLayers([]);
 		setWmsError(null);
+		setWmsLayerFilter("");
+		setWmsTimeDimension(null);
 	};
 
 	// Fetch WMS GetCapabilities and populate layer list
@@ -144,6 +162,19 @@ export function AdminPanel({
 			}
 			if (!description && selectedLayer.abstract) {
 				setDescription(selectedLayer.abstract);
+			}
+
+			// Check for time dimension and auto-configure temporal settings
+			const timeDimension = selectedLayer.dimensions.find(
+				(d) => d.name.toLowerCase() === "time",
+			);
+			if (timeDimension) {
+				setWmsTimeDimension({
+					extent: timeDimension.extent,
+					default: timeDimension.default || undefined,
+				});
+			} else {
+				setWmsTimeDimension(null);
 			}
 		}
 	};
@@ -226,7 +257,26 @@ export function AdminPanel({
 					items: legendItems.filter((item) => item.label && item.color),
 				},
 				// Source-specific properties
-				...(layerSource === "wms" && { wmsUrl, wmsLayerName }),
+				...(layerSource === "wms" && {
+					wmsUrl,
+					wmsLayerName,
+					// Include time dimension if present
+					...(wmsTimeDimension && {
+						wmsTimeDimension,
+						temporal: true,
+						// Parse extent to set timeRange (format: "start/end/period" or "start/end")
+						timeRange: (() => {
+							const parts = wmsTimeDimension.extent.split("/");
+							if (parts.length >= 2) {
+								return {
+									start: new Date(parts[0]),
+									end: new Date(parts[1]),
+								};
+							}
+							return undefined;
+						})(),
+					}),
+				}),
 				...(layerSource === "geotiff" && { geotiffUrl }),
 			};
 
@@ -393,6 +443,7 @@ export function AdminPanel({
 												// Clear discovered layers when URL changes
 												setAvailableWmsLayers([]);
 												setWmsError(null);
+												setWmsLayerFilter("");
 											}}
 											placeholder="https://example.com/wms"
 											className="flex-1"
@@ -423,36 +474,97 @@ export function AdminPanel({
 									</div>
 								)}
 
-								{/* Layer selection dropdown */}
+								{/* Layer selection with filter */}
 								{availableWmsLayers.length > 0 && (
 									<div className="space-y-2">
 										<Label>
 											Available Layers ({availableWmsLayers.length})
 										</Label>
-										<Select
-											value={wmsLayerName}
-											onValueChange={handleSelectWmsLayer}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="Select a layer..." />
-											</SelectTrigger>
-											<SelectContent>
-												{availableWmsLayers.map((layer) => (
-													<SelectItem key={layer.name} value={layer.name}>
-														<div className="flex flex-col items-start">
-															<span className="font-medium">
-																{layer.title || layer.name}
-															</span>
-															{layer.title !== layer.name && (
-																<span className="text-xs text-slate-500">
-																	{layer.name}
+										{/* Filter input */}
+										<div className="relative">
+											<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+											<Input
+												value={wmsLayerFilter}
+												onChange={(e) => setWmsLayerFilter(e.target.value)}
+												placeholder="Filter layers..."
+												className="pl-8"
+											/>
+											{wmsLayerFilter && (
+												<Button
+													variant="ghost"
+													size="sm"
+													className="absolute right-1 top-1 h-6 w-6 p-0"
+													onClick={() => setWmsLayerFilter("")}
+												>
+													<X className="h-3 w-3" />
+												</Button>
+											)}
+										</div>
+										{/* Filtered layer list */}
+										<div className="max-h-48 overflow-y-auto border border-slate-200 rounded-md">
+											{availableWmsLayers
+												.filter((layer) => {
+													if (!wmsLayerFilter.trim()) return true;
+													const filter = wmsLayerFilter.toLowerCase();
+													return (
+														layer.name.toLowerCase().includes(filter) ||
+														layer.title.toLowerCase().includes(filter) ||
+														(layer.abstract?.toLowerCase().includes(filter) ?? false)
+													);
+												})
+												.map((layer) => {
+													const hasTimeDimension = layer.dimensions.some(
+														(d) => d.name.toLowerCase() === "time",
+													);
+													return (
+														<button
+															key={layer.name}
+															type="button"
+															onClick={() => handleSelectWmsLayer(layer.name)}
+															className={`w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 ${
+																wmsLayerName === layer.name ? "bg-teal-50" : ""
+															}`}
+														>
+															<div className="flex items-center gap-2">
+																<span className="font-medium text-sm">
+																	{layer.title || layer.name}
 																</span>
+																{hasTimeDimension && (
+																	<Badge
+																		variant="outline"
+																		className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+																	>
+																		Temporal
+																	</Badge>
+																)}
+															</div>
+															{layer.title !== layer.name && (
+																<div className="text-xs text-slate-500">
+																	{layer.name}
+																</div>
 															)}
-														</div>
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
+															{layer.abstract && (
+																<div className="text-xs text-slate-400 mt-1 line-clamp-2">
+																	{layer.abstract}
+																</div>
+															)}
+														</button>
+													);
+												})}
+											{availableWmsLayers.filter((layer) => {
+												if (!wmsLayerFilter.trim()) return true;
+												const filter = wmsLayerFilter.toLowerCase();
+												return (
+													layer.name.toLowerCase().includes(filter) ||
+													layer.title.toLowerCase().includes(filter) ||
+													(layer.abstract?.toLowerCase().includes(filter) ?? false)
+												);
+											}).length === 0 && (
+												<div className="px-3 py-4 text-sm text-slate-500 text-center">
+													No layers match "{wmsLayerFilter}"
+												</div>
+											)}
+										</div>
 									</div>
 								)}
 
@@ -469,6 +581,35 @@ export function AdminPanel({
 										placeholder="layer_name"
 									/>
 								</div>
+
+								{/* Temporal dimension info */}
+								{wmsTimeDimension && (
+									<div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+										<div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+											<svg
+												className="w-4 h-4"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+												/>
+											</svg>
+											Temporal Layer Detected
+										</div>
+										<p className="text-xs text-blue-700 mt-1">
+											Time range: {wmsTimeDimension.extent}
+										</p>
+										<p className="text-xs text-blue-600 mt-1">
+											This layer supports time-based filtering. The TimeSlider
+											will appear when added to a map.
+										</p>
+									</div>
+								)}
 							</>
 						)}
 

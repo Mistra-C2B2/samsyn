@@ -213,6 +213,31 @@ export class LayerService {
 		if (layerResponse.source_type === "wms" && wmsConfig) {
 			layer.wmsUrl = wmsConfig.url;
 			layer.wmsLayerName = wmsConfig.layers;
+
+			// Extract WMS time dimension config if present
+			const wmsTimeDimConfig = (
+				layerResponse.source_config as {
+					timeDimension?: { extent: string; default?: string };
+					temporal?: boolean;
+				}
+			).timeDimension;
+
+			if (wmsTimeDimConfig) {
+				layer.wmsTimeDimension = {
+					extent: wmsTimeDimConfig.extent,
+					default: wmsTimeDimConfig.default,
+				};
+				// Enable temporal layer features for TimeSlider integration
+				layer.temporal = true;
+				// Parse extent to get time range (format: "start/end/period" or "start/end")
+				const extentParts = wmsTimeDimConfig.extent.split("/");
+				if (extentParts.length >= 2) {
+					layer.timeRange = {
+						start: new Date(extentParts[0]),
+						end: new Date(extentParts[1]),
+					};
+				}
+			}
 		}
 
 		// Check for GFW 4Wings config (stored in vector layers with gfw4wings property)
@@ -357,6 +382,14 @@ export class LayerService {
 			sourceConfig.version = "1.3.0";
 			sourceConfig.format = "image/png";
 			sourceConfig.transparent = true;
+			// Store WMS time dimension config if present
+			if (layer.wmsTimeDimension) {
+				sourceConfig.timeDimension = {
+					extent: layer.wmsTimeDimension.extent,
+					default: layer.wmsTimeDimension.default,
+				};
+				sourceConfig.temporal = true;
+			}
 		} else if (sourceType === "geotiff") {
 			sourceConfig.delivery = "direct";
 			sourceConfig.url = layer.geotiffUrl;
@@ -582,6 +615,12 @@ export class LayerService {
 			title: string;
 			abstract: string | null;
 			queryable: boolean;
+			dimensions: Array<{
+				name: string;
+				extent: string;
+				units: string | null;
+				default: string | null;
+			}>;
 		}>;
 	}> {
 		const params = new URLSearchParams({ url: wmsUrl });

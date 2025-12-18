@@ -453,18 +453,30 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					try {
 						// Map geometry type to TerraDraw mode name
 						// Note: Marker uses Point geometry in GeoJSON/TerraDraw but has different rendering
+						// Circle, Rectangle, and Freehand use Polygon geometry but different TerraDraw modes
 						const modeMap: Record<string, string> = {
 							Point: "point",
 							Marker: "point", // Markers use point mode in TerraDraw
 							LineString: "linestring",
 							Polygon: "polygon",
+							Circle: "circle",
+							Rectangle: "rectangle",
+							Freehand: "freehand",
 						};
 						const mode = modeMap[feature.type] || feature.type.toLowerCase();
 
 						// Create a GeoJSON feature to add
-						// Markers use Point geometry in GeoJSON (Marker is not a valid GeoJSON type)
-						const geometryType =
-							feature.type === "Marker" ? "Point" : feature.type;
+						// Map internal types to valid GeoJSON geometry types
+						let geometryType: string = feature.type;
+						if (feature.type === "Marker") {
+							geometryType = "Point";
+						} else if (
+							feature.type === "Circle" ||
+							feature.type === "Rectangle" ||
+							feature.type === "Freehand"
+						) {
+							geometryType = "Polygon";
+						}
 
 						const geoJsonFeature = {
 							type: "Feature" as const,

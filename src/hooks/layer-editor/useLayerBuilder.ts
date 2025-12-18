@@ -84,19 +84,33 @@ export function useLayerBuilder(options: UseLayerBuilderOptions) {
 				return null;
 			}
 
-			const geoJsonFeatures: GeoJSONFeature[] = features.map((feature) => ({
-				type: "Feature" as const,
-				properties: {
-					name: feature.name,
-					description: feature.description,
-					featureType: feature.type,
-				},
-				geometry: {
-					// Marker uses Point geometry in GeoJSON
-					type: feature.type === "Marker" ? "Point" : feature.type,
-					coordinates: feature.coordinates,
-				},
-			}));
+			const geoJsonFeatures: GeoJSONFeature[] = features.map((feature) => {
+				// Map internal feature types to valid GeoJSON geometry types
+				// TerraDraw creates Circle, Rectangle, and Freehand as Polygons internally
+				let geometryType: string = feature.type;
+				if (feature.type === "Marker") {
+					geometryType = "Point";
+				} else if (
+					feature.type === "Circle" ||
+					feature.type === "Rectangle" ||
+					feature.type === "Freehand"
+				) {
+					geometryType = "Polygon";
+				}
+
+				return {
+					type: "Feature" as const,
+					properties: {
+						name: feature.name,
+						description: feature.description,
+						featureType: feature.type, // Preserve original type for UI display
+					},
+					geometry: {
+						type: geometryType as GeometryType,
+						coordinates: feature.coordinates,
+					},
+				};
+			});
 
 			const layerData: GeoJSONFeatureCollection = {
 				type: "FeatureCollection",

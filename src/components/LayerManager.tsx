@@ -60,6 +60,7 @@ interface LayerManagerProps {
 	loading?: boolean;
 	highlightedLayerId?: string | null;
 	onSelectLayer?: (layerId: string | null) => void;
+	mapUserRole?: string | null; // "owner", "editor", "viewer", or null
 }
 
 export function LayerManager({
@@ -80,8 +81,25 @@ export function LayerManager({
 	loading = false,
 	highlightedLayerId,
 	onSelectLayer,
+	mapUserRole,
 }: LayerManagerProps) {
-	const { isSignedIn } = useUser();
+	const { isSignedIn, user } = useUser();
+
+	// Determine if current user can edit a layer
+	const canEditLayer = (layer: Layer) => {
+		if (!isSignedIn || !onEditLayer) return false;
+
+		// If layer is editable by everyone, allow editing
+		if (layer.editable === "everyone") return true;
+
+		// If layer is creator-only (or default), check if user is creator or map collaborator with edit access
+		const isCreator = layer.createdBy && user?.id === layer.createdBy;
+		const isMapEditorOrOwner =
+			mapUserRole === "owner" || mapUserRole === "editor";
+
+		return isCreator || isMapEditorOrOwner;
+	};
+
 	const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 	const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 	const [showLibrary, setShowLibrary] = useState(false);
@@ -522,22 +540,20 @@ export function LayerManager({
 															)}
 													</Button>
 												)}
-												{layer.createdBy &&
-													layer.editable === "everyone" &&
-													onEditLayer && (
-														<Button
-															variant="ghost"
-															size="sm"
-															onClick={(e) => {
-																e.stopPropagation();
-																onEditLayer(layer);
-															}}
-															className="flex-shrink-0"
-															title="Edit layer"
-														>
-															<Pencil className="w-4 h-4" />
-														</Button>
-													)}
+												{canEditLayer(layer) && (
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={(e) => {
+															e.stopPropagation();
+															onEditLayer?.(layer);
+														}}
+														className="flex-shrink-0"
+														title="Edit layer"
+													>
+														<Pencil className="w-4 h-4" />
+													</Button>
+												)}
 											</div>
 											<Button
 												variant="ghost"

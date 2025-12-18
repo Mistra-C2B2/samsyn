@@ -299,6 +299,7 @@ export class LayerService {
 			const legendConfig = layerResponse.legend_config as {
 				type?: "gradient" | "categories";
 				items?: Array<{ color: string; label: string; value?: number }>;
+				wmsLegendUrl?: string;
 			};
 
 			if (legendConfig.type && legendConfig.items) {
@@ -306,6 +307,11 @@ export class LayerService {
 					type: legendConfig.type,
 					items: legendConfig.items,
 				};
+			}
+
+			// Extract WMS legend URL if present
+			if (legendConfig.wmsLegendUrl) {
+				layer.wmsLegendUrl = legendConfig.wmsLegendUrl;
 			}
 		}
 
@@ -423,6 +429,10 @@ export class LayerService {
 		if (layer.legend) {
 			legendConfig.type = layer.legend.type;
 			legendConfig.items = layer.legend.items;
+		}
+		// Store WMS legend URL if present
+		if (layer.wmsLegendUrl) {
+			legendConfig.wmsLegendUrl = layer.wmsLegendUrl;
 		}
 
 		// Build layer_metadata with temporal info if present

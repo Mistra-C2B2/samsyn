@@ -707,7 +707,24 @@ export function LayerManager({
 							</div>
 						)}
 
-						{selectedLayerInfo?.legend && (
+						{/* WMS Legend Image */}
+						{selectedLayerInfo?.wmsLegendUrl && (
+							<div>
+								<h4 className="text-sm text-slate-700 mb-2">Legend</h4>
+								<img
+									src={selectedLayerInfo.wmsLegendUrl}
+									alt="Layer legend"
+									className="max-w-full"
+									onError={(e) => {
+										// Hide image on error
+										e.currentTarget.style.display = "none";
+									}}
+								/>
+							</div>
+						)}
+
+						{/* Manual Legend (gradient or categorical) */}
+						{!selectedLayerInfo?.wmsLegendUrl && selectedLayerInfo?.legend && (
 							<div>
 								<h4 className="text-sm text-slate-700 mb-2">Legend</h4>
 								{selectedLayerInfo.legend.type === "gradient" ? (

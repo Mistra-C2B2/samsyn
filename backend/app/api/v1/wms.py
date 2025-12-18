@@ -21,6 +21,30 @@ router = APIRouter(prefix="/wms", tags=["wms"])
 # ============================================================================
 
 
+class WMSDimension:
+    """Represents a dimension (e.g., TIME, ELEVATION) from WMS GetCapabilities."""
+
+    def __init__(
+        self,
+        name: str,
+        extent: str,
+        units: Optional[str] = None,
+        default: Optional[str] = None,
+    ):
+        self.name = name
+        self.extent = extent
+        self.units = units
+        self.default = default
+
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "extent": self.extent,
+            "units": self.units,
+            "default": self.default,
+        }
+
+
 class WMSLayer:
     """Represents a layer from WMS GetCapabilities response."""
 
@@ -30,11 +54,13 @@ class WMSLayer:
         title: str,
         abstract: Optional[str] = None,
         queryable: bool = False,
+        dimensions: Optional[List[WMSDimension]] = None,
     ):
         self.name = name
         self.title = title
         self.abstract = abstract
         self.queryable = queryable
+        self.dimensions = dimensions or []
 
     def to_dict(self):
         return {
@@ -42,6 +68,7 @@ class WMSLayer:
             "title": self.title,
             "abstract": self.abstract,
             "queryable": self.queryable,
+            "dimensions": [d.to_dict() for d in self.dimensions],
         }
 
 
@@ -108,10 +135,27 @@ def parse_wms_capabilities(xml_content: str) -> dict:
                 name_elem = layer_elem.find("wms:Name", ns)
                 title_elem = layer_elem.find("wms:Title", ns)
                 abstract_elem = layer_elem.find("wms:Abstract", ns)
+                dimension_elems = layer_elem.findall("wms:Dimension", ns)
             else:
                 name_elem = layer_elem.find("Name")
                 title_elem = layer_elem.find("Title")
                 abstract_elem = layer_elem.find("Abstract")
+                dimension_elems = layer_elem.findall("Dimension")
+
+            # Parse dimensions (TIME, ELEVATION, etc.)
+            dimensions: List[WMSDimension] = []
+            for dim_elem in dimension_elems:
+                dim_name = dim_elem.get("name")
+                dim_extent = dim_elem.text.strip() if dim_elem.text else None
+                if dim_name and dim_extent:
+                    dimensions.append(
+                        WMSDimension(
+                            name=dim_name,
+                            extent=dim_extent,
+                            units=dim_elem.get("units"),
+                            default=dim_elem.get("default"),
+                        )
+                    )
 
             # Only include layers that have a name (can be requested)
             if name_elem is not None and name_elem.text:
@@ -120,6 +164,7 @@ def parse_wms_capabilities(xml_content: str) -> dict:
                     title=title_elem.text if title_elem is not None else name_elem.text,
                     abstract=abstract_elem.text if abstract_elem is not None else None,
                     queryable=layer_elem.get("queryable") == "1",
+                    dimensions=dimensions,
                 )
                 layers.append(layer)
 

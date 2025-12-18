@@ -69,6 +69,11 @@ export interface Layer {
 	// WMS properties
 	wmsUrl?: string;
 	wmsLayerName?: string;
+	wmsTimeDimension?: {
+		extent: string; // "2011-01-01/2024-09-01/P1M"
+		default?: string;
+		current?: string; // Currently selected time value (e.g., "2024-01-01/2024-06-01")
+	};
 	// GeoTIFF properties
 	geotiffUrl?: string;
 	// Vector properties
@@ -390,6 +395,22 @@ function AppContent() {
 					...layer,
 					gfw4WingsDateRange: dateRange,
 					gfw4WingsInterval: interval,
+				};
+			}
+
+			// For WMS temporal layers, update the current time dimension based on TimeSlider
+			if (layer.wmsUrl && layer.wmsTimeDimension && layer.temporal) {
+				// Format dates as YYYY-MM-DD for WMS TIME parameter
+				const startStr = currentTimeRange[0].toISOString().split("T")[0];
+				const endStr = currentTimeRange[1].toISOString().split("T")[0];
+				const currentTime = `${startStr}/${endStr}`;
+
+				return {
+					...layer,
+					wmsTimeDimension: {
+						...layer.wmsTimeDimension,
+						current: currentTime,
+					},
 				};
 			}
 

@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import {
 	Select,
@@ -9,14 +9,6 @@ import {
 	SelectValue,
 } from "./ui/select";
 import { Slider } from "./ui/slider";
-
-// Generate years from 2020 to current year
-const MIN_YEAR = 2020;
-const currentYear = new Date().getFullYear();
-const AVAILABLE_YEARS = Array.from(
-	{ length: currentYear - MIN_YEAR + 1 },
-	(_, i) => MIN_YEAR + i,
-);
 
 type TimeScale = "months" | "years";
 
@@ -37,6 +29,16 @@ export function TimeSlider({
 	const [scale, setScale] = useState<TimeScale>("months");
 	const [customStartDate, setCustomStartDate] = useState(startDate);
 	const [customEndDate, setCustomEndDate] = useState(endDate);
+
+	// Generate available years dynamically from layer data
+	const availableYears = useMemo(() => {
+		const minYear = startDate.getFullYear();
+		const maxYear = Math.max(endDate.getFullYear(), new Date().getFullYear());
+		return Array.from(
+			{ length: maxYear - minYear + 1 },
+			(_, i) => minYear + i,
+		);
+	}, [startDate, endDate]);
 
 	// Use custom dates if set, otherwise use props
 	const effectiveStartDate = customStartDate;
@@ -177,7 +179,7 @@ export function TimeSlider({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{AVAILABLE_YEARS.filter(
+								{availableYears.filter(
 									(y) => y <= customEndDate.getFullYear(),
 								).map((year) => (
 									<SelectItem key={year} value={year.toString()}>
@@ -195,7 +197,7 @@ export function TimeSlider({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{AVAILABLE_YEARS.filter(
+								{availableYears.filter(
 									(y) => y >= customStartDate.getFullYear(),
 								).map((year) => (
 									<SelectItem key={year} value={year.toString()}>

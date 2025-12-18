@@ -186,12 +186,12 @@ function AppContent() {
 			isLocalOnly: true, // Not in backend - needs creation when added to map
 			gfw4WingsDataset: "public-global-fishing-effort:latest",
 			gfw4WingsInterval: "MONTH",
-			gfw4WingsDateRange: { start: "2020-01-01", end: "2024-12-31" },
+			gfw4WingsDateRange: { start: "2024-01-01", end: "2025-12-31" },
 			// Temporal layer properties for TimeSlider integration
 			temporal: true,
 			timeRange: {
-				start: new Date("2020-01-01"),
-				end: new Date("2024-12-31"),
+				start: new Date("2024-01-01"),
+				end: new Date("2025-12-31"),
 			},
 		}),
 		[],
@@ -287,8 +287,8 @@ function AppContent() {
 
 	// Temporal state management
 	const [currentTimeRange, setCurrentTimeRange] = useState<[Date, Date]>([
-		new Date("2023-01-01"),
-		new Date("2023-12-31"),
+		new Date("2024-10-01"),
+		new Date("2025-03-31"),
 	]);
 
 	// Check if any temporal layers are visible

@@ -95,8 +95,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['layer_id'], ['layers.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    # Create spatial index for geometry column using GIST
-    op.create_index('idx_layer_features_geometry', 'layer_features', ['geometry'], postgresql_using='gist')
+    # Note: GeoAlchemy2 automatically creates a spatial GIST index on geometry columns
     # Create index on layer_id for faster foreign key lookups
     op.create_index('idx_layer_features_layer_id', 'layer_features', ['layer_id'])
     op.create_table('map_collaborators',
@@ -130,7 +129,7 @@ def downgrade() -> None:
     op.drop_table('map_layers')
     op.drop_table('map_collaborators')
     op.drop_index('idx_layer_features_layer_id', table_name='layer_features')
-    op.drop_index('idx_layer_features_geometry', table_name='layer_features', postgresql_using='gist')
+    # Note: The geometry spatial index is dropped automatically when the table is dropped
     op.drop_table('layer_features')
     op.drop_table('comments')
     op.drop_table('maps')

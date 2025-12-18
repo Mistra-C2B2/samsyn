@@ -61,6 +61,7 @@ export interface Layer {
 	// Permission settings
 	createdBy?: string; // User ID of the creator
 	editable?: "creator-only" | "everyone"; // Who can edit this layer
+	isGlobal?: boolean; // Whether layer is in the global library (Admin Panel layers)
 	// Style settings (layer-level)
 	lineWidth?: number;
 	fillPolygons?: boolean;
@@ -163,11 +164,12 @@ function AppContent() {
 	const layerService = useLayerService();
 	const mapService = useMapService();
 
-	// Function to load layers from API
+	// Function to load layers from API (only library layers with is_global=true)
 	const loadLayers = useCallback(async () => {
 		setLayersLoading(true);
 		try {
-			const layerList = await layerService.listLayers();
+			// Only load library layers (is_global=true) - these are created via Admin Panel
+			const layerList = await layerService.listLayers({ is_global: true });
 			// Transform each layer to frontend format
 			const layers = await Promise.all(
 				layerList.map(async (listItem) => {
@@ -657,12 +659,13 @@ function AppContent() {
 		if (layerExists) return;
 
 		try {
-			// If layer doesn't exist in availableLayers, create it first
-			const existsInAvailable = availableLayers.some((l) => l.id === layer.id);
+			// Check if this is an existing library layer or a new map-specific layer
+			const existsInLibrary = availableLayers.some((l) => l.id === layer.id);
 			let layerId = layer.id;
 
-			if (!existsInAvailable) {
-				// Create new layer via API
+			if (!existsInLibrary) {
+				// Create new map-specific layer via API (is_global=false by default)
+				// These layers are NOT added to the library - they only exist on this map
 				const createData = layerService.transformToLayerCreate(layer);
 				const createdLayer = await layerService.createLayer(createData);
 				const transformedLayer = layerService.transformToLayer(createdLayer);
@@ -679,8 +682,9 @@ function AppContent() {
 					transformedLayer.color = layer.color;
 				}
 
-				// Add to available layers
-				setAvailableLayers((prev) => [...prev, transformedLayer]);
+				// Note: We do NOT add to availableLayers here because:
+				// - Layers created via LayerCreator are map-specific (is_global=false)
+				// - Only Admin Panel layers (is_global=true) belong in the library
 
 				// Update the layer object with the new ID
 				layer = transformedLayer;
@@ -1138,6 +1142,7 @@ function AppContent() {
 						onEditLayer={handleEditLayer}
 						highlightedLayerId={highlightedLayerId}
 						onSelectLayer={setHighlightedLayerId}
+						mapUserRole={currentMap.user_role}
 					/>
 				)}
 
@@ -1227,13 +1232,15 @@ function AppContent() {
 						availableLayers={availableLayers}
 						onAddLayer={async (layer) => {
 							try {
-								// Create layer via API
-								const createData = layerService.transformToLayerCreate(layer);
+								// Create layer via API - Admin Panel layers are global (library) layers
+								const createData = layerService.transformToLayerCreate(layer, {
+									isGlobal: true,
+								});
 								const createdLayer = await layerService.createLayer(createData);
 								const transformedLayer =
 									layerService.transformToLayer(createdLayer);
 
-								// Add to available layers
+								// Add to available layers (library)
 								setAvailableLayers((prev) => [...prev, transformedLayer]);
 								toast.success("Layer added to library");
 							} catch (error) {

@@ -201,6 +201,7 @@ export class LayerService {
 			category: layerResponse.category || undefined,
 			createdBy: layerResponse.created_by,
 			editable: layerResponse.editable as "creator-only" | "everyone",
+			isGlobal: layerResponse.is_global, // Whether layer is in the global library
 			// Style properties from style_config
 			color: styleConfig?.color,
 			lineWidth: styleConfig?.lineWidth,
@@ -288,8 +289,14 @@ export class LayerService {
 
 	/**
 	 * Transform frontend Layer to backend LayerCreate format
+	 * @param layer - The layer data to transform
+	 * @param options - Optional settings
+	 * @param options.isGlobal - Whether this is a library layer (Admin Panel) or map-specific layer (LayerCreator)
 	 */
-	transformToLayerCreate(layer: Partial<Layer>): LayerCreate {
+	transformToLayerCreate(
+		layer: Partial<Layer>,
+		options?: { isGlobal?: boolean },
+	): LayerCreate {
 		// Determine backend source_type from frontend type
 		let sourceType: "wms" | "geotiff" | "vector" = "vector";
 
@@ -379,7 +386,7 @@ export class LayerService {
 			description: layer.description || null,
 			category: layer.category || null,
 			editable: layer.editable || "creator-only",
-			is_global: false, // Default to false for user-created layers
+			is_global: options?.isGlobal ?? false, // Library layers (Admin) = true, map layers (LayerCreator) = false
 			source_config: sourceConfig,
 			style_config:
 				Object.keys(styleConfig).length > 0 ? styleConfig : undefined,

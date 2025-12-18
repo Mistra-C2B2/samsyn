@@ -145,6 +145,22 @@ export class MapService {
 					layers?: string;
 				};
 
+				// Extract GFW 4Wings configuration if present
+				const gfw4wingsConfig = (
+					layerResponse.source_config as {
+						gfw4wings?: {
+							dataset: string;
+							interval: "DAY" | "MONTH" | "YEAR";
+							dateRange: { start: string; end: string };
+						};
+					}
+				).gfw4wings;
+
+				// If this is a GFW layer, override the frontend type to vector
+				if (gfw4wingsConfig) {
+					frontendType = "vector";
+				}
+
 				// Build GeoJSON data from source_config.geojson or features
 				let data:
 					| { type: "FeatureCollection"; features: unknown[] }
@@ -208,6 +224,18 @@ export class MapService {
 						layerResponse.source_type === "wms" ? wmsConfig?.url : undefined,
 					wmsLayerName:
 						layerResponse.source_type === "wms" ? wmsConfig?.layers : undefined,
+					// GFW 4Wings properties
+					gfw4WingsDataset: gfw4wingsConfig?.dataset,
+					gfw4WingsInterval: gfw4wingsConfig?.interval,
+					gfw4WingsDateRange: gfw4wingsConfig?.dateRange,
+					// Temporal properties for TimeSlider (enabled for GFW layers)
+					temporal: gfw4wingsConfig ? true : undefined,
+					timeRange: gfw4wingsConfig
+						? {
+								start: new Date(gfw4wingsConfig.dateRange.start),
+								end: new Date(gfw4wingsConfig.dateRange.end),
+							}
+						: undefined,
 				};
 			});
 

@@ -215,6 +215,31 @@ export class LayerService {
 			layer.wmsLayerName = wmsConfig.layers;
 		}
 
+		// Check for GFW 4Wings config (stored in vector layers with gfw4wings property)
+		const gfw4wingsConfig = (
+			layerResponse.source_config as {
+				gfw4wings?: {
+					dataset: string;
+					interval: "DAY" | "MONTH" | "YEAR";
+					dateRange: { start: string; end: string };
+				};
+			}
+		).gfw4wings;
+
+		if (gfw4wingsConfig) {
+			// This is a GFW layer - set GFW properties
+			layer.type = "vector"; // Override type for GFW layers
+			layer.gfw4WingsDataset = gfw4wingsConfig.dataset;
+			layer.gfw4WingsInterval = gfw4wingsConfig.interval;
+			layer.gfw4WingsDateRange = gfw4wingsConfig.dateRange;
+			// Enable temporal layer features for TimeSlider integration
+			layer.temporal = true;
+			layer.timeRange = {
+				start: new Date(gfw4wingsConfig.dateRange.start),
+				end: new Date(gfw4wingsConfig.dateRange.end),
+			};
+		}
+
 		// Add GeoTIFF-specific fields
 		if (layerResponse.source_type === "geotiff" && geotiffConfig) {
 			layer.geotiffUrl = geotiffConfig.url || geotiffConfig.cogUrl;
@@ -300,7 +325,10 @@ export class LayerService {
 		// Determine backend source_type from frontend type
 		let sourceType: "wms" | "geotiff" | "vector" = "vector";
 
-		if (layer.type === "raster" && layer.wmsUrl) {
+		if (layer.gfw4WingsDataset) {
+			// GFW 4Wings layers use vector tiles (MVT format)
+			sourceType = "vector";
+		} else if (layer.type === "raster" && layer.wmsUrl) {
 			sourceType = "wms";
 		} else if (layer.type === "raster" && layer.geotiffUrl) {
 			sourceType = "geotiff";
@@ -311,7 +339,19 @@ export class LayerService {
 		// Build source_config based on layer type
 		const sourceConfig: Record<string, unknown> = {};
 
-		if (sourceType === "wms") {
+		if (layer.gfw4WingsDataset) {
+			// GFW 4Wings layer - store config in vector source for frontend to detect and render
+			sourceConfig.gfw4wings = {
+				dataset: layer.gfw4WingsDataset,
+				interval: layer.gfw4WingsInterval || "YEAR",
+				dateRange: layer.gfw4WingsDateRange || {
+					start: "2023-01-01",
+					end: "2023-12-31",
+				},
+			};
+			sourceConfig.geometryType = "Polygon";
+			sourceConfig.featureCount = 0; // Dynamic from API
+		} else if (sourceType === "wms") {
 			sourceConfig.url = layer.wmsUrl;
 			sourceConfig.layers = layer.wmsLayerName;
 			sourceConfig.version = "1.3.0";

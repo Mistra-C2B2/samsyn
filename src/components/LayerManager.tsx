@@ -17,8 +17,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { Layer } from "../App";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -29,6 +27,8 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import {
 	Dialog,
 	DialogContent,

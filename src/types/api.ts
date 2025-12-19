@@ -581,3 +581,95 @@ export interface CommentResponse {
 export interface CommentWithReplies extends CommentResponse {
 	replies: CommentResponse[]; // List of direct replies
 }
+
+// ============================================================================
+// WMS Server Types
+// ============================================================================
+
+/**
+ * Schema for creating a new WMS server
+ */
+export interface WmsServerCreate {
+	name: string;
+	base_url: string;
+	description?: string | null;
+}
+
+/**
+ * Schema for updating a WMS server
+ */
+export interface WmsServerUpdate {
+	name?: string;
+	description?: string | null;
+}
+
+/**
+ * WMS server response from API
+ */
+export interface WmsServerResponse {
+	id: string; // UUID
+	name: string;
+	base_url: string;
+	description: string | null;
+	version: string | null;
+	service_title: string | null;
+	service_provider: string | null;
+	layer_count: number;
+	capabilities_cache: Record<string, unknown>;
+	cached_at: string | null; // ISO datetime
+	created_by: string | null; // UUID
+	created_at: string; // ISO datetime
+	updated_at: string; // ISO datetime
+}
+
+/**
+ * Simplified WMS server list response
+ */
+export interface WmsServerListResponse {
+	id: string; // UUID
+	name: string;
+	base_url: string;
+	description: string | null;
+	version: string | null;
+	service_title: string | null;
+	service_provider: string | null;
+	layer_count: number;
+	cached_at: string | null; // ISO datetime
+	created_by: string | null; // UUID
+	created_at: string; // ISO datetime
+}
+
+/**
+ * WMS layer info from capabilities
+ */
+export interface WmsLayerInfo {
+	name: string;
+	title: string | null;
+	abstract: string | null;
+	queryable: boolean;
+	bounds: number[] | null; // [west, south, east, north]
+	crs: string[];
+	styles: Array<{
+		name: string;
+		title: string;
+		legendUrl?: string | null;
+	}>;
+	dimensions: Array<{
+		name: string;
+		extent: string;
+		units?: string | null;
+		default?: string | null;
+	}>;
+}
+
+/**
+ * WMS server layers response
+ */
+export interface WmsServerLayersResponse {
+	server_id: string; // UUID
+	server_name: string;
+	base_url: string;
+	version: string | null;
+	layers: WmsLayerInfo[];
+	cached_at: string | null; // ISO datetime
+}

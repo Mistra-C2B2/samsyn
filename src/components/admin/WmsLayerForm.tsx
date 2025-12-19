@@ -1,5 +1,6 @@
-import { Loader2, Search, X } from "lucide-react";
+import { Database, Loader2, Search, X } from "lucide-react";
 import type { WmsLayerInfo } from "../../hooks/admin-layer-form";
+import type { WmsServer } from "../../services/wmsServerService";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -60,6 +61,10 @@ interface WmsLayerFormProps {
 		name: string;
 		sampleValue: string | null;
 	}) => void;
+
+	// Optional: WMS server integration
+	wmsServers?: WmsServer[];
+	onSelectFromServer?: (server: WmsServer) => void;
 }
 
 // ============================================================================
@@ -91,6 +96,8 @@ export function WmsLayerForm({
 	discoveringProperties,
 	onDiscoverProperties,
 	onAddPropertyToFilter,
+	wmsServers,
+	onSelectFromServer,
 }: WmsLayerFormProps) {
 	// Filter layers based on search
 	const filteredLayers = availableLayers.filter((layer) => {
@@ -105,6 +112,46 @@ export function WmsLayerForm({
 
 	return (
 		<>
+			{/* Saved WMS Servers (optional) */}
+			{wmsServers && wmsServers.length > 0 && onSelectFromServer && (
+				<div className="space-y-2">
+					<Label>Select from Saved Servers</Label>
+					<div className="flex flex-wrap gap-2">
+						{wmsServers.slice(0, 5).map((server) => (
+							<Button
+								key={server.id}
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => onSelectFromServer(server)}
+								className="text-xs"
+							>
+								<Database className="w-3 h-3 mr-1" />
+								{server.name}
+								<span className="ml-1 text-slate-400">
+									({server.layerCount})
+								</span>
+							</Button>
+						))}
+					</div>
+					{wmsServers.length > 5 && (
+						<p className="text-xs text-slate-500">
+							+{wmsServers.length - 5} more servers available in WMS Servers tab
+						</p>
+					)}
+					<div className="relative">
+						<div className="absolute inset-0 flex items-center">
+							<span className="w-full border-t border-slate-200" />
+						</div>
+						<div className="relative flex justify-center text-xs">
+							<span className="bg-white px-2 text-slate-500">
+								or enter URL manually
+							</span>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{/* WMS URL Input */}
 			<div className="space-y-2">
 				<Label htmlFor="wmsUrl">WMS Service URL</Label>

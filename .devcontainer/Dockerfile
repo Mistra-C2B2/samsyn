@@ -108,6 +108,11 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
+# Create symlink for reliable access
+USER root
+RUN ln -s /usr/local/share/npm-global/bin/claude /usr/local/bin/claude
+USER node
+
 # # Install uv and Python tools
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     /home/node/.local/bin/uv tool install black && \
@@ -130,6 +135,3 @@ RUN chmod +x /usr/local/bin/init-firewall.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall
 USER node
-
-# Ensure PATH updates are in zshrc
-RUN echo 'export PATH="/home/node/.cargo/bin:/home/node/.local/bin:/home/node/.playwright-venv/bin:/usr/local/share/npm-global/bin:$PATH"' >> /home/node/.zshrc

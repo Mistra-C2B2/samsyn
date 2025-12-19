@@ -1421,10 +1421,23 @@ function AppContent() {
 									prev.filter((l) => l.id !== layerId),
 								);
 
-								// Also remove from current map if it's there
-								if (currentMap?.layers.some((l) => l.id === layerId)) {
-									await removeLayerFromMap(layerId);
-								}
+								// Remove from ALL maps that contain this layer
+								setMaps((prev) =>
+									prev.map((map) => ({
+										...map,
+										layers: map.layers.filter((l) => l.id !== layerId),
+									})),
+								);
+
+								// Also update currentMap (separate state)
+								setCurrentMap((prev) =>
+									prev
+										? {
+												...prev,
+												layers: prev.layers.filter((l) => l.id !== layerId),
+											}
+										: null,
+								);
 
 								toast.success("Layer removed from library");
 							} catch (error) {
@@ -1445,10 +1458,27 @@ function AppContent() {
 									),
 								);
 
-								// Also update in current map if it's there
-								if (currentMap?.layers.some((l) => l.id === layerId)) {
-									updateLayer(layerId, updates);
-								}
+								// Update in ALL maps that contain this layer
+								setMaps((prev) =>
+									prev.map((map) => ({
+										...map,
+										layers: map.layers.map((l) =>
+											l.id === layerId ? { ...l, ...updates } : l,
+										),
+									})),
+								);
+
+								// Also update currentMap (separate state)
+								setCurrentMap((prev) =>
+									prev
+										? {
+												...prev,
+												layers: prev.layers.map((l) =>
+													l.id === layerId ? { ...l, ...updates } : l,
+												),
+											}
+										: null,
+								);
 
 								toast.success("Layer updated");
 							} catch (error) {

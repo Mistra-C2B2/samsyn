@@ -31,8 +31,8 @@ class Layer(Base):
     # Relationships
     creator = relationship("User", back_populates="layers")
     features = relationship("LayerFeature", back_populates="layer", cascade="all, delete-orphan")
-    map_layers = relationship("MapLayer", back_populates="layer")
-    comments = relationship("Comment", back_populates="layer")
+    map_layers = relationship("MapLayer", back_populates="layer", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="layer", cascade="all, delete-orphan")
 
 
 class MapLayer(Base):

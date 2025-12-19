@@ -26,3 +26,4 @@ class User(Base):
     layers = relationship("Layer", back_populates="creator")
     comments = relationship("Comment", back_populates="author")
     collaborations = relationship("MapCollaborator", back_populates="user")
+    wms_servers = relationship("WmsServer", back_populates="creator")

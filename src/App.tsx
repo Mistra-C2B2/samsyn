@@ -25,6 +25,8 @@ import {
 	MapView,
 	type MapViewRef,
 	type TerraDrawFeature,
+	type WMSFeatureInfoParams,
+	type WMSFeatureInfoResponse,
 } from "./components/MapView";
 import { RoleBadge } from "./components/RoleBadge";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -75,6 +77,7 @@ export interface Layer {
 		current?: string; // Currently selected time value (e.g., "2024-01-01/2024-06-01")
 	};
 	wmsLegendUrl?: string; // URL to GetLegendGraphic image
+	wmsQueryable?: boolean; // Whether layer supports GetFeatureInfo
 	// GeoTIFF properties
 	geotiffUrl?: string;
 	// Vector properties
@@ -376,7 +379,11 @@ function AppContent() {
 						end: formatDate(
 							endDate.getFullYear(),
 							endDate.getMonth() + 1,
-							new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate(),
+							new Date(
+								endDate.getFullYear(),
+								endDate.getMonth() + 1,
+								0,
+							).getDate(),
 						),
 					};
 				} else {
@@ -1006,6 +1013,31 @@ function AppContent() {
 		}
 	};
 
+	// WMS GetFeatureInfo handler for queryable WMS layers
+	const handleWMSFeatureInfoRequest = useCallback(
+		async (
+			params: WMSFeatureInfoParams,
+		): Promise<WMSFeatureInfoResponse | null> => {
+			try {
+				const result = await layerService.getWMSFeatureInfo({
+					wmsUrl: params.wmsUrl,
+					layers: params.layers,
+					bbox: params.bbox,
+					width: params.width,
+					height: params.height,
+					x: params.x,
+					y: params.y,
+					time: params.time,
+				});
+				return result as WMSFeatureInfoResponse;
+			} catch (error) {
+				console.error("WMS GetFeatureInfo error:", error);
+				return null;
+			}
+		},
+		[layerService],
+	);
+
 	const handleShareMap = async () => {
 		if (!currentMap) {
 			toast.error("No map selected to share");
@@ -1201,6 +1233,7 @@ function AppContent() {
 							markerFeatureIds={markerFeatureIds}
 							markerColor={currentMarkerColor}
 							terraDrawSnapshot={terraDrawSnapshot}
+							onWMSFeatureInfoRequest={handleWMSFeatureInfoRequest}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">

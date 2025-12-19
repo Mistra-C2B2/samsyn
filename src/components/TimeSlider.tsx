@@ -34,10 +34,7 @@ export function TimeSlider({
 	const availableYears = useMemo(() => {
 		const minYear = startDate.getFullYear();
 		const maxYear = Math.max(endDate.getFullYear(), new Date().getFullYear());
-		return Array.from(
-			{ length: maxYear - minYear + 1 },
-			(_, i) => minYear + i,
-		);
+		return Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
 	}, [startDate, endDate]);
 
 	// Use custom dates if set, otherwise use props
@@ -179,13 +176,13 @@ export function TimeSlider({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{availableYears.filter(
-									(y) => y <= customEndDate.getFullYear(),
-								).map((year) => (
-									<SelectItem key={year} value={year.toString()}>
-										{year}
-									</SelectItem>
-								))}
+								{availableYears
+									.filter((y) => y <= customEndDate.getFullYear())
+									.map((year) => (
+										<SelectItem key={year} value={year.toString()}>
+											{year}
+										</SelectItem>
+									))}
 							</SelectContent>
 						</Select>
 						<span className="text-xs text-slate-400">→</span>
@@ -197,13 +194,13 @@ export function TimeSlider({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{availableYears.filter(
-									(y) => y >= customStartDate.getFullYear(),
-								).map((year) => (
-									<SelectItem key={year} value={year.toString()}>
-										{year}
-									</SelectItem>
-								))}
+								{availableYears
+									.filter((y) => y >= customStartDate.getFullYear())
+									.map((year) => (
+										<SelectItem key={year} value={year.toString()}>
+											{year}
+										</SelectItem>
+									))}
 							</SelectContent>
 						</Select>
 					</div>

@@ -77,7 +77,7 @@ wmsQueryable?: boolean;
 wmsFeatureInfoFormat?: string;  // "application/json", "text/html", etc.
 ```
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 

@@ -102,6 +102,12 @@ export function LayerManager({
 	const canEditLayer = (layer: Layer) => {
 		if (!isSignedIn || !onEditLayer) return false;
 
+		// Layers added from the library should not be editable
+		if (availableLayers.some((l) => l.id === layer.id)) return false;
+
+		// Global Fishing Effort layer should not be editable (check by dataset since ID changes after backend creation)
+		if (layer.gfw4WingsDataset) return false;
+
 		// If layer is editable by everyone, allow editing
 		if (layer.editable === "everyone") return true;
 

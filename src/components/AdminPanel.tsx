@@ -556,6 +556,8 @@ export function AdminPanel({
 												</Badge>
 											)}
 										</div>
+										{/* Hide edit/delete for hardcoded GFW layer */}
+									{!layer.gfw4WingsDataset && (
 										<div className="flex gap-1">
 											<Button
 												variant="ghost"
@@ -572,6 +574,7 @@ export function AdminPanel({
 												<Trash2 className="w-4 h-4 text-red-500" />
 											</Button>
 										</div>
+									)}
 									</div>
 									{layer.description && (
 										<p className="text-xs text-slate-600 mt-2">

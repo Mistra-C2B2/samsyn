@@ -71,6 +71,7 @@ export function AdminPanel({
 			name: string;
 			title: string;
 			abstract: string | null;
+			queryable: boolean;
 			dimensions: Array<{
 				name: string;
 				extent: string;
@@ -100,6 +101,8 @@ export function AdminPanel({
 	const [legendSource, setLegendSource] = useState<"manual" | "wms">("manual");
 	const [wmsLegendUrl, setWmsLegendUrl] = useState<string | null>(null);
 	const [legendImageError, setLegendImageError] = useState(false);
+	// WMS queryable state
+	const [wmsQueryable, setWmsQueryable] = useState(false);
 
 	// Get unique categories from existing layers
 	const existingCategories = Array.from(
@@ -131,6 +134,7 @@ export function AdminPanel({
 		setLegendSource("manual");
 		setWmsLegendUrl(null);
 		setLegendImageError(false);
+		setWmsQueryable(false);
 	};
 
 	// Fetch WMS GetCapabilities and populate layer list
@@ -192,6 +196,9 @@ export function AdminPanel({
 				setWmsLegendUrl(legendUrl);
 				setLegendImageError(false);
 			}
+
+			// Store queryable flag
+			setWmsQueryable(selectedLayer.queryable || false);
 		}
 	};
 
@@ -279,6 +286,7 @@ export function AdminPanel({
 				...(layerSource === "wms" && {
 					wmsUrl,
 					wmsLayerName,
+					wmsQueryable,
 					// Include WMS legend URL if using WMS legend source
 					...(legendSource === "wms" &&
 						wmsLegendUrl &&
@@ -534,7 +542,8 @@ export function AdminPanel({
 													return (
 														layer.name.toLowerCase().includes(filter) ||
 														layer.title.toLowerCase().includes(filter) ||
-														(layer.abstract?.toLowerCase().includes(filter) ?? false)
+														(layer.abstract?.toLowerCase().includes(filter) ??
+															false)
 													);
 												})
 												.map((layer) => {
@@ -582,7 +591,8 @@ export function AdminPanel({
 												return (
 													layer.name.toLowerCase().includes(filter) ||
 													layer.title.toLowerCase().includes(filter) ||
-													(layer.abstract?.toLowerCase().includes(filter) ?? false)
+													(layer.abstract?.toLowerCase().includes(filter) ??
+														false)
 												);
 											}).length === 0 && (
 												<div className="px-3 py-4 text-sm text-slate-500 text-center">

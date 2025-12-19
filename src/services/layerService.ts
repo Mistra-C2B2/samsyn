@@ -214,6 +214,14 @@ export class LayerService {
 			layer.wmsUrl = wmsConfig.url;
 			layer.wmsLayerName = wmsConfig.layers;
 
+			// Extract queryable flag for GetFeatureInfo support
+			const wmsQueryable = (
+				layerResponse.source_config as { queryable?: boolean }
+			).queryable;
+			if (wmsQueryable !== undefined) {
+				layer.wmsQueryable = wmsQueryable;
+			}
+
 			// Extract WMS time dimension config if present
 			const wmsTimeDimConfig = (
 				layerResponse.source_config as {
@@ -388,6 +396,10 @@ export class LayerService {
 			sourceConfig.version = "1.3.0";
 			sourceConfig.format = "image/png";
 			sourceConfig.transparent = true;
+			// Store queryable flag for GetFeatureInfo support
+			if (layer.wmsQueryable !== undefined) {
+				sourceConfig.queryable = layer.wmsQueryable;
+			}
 			// Store WMS time dimension config if present
 			if (layer.wmsTimeDimension) {
 				sourceConfig.timeDimension = {
@@ -635,6 +647,53 @@ export class LayerService {
 	}> {
 		const params = new URLSearchParams({ url: wmsUrl });
 		return this.client.get(`/api/v1/wms/capabilities?${params.toString()}`);
+	}
+
+	/**
+	 * Fetch WMS GetFeatureInfo via backend proxy (dev mode only)
+	 * GET /api/v1/wms/feature-info
+	 *
+	 * @param params - Parameters for the GetFeatureInfo request
+	 * @returns Feature info response from the WMS server
+	 */
+	async getWMSFeatureInfo(params: {
+		wmsUrl: string;
+		layers: string;
+		bbox: string;
+		width: number;
+		height: number;
+		x: number;
+		y: number;
+		infoFormat?: string;
+		time?: string;
+	}): Promise<{
+		type?: "html" | "text";
+		content?: string;
+		features?: Array<{
+			type: string;
+			properties: Record<string, unknown>;
+			geometry?: unknown;
+		}>;
+		[key: string]: unknown;
+	}> {
+		const queryParams = new URLSearchParams({
+			url: params.wmsUrl,
+			layers: params.layers,
+			bbox: params.bbox,
+			width: params.width.toString(),
+			height: params.height.toString(),
+			x: params.x.toString(),
+			y: params.y.toString(),
+			info_format: params.infoFormat || "text/html",
+		});
+
+		if (params.time) {
+			queryParams.set("time", params.time);
+		}
+
+		return this.client.get(
+			`/api/v1/wms/feature-info?${queryParams.toString()}`,
+		);
 	}
 }
 

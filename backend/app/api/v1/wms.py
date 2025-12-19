@@ -262,3 +262,151 @@ async def get_wms_capabilities(
                 )
 
     return result
+
+
+@router.get("/feature-info")
+async def get_wms_feature_info(
+    url: str = Query(..., description="WMS service base URL"),
+    layers: str = Query(..., description="Layer name(s) to query"),
+    bbox: str = Query(..., description="Bounding box (west,south,east,north)"),
+    width: int = Query(..., description="Map width in pixels"),
+    height: int = Query(..., description="Map height in pixels"),
+    x: int = Query(..., description="X pixel coordinate of query point"),
+    y: int = Query(..., description="Y pixel coordinate of query point"),
+    info_format: str = Query("text/html", description="Response format (text/html is most widely supported)"),
+    time: Optional[str] = Query(None, description="TIME parameter for temporal layers"),
+):
+    """
+    Proxy for WMS GetFeatureInfo requests.
+
+    Fetches feature information at a specific point from the WMS server.
+    This endpoint is only available in development mode to avoid abuse.
+
+    Args:
+        url: Base URL of the WMS service
+        layers: Layer name(s) to query
+        bbox: Bounding box in format "west,south,east,north"
+        width: Map width in pixels
+        height: Map height in pixels
+        x: X pixel coordinate of query point
+        y: Y pixel coordinate of query point
+        info_format: Desired response format (default: application/json)
+        time: Optional TIME parameter for temporal layers
+
+    Returns:
+        The raw response from the WMS server
+
+    Raises:
+        403: If not in dev mode
+        502: If WMS server request fails
+    """
+    # Check dev mode
+    if not settings.DEV_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="WMS feature info proxy is only available in development mode",
+        )
+
+    # Build GetFeatureInfo URL
+    base_url = url.split("?")[0]
+
+    # For WMS 1.3.0 with EPSG:4326, BBOX order is: minLat,minLon,maxLat,maxLon (south,west,north,east)
+    # The frontend sends: west,south,east,north - we need to reorder for EPSG:4326
+    bbox_parts = bbox.split(",")
+    if len(bbox_parts) == 4:
+        west, south, east, north = bbox_parts
+        # Reorder for EPSG:4326 in WMS 1.3.0: minY,minX,maxY,maxX
+        bbox_4326 = f"{south},{west},{north},{east}"
+    else:
+        bbox_4326 = bbox
+
+    params = {
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "REQUEST": "GetFeatureInfo",
+        "LAYERS": layers,
+        "QUERY_LAYERS": layers,
+        "INFO_FORMAT": info_format,
+        "CRS": "EPSG:4326",
+        "BBOX": bbox_4326,
+        "WIDTH": str(width),
+        "HEIGHT": str(height),
+        "I": str(x),
+        "J": str(y),
+    }
+
+    # Add TIME parameter if provided (for temporal layers)
+    if time:
+        params["TIME"] = time
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        try:
+            response = await client.get(base_url, params=params)
+            response.raise_for_status()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="WMS server request timed out",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"WMS server returned error: {e.response.status_code}",
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to connect to WMS server: {str(e)}",
+            )
+
+    # Return the response based on content type
+    content_type = response.headers.get("content-type", "").lower()
+
+    if "json" in content_type:
+        # Parse and return JSON
+        try:
+            return response.json()
+        except Exception:
+            return {"raw": response.text}
+    elif "html" in content_type:
+        # Try to parse HTML table and extract data
+        try:
+            html_content = response.text
+            # Parse HTML to extract table data
+            import re
+
+            # Extract table rows
+            features = []
+
+            # Find all header cells
+            headers = re.findall(r'<th[^>]*>([^<]*)</th>', html_content, re.IGNORECASE)
+            # Filter out empty headers
+            headers = [h.strip() for h in headers if h.strip()]
+
+            # Find all data rows (tbody tr)
+            tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_content, re.DOTALL | re.IGNORECASE)
+            if tbody_match and headers:
+                tbody_content = tbody_match.group(1)
+                # Find all rows
+                rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_content, re.DOTALL | re.IGNORECASE)
+
+                for row in rows:
+                    # Extract cell values
+                    cells = re.findall(r'<td[^>]*>([^<]*)</td>', row, re.IGNORECASE)
+                    if cells and len(cells) == len(headers):
+                        # Create properties dict from headers and cells
+                        properties = {}
+                        for header, cell in zip(headers, cells):
+                            properties[header.strip()] = cell.strip()
+                        features.append({
+                            "type": "Feature",
+                            "properties": properties
+                        })
+
+            # Always return features array (even if empty) so frontend knows parsing succeeded
+            return {"features": features}
+        except Exception:
+            return {"type": "html", "content": response.text}
+    else:
+        # Return text content
+        return {"type": "text", "content": response.text}

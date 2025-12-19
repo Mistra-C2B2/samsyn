@@ -3,6 +3,7 @@ import {
 	ArrowUpDown,
 	Eye,
 	EyeOff,
+	Focus,
 	GripVertical,
 	Info,
 	Library,
@@ -71,6 +72,7 @@ interface LayerManagerProps {
 	highlightedLayerId?: string | null;
 	onSelectLayer?: (layerId: string | null) => void;
 	mapUserRole?: string | null; // "owner", "editor", "viewer", or null
+	onZoomToLayer?: (bounds: [number, number, number, number]) => void;
 }
 
 export function LayerManager({
@@ -92,6 +94,7 @@ export function LayerManager({
 	highlightedLayerId,
 	onSelectLayer,
 	mapUserRole,
+	onZoomToLayer,
 }: LayerManagerProps) {
 	const { isSignedIn, user } = useUser();
 
@@ -563,6 +566,20 @@ export function LayerManager({
 														title="Edit layer"
 													>
 														<Pencil className="w-4 h-4" />
+													</Button>
+												)}
+												{onZoomToLayer && layer.wmsBounds && (
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={(e) => {
+															e.stopPropagation();
+															onZoomToLayer(layer.wmsBounds!);
+														}}
+														className="flex-shrink-0"
+														title="Zoom to layer extent"
+													>
+														<Focus className="w-4 h-4 text-blue-600" />
 													</Button>
 												)}
 											</div>

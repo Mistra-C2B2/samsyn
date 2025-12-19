@@ -146,6 +146,8 @@ export interface WMSFeatureInfoParams {
 	x: number;
 	y: number;
 	time?: string;
+	version?: "1.1.1" | "1.3.0";
+	cqlFilter?: string;
 }
 
 // WMS GetFeatureInfo response
@@ -224,6 +226,7 @@ export interface MapViewRef {
 	) => string[];
 	removeFeature: (id: string) => void;
 	updateDrawingStyles: (styles: DrawingStyles) => void;
+	zoomToBounds: (bounds: [number, number, number, number]) => void;
 }
 
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
@@ -755,6 +758,28 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					console.warn("Failed to select feature:", err);
 				}
 			},
+			zoomToBounds: (bounds: [number, number, number, number]) => {
+				if (!mapRef.current || !mapLoaded) return;
+
+				const map = mapRef.current;
+				const [west, south, east, north] = bounds;
+
+				try {
+					map.fitBounds(
+						[
+							[west, south],
+							[east, north],
+						],
+						{
+							padding: 50,
+							maxZoom: 14,
+							duration: 1000,
+						},
+					);
+				} catch (err) {
+					console.warn("Failed to zoom to bounds:", err);
+				}
+			},
 		}));
 
 		useEffect(() => {
@@ -1133,9 +1158,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				if (layer.gfw4WingsDataset) {
 					return `gfw-${layer.gfw4WingsDataset}-${layer.gfw4WingsInterval}-${layer.gfw4WingsDateRange?.start}-${layer.gfw4WingsDateRange?.end}`;
 				}
-				// For WMS temporal layers, include the time dimension in the hash
-				if (layer.wmsUrl && layer.wmsTimeDimension?.current) {
-					return `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${layer.wmsTimeDimension.current}`;
+				// For WMS layers, include time dimension, style, version, and CQL filter in the hash
+				if (layer.wmsUrl) {
+					const timeHash = layer.wmsTimeDimension?.current || "";
+					const styleHash = layer.wmsStyle || "";
+					const versionHash = layer.wmsVersion || "1.3.0";
+					const cqlHash = layer.wmsCqlFilter || "";
+					return `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${timeHash}-${styleHash}-${versionHash}-${cqlHash}`;
 				}
 				if (!layer.data) return "";
 				return JSON.stringify(layer.data);
@@ -1518,24 +1547,39 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					layer.wmsUrl &&
 					layer.wmsLayerName
 				) {
-					// WMS layer rendering
+					// WMS layer rendering with version-specific parameters
 					const wmsBaseUrl = layer.wmsUrl.replace(/\/$/, ""); // Remove trailing slash
+					const wmsVersion = layer.wmsVersion || "1.3.0"; // Default to 1.3.0
+
+					// Build WMS parameters based on version
+					// WMS 1.1.1 uses SRS, WMS 1.3.0 uses CRS
 					const wmsParams = new URLSearchParams({
 						SERVICE: "WMS",
-						VERSION: "1.3.0",
+						VERSION: wmsVersion,
 						REQUEST: "GetMap",
 						LAYERS: layer.wmsLayerName,
-						STYLES: "", // Required by WMS spec, empty = default style
+						STYLES: layer.wmsStyle || "", // Use selected style or default
 						FORMAT: "image/png",
 						TRANSPARENT: "true",
-						CRS: "EPSG:3857",
 						WIDTH: "256",
 						HEIGHT: "256",
 					});
 
+					// Set coordinate reference system parameter based on WMS version
+					if (wmsVersion === "1.1.1") {
+						wmsParams.set("SRS", "EPSG:3857");
+					} else {
+						wmsParams.set("CRS", "EPSG:3857");
+					}
+
 					// Add TIME parameter if layer has temporal dimension with current value
 					if (layer.wmsTimeDimension?.current) {
 						wmsParams.set("TIME", layer.wmsTimeDimension.current);
+					}
+
+					// Add CQL_FILTER if specified (GeoServer/MapServer vendor extension)
+					if (layer.wmsCqlFilter) {
+						wmsParams.set("CQL_FILTER", layer.wmsCqlFilter);
 					}
 
 					// MapLibre expects {bbox-epsg-3857} placeholder for WMS tile requests
@@ -1558,12 +1602,15 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						},
 					});
 
-					// Track state for this layer (include time dimension in hash for change detection)
+					// Track state for this layer (include time, style, version, CQL filter in hash for change detection)
 					const wmsTimeHash = layer.wmsTimeDimension?.current || "";
+					const wmsStyleHash = layer.wmsStyle || "";
+					const wmsVersionHash = layer.wmsVersion || "1.3.0";
+					const wmsCqlHash = layer.wmsCqlFilter || "";
 					previousLayerState.set(layer.id, {
 						visible: true,
 						opacity: layer.opacity,
-						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${wmsTimeHash}`,
+						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${wmsTimeHash}-${wmsStyleHash}-${wmsVersionHash}-${wmsCqlHash}`,
 					});
 				} else if (layer.gfw4WingsDataset) {
 					// GFW 4Wings layer rendering using MVT (vector tiles)
@@ -2178,6 +2225,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						x,
 						y,
 						time: layer.wmsTimeDimension?.current,
+						version: layer.wmsVersion,
+						cqlFilter: layer.wmsCqlFilter,
 					});
 
 					// Remove loading popup
@@ -2212,6 +2261,15 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const visibleLayers = layers.filter((layer) => layer.visible);
 		const activeLegend = visibleLayers.find((layer) => layer.legend);
 
+		// Collect unique attributions from visible layers
+		const visibleAttributions = Array.from(
+			new Set(
+				visibleLayers
+					.filter((layer) => layer.wmsAttribution)
+					.map((layer) => layer.wmsAttribution as string),
+			),
+		);
+
 		return (
 			<div className="relative w-full h-full">
 				<div ref={mapContainerRef} className="w-full h-full" />
@@ -2240,6 +2298,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					</div>
 				)}
 				{activeLegend && <Legend layer={activeLegend} />}
+				{/* Layer attributions */}
+				{visibleAttributions.length > 0 && (
+					<div className="absolute bottom-2 left-2 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-slate-600 max-w-[200px]">
+						{visibleAttributions.map((attribution, index) => (
+							<span key={attribution}>
+								{index > 0 && " | "}
+								{attribution}
+							</span>
+						))}
+					</div>
+				)}
 			</div>
 		);
 	},

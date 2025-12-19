@@ -666,6 +666,8 @@ export class LayerService {
 		y: number;
 		infoFormat?: string;
 		time?: string;
+		version?: "1.1.1" | "1.3.0";
+		cqlFilter?: string;
 	}): Promise<{
 		type?: "html" | "text";
 		content?: string;
@@ -685,14 +687,55 @@ export class LayerService {
 			x: params.x.toString(),
 			y: params.y.toString(),
 			info_format: params.infoFormat || "text/html",
+			version: params.version || "1.3.0",
 		});
 
 		if (params.time) {
 			queryParams.set("time", params.time);
 		}
 
+		if (params.cqlFilter) {
+			queryParams.set("cql_filter", params.cqlFilter);
+		}
+
 		return this.client.get(
 			`/api/v1/wms/feature-info?${queryParams.toString()}`,
+		);
+	}
+
+	/**
+	 * Discover available properties/columns in a WMS layer for CQL filtering.
+	 * Makes a sample GetFeatureInfo request to find what properties are available.
+	 *
+	 * @param params - Parameters for property discovery
+	 * @returns Discovered properties with sample values
+	 */
+	async discoverWMSLayerProperties(params: {
+		wmsUrl: string;
+		layer: string;
+		bounds?: string;
+		version?: "1.1.1" | "1.3.0";
+	}): Promise<{
+		properties: Array<{
+			name: string;
+			sampleValue: string | null;
+			type: string;
+		}>;
+		message: string;
+		error?: string;
+	}> {
+		const queryParams = new URLSearchParams({
+			url: params.wmsUrl,
+			layer: params.layer,
+			version: params.version || "1.3.0",
+		});
+
+		if (params.bounds) {
+			queryParams.set("bounds", params.bounds);
+		}
+
+		return this.client.get(
+			`/api/v1/wms/discover-properties?${queryParams.toString()}`,
 		);
 	}
 }

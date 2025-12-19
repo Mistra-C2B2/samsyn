@@ -97,7 +97,7 @@ wmsStyle?: string;
 wmsAvailableStyles?: Array<{ name: string; title: string; legendUrl?: string }>;
 ```
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 
@@ -116,7 +116,7 @@ GetCapabilities returns geographic extent.
 wmsBounds?: [west: number, south: number, east: number, north: number];
 ```
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 
@@ -194,7 +194,7 @@ Service metadata can populate author/source fields.
 - Auto-fill Author field from service provider
 - Show attribution on map when layer is visible
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 
@@ -224,9 +224,10 @@ Different servers support different WMS versions.
 **New Layer properties:**
 ```typescript
 wmsVersion?: "1.1.1" | "1.3.0";
+wmsCRS?: string[];  // Supported coordinate reference systems
 ```
 
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
 ---
 
@@ -273,6 +274,30 @@ Ensure layer supports map's projection.
 - Show available projections
 
 **Status:** [ ] Not started
+
+---
+
+### 15. CQL Filter Support (Vendor Extension)
+**Priority:** 🟡 Medium | **Effort:** Low | **Impact:** Medium
+
+GeoServer and MapServer support CQL_FILTER for server-side filtering.
+
+**Changes needed:**
+- Add CQL filter input field in AdminPanel
+- Pass CQL_FILTER parameter in WMS GetMap requests
+- Pass CQL_FILTER parameter in GetFeatureInfo requests
+
+**New Layer properties:**
+```typescript
+wmsCqlFilter?: string;  // CQL_FILTER expression (e.g., "category='All'")
+```
+
+**Example for AIS density layer:**
+```
+category_column='All' AND category='All'
+```
+
+**Status:** [x] Completed
 
 ---
 

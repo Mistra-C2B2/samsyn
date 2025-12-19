@@ -78,6 +78,17 @@ export interface Layer {
 	};
 	wmsLegendUrl?: string; // URL to GetLegendGraphic image
 	wmsQueryable?: boolean; // Whether layer supports GetFeatureInfo
+	wmsStyle?: string; // Selected style name for WMS requests
+	wmsAvailableStyles?: Array<{
+		name: string;
+		title: string;
+		legendUrl?: string;
+	}>; // Available styles from GetCapabilities
+	wmsBounds?: [number, number, number, number]; // [west, south, east, north] geographic bounds
+	wmsAttribution?: string; // Attribution text from WMS service provider
+	wmsVersion?: "1.1.1" | "1.3.0"; // WMS version (affects CRS/SRS parameter and BBOX order)
+	wmsCRS?: string[]; // Supported coordinate reference systems
+	wmsCqlFilter?: string; // CQL_FILTER for GeoServer/MapServer (vendor extension)
 	// GeoTIFF properties
 	geotiffUrl?: string;
 	// Vector properties
@@ -1028,6 +1039,8 @@ function AppContent() {
 					x: params.x,
 					y: params.y,
 					time: params.time,
+					version: params.version,
+					cqlFilter: params.cqlFilter,
 				});
 				return result as WMSFeatureInfoResponse;
 			} catch (error) {
@@ -1292,6 +1305,7 @@ function AppContent() {
 						highlightedLayerId={highlightedLayerId}
 						onSelectLayer={setHighlightedLayerId}
 						mapUserRole={currentMap.user_role}
+						onZoomToLayer={(bounds) => mapViewRef.current?.zoomToBounds(bounds)}
 					/>
 				)}
 

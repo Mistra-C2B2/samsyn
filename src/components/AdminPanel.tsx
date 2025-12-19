@@ -78,6 +78,13 @@ export function AdminPanel({
 				units: string | null;
 				default: string | null;
 			}>;
+			styles: Array<{
+				name: string;
+				title: string;
+				legendUrl?: string;
+			}>;
+			bounds: [number, number, number, number] | null; // [west, south, east, north]
+			crs: string[] | null; // Supported coordinate reference systems
 		}>
 	>([]);
 	const [fetchingCapabilities, setFetchingCapabilities] = useState(false);
@@ -103,6 +110,30 @@ export function AdminPanel({
 	const [legendImageError, setLegendImageError] = useState(false);
 	// WMS queryable state
 	const [wmsQueryable, setWmsQueryable] = useState(false);
+	// WMS style state
+	const [wmsStyle, setWmsStyle] = useState<string>("");
+	const [wmsAvailableStyles, setWmsAvailableStyles] = useState<
+		Array<{ name: string; title: string; legendUrl?: string }>
+	>([]);
+	// WMS bounds state
+	const [wmsBounds, setWmsBounds] = useState<
+		[number, number, number, number] | null
+	>(null);
+	// WMS service provider (for attribution)
+	const [wmsServiceProvider, setWmsServiceProvider] = useState<string | null>(
+		null,
+	);
+	// WMS version and formats (for version-specific parameter handling)
+	const [wmsVersion, setWmsVersion] = useState<"1.1.1" | "1.3.0" | null>(null);
+	const [wmsGetMapFormats, setWmsGetMapFormats] = useState<string[]>([]);
+	const [wmsCRS, setWmsCRS] = useState<string[]>([]);
+	// CQL filter for GeoServer/MapServer (vendor extension)
+	const [wmsCqlFilter, setWmsCqlFilter] = useState<string>("");
+	// Discovered properties for CQL filter suggestions
+	const [discoveredProperties, setDiscoveredProperties] = useState<
+		Array<{ name: string; sampleValue: string | null; type: string }>
+	>([]);
+	const [discoveringProperties, setDiscoveringProperties] = useState(false);
 
 	// Get unique categories from existing layers
 	const existingCategories = Array.from(
@@ -135,6 +166,21 @@ export function AdminPanel({
 		setWmsLegendUrl(null);
 		setLegendImageError(false);
 		setWmsQueryable(false);
+		// Reset WMS style state
+		setWmsStyle("");
+		setWmsAvailableStyles([]);
+		// Reset WMS bounds state
+		setWmsBounds(null);
+		// Reset WMS service provider
+		setWmsServiceProvider(null);
+		// Reset WMS version and formats
+		setWmsVersion(null);
+		setWmsGetMapFormats([]);
+		setWmsCRS([]);
+		// Reset CQL filter
+		setWmsCqlFilter("");
+		// Reset discovered properties
+		setDiscoveredProperties([]);
 	};
 
 	// Fetch WMS GetCapabilities and populate layer list
@@ -149,9 +195,33 @@ export function AdminPanel({
 			const capabilities = await layerService.getWMSCapabilities(wmsUrl);
 			setAvailableWmsLayers(capabilities.layers);
 
+			// Store WMS version for version-specific parameter handling
+			if (capabilities.version === "1.1.1" || capabilities.version === "1.3.0") {
+				setWmsVersion(capabilities.version);
+			} else {
+				// Default to 1.3.0 if unknown version
+				setWmsVersion("1.3.0");
+			}
+
+			// Store supported GetMap formats
+			if (capabilities.getmap_formats) {
+				setWmsGetMapFormats(capabilities.getmap_formats);
+			}
+
 			// Auto-fill layer name from service title if not already set
 			if (capabilities.service_title && !name) {
 				setName(capabilities.service_title);
+			}
+
+			// Store service provider for attribution and auto-fill author
+			if (capabilities.service_provider) {
+				setWmsServiceProvider(capabilities.service_provider);
+				// Auto-fill author from service provider if not already set
+				if (!author) {
+					setAuthor(capabilities.service_provider);
+				}
+			} else {
+				setWmsServiceProvider(null);
 			}
 		} catch (error) {
 			const message =
@@ -199,6 +269,69 @@ export function AdminPanel({
 
 			// Store queryable flag
 			setWmsQueryable(selectedLayer.queryable || false);
+
+			// Store available styles and select default
+			if (selectedLayer.styles && selectedLayer.styles.length > 0) {
+				setWmsAvailableStyles(selectedLayer.styles);
+				// Select first style as default
+				setWmsStyle(selectedLayer.styles[0].name);
+				// If selected style has a legend URL, use it
+				if (selectedLayer.styles[0].legendUrl) {
+					setWmsLegendUrl(selectedLayer.styles[0].legendUrl);
+					setLegendImageError(false);
+				}
+			} else {
+				setWmsAvailableStyles([]);
+				setWmsStyle("");
+			}
+
+			// Store bounds for zoom-to-layer functionality
+			if (selectedLayer.bounds) {
+				setWmsBounds(selectedLayer.bounds);
+			} else {
+				setWmsBounds(null);
+			}
+
+			// Store layer-specific CRS (if available)
+			if (selectedLayer.crs && selectedLayer.crs.length > 0) {
+				setWmsCRS(selectedLayer.crs);
+			} else {
+				setWmsCRS([]);
+			}
+
+			// Reset discovered properties when changing layer
+			setDiscoveredProperties([]);
+		}
+	};
+
+	// Discover available properties for CQL filtering
+	const handleDiscoverProperties = async () => {
+		if (!wmsUrl || !wmsLayerName) return;
+
+		setDiscoveringProperties(true);
+		try {
+			const boundsStr = wmsBounds
+				? `${wmsBounds[0]},${wmsBounds[1]},${wmsBounds[2]},${wmsBounds[3]}`
+				: undefined;
+
+			const result = await layerService.discoverWMSLayerProperties({
+				wmsUrl,
+				layer: wmsLayerName,
+				bounds: boundsStr,
+				version: wmsVersion || "1.3.0",
+			});
+
+			setDiscoveredProperties(result.properties || []);
+
+			if (result.properties.length === 0) {
+				// Show message if no properties found
+				console.log("Property discovery:", result.message);
+			}
+		} catch (error) {
+			console.error("Failed to discover properties:", error);
+			setDiscoveredProperties([]);
+		} finally {
+			setDiscoveringProperties(false);
 		}
 	};
 
@@ -222,6 +355,18 @@ export function AdminPanel({
 		// Determine layer source
 		if (layer.wmsUrl) {
 			setLayerSource("wms");
+			// Load WMS style settings
+			setWmsStyle(layer.wmsStyle || "");
+			setWmsAvailableStyles(layer.wmsAvailableStyles || []);
+			// Load WMS bounds
+			setWmsBounds(layer.wmsBounds || null);
+			// Load WMS attribution
+			setWmsServiceProvider(layer.wmsAttribution || null);
+			// Load WMS version and CRS
+			setWmsVersion(layer.wmsVersion || null);
+			setWmsCRS(layer.wmsCRS || []);
+			// Load CQL filter
+			setWmsCqlFilter(layer.wmsCqlFilter || "");
 		} else if (layer.geotiffUrl) {
 			setLayerSource("geotiff");
 		} else {
@@ -287,6 +432,20 @@ export function AdminPanel({
 					wmsUrl,
 					wmsLayerName,
 					wmsQueryable,
+					// Include WMS version for version-specific parameters
+					...(wmsVersion && { wmsVersion }),
+					// Include supported CRS list
+					...(wmsCRS.length > 0 && { wmsCRS }),
+					// Include CQL filter if specified
+					...(wmsCqlFilter.trim() && { wmsCqlFilter: wmsCqlFilter.trim() }),
+					// Include WMS style if selected
+					...(wmsStyle && { wmsStyle }),
+					// Include available styles for future selection
+					...(wmsAvailableStyles.length > 0 && { wmsAvailableStyles }),
+					// Include WMS bounds for zoom-to-layer functionality
+					...(wmsBounds && { wmsBounds }),
+					// Include WMS attribution from service provider
+					...(wmsServiceProvider && { wmsAttribution: wmsServiceProvider }),
 					// Include WMS legend URL if using WMS legend source
 					...(legendSource === "wms" &&
 						wmsLegendUrl &&
@@ -617,6 +776,75 @@ export function AdminPanel({
 									/>
 								</div>
 
+								{/* Style selection dropdown */}
+								{wmsAvailableStyles.length > 1 && (
+									<div className="space-y-2">
+										<Label htmlFor="wmsStyle">Style</Label>
+										<Select
+											value={wmsStyle}
+											onValueChange={(value) => {
+												setWmsStyle(value);
+												// Update legend URL if style has one
+												const selectedStyle = wmsAvailableStyles.find(
+													(s) => s.name === value,
+												);
+												if (selectedStyle?.legendUrl) {
+													setWmsLegendUrl(selectedStyle.legendUrl);
+													setLegendImageError(false);
+												} else if (wmsUrl && wmsLayerName) {
+													// Generate default legend URL with style parameter
+													const baseUrl = wmsUrl.split("?")[0];
+													const legendUrl = `${baseUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=${encodeURIComponent(wmsLayerName)}&STYLE=${encodeURIComponent(value)}&FORMAT=image/png`;
+													setWmsLegendUrl(legendUrl);
+													setLegendImageError(false);
+												}
+											}}
+										>
+											<SelectTrigger id="wmsStyle">
+												<SelectValue placeholder="Select style" />
+											</SelectTrigger>
+											<SelectContent>
+												{wmsAvailableStyles.map((style) => (
+													<SelectItem key={style.name} value={style.name}>
+														{style.title || style.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+
+								{/* WMS Service Info */}
+								{wmsVersion && wmsLayerName && (
+									<div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+										<div className="flex items-center gap-2 mb-2">
+											<span className="font-medium text-slate-700">
+												WMS Version:
+											</span>
+											<Badge variant="outline" className="text-xs">
+												{wmsVersion}
+											</Badge>
+										</div>
+										{wmsCRS.length > 0 && (
+											<div className="text-xs text-slate-500">
+												<span className="font-medium">Supported CRS:</span>{" "}
+												{wmsCRS.slice(0, 3).join(", ")}
+												{wmsCRS.length > 3 && ` +${wmsCRS.length - 3} more`}
+											</div>
+										)}
+										{wmsGetMapFormats.length > 0 && (
+											<div className="text-xs text-slate-500 mt-1">
+												<span className="font-medium">Formats:</span>{" "}
+												{wmsGetMapFormats
+													.filter((f) => f.includes("image/"))
+													.slice(0, 3)
+													.map((f) => f.replace("image/", ""))
+													.join(", ")}
+											</div>
+										)}
+									</div>
+								)}
+
 								{/* Temporal dimension info */}
 								{wmsTimeDimension && (
 									<div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -642,6 +870,123 @@ export function AdminPanel({
 										<p className="text-xs text-blue-600 mt-1">
 											This layer supports time-based filtering. The TimeSlider
 											will appear when added to a map.
+										</p>
+									</div>
+								)}
+
+								{/* CQL Filter (vendor extension for GeoServer/MapServer) */}
+								{wmsLayerName && (
+									<div className="space-y-2">
+										<div className="flex items-center justify-between">
+											<Label htmlFor="wmsCqlFilter">
+												CQL Filter (optional)
+											</Label>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={handleDiscoverProperties}
+												disabled={discoveringProperties}
+												className="text-xs h-7"
+											>
+												{discoveringProperties ? (
+													<>
+														<svg
+															className="animate-spin -ml-1 mr-1 h-3 w-3"
+															fill="none"
+															viewBox="0 0 24 24"
+														>
+															<circle
+																className="opacity-25"
+																cx="12"
+																cy="12"
+																r="10"
+																stroke="currentColor"
+																strokeWidth="4"
+															/>
+															<path
+																className="opacity-75"
+																fill="currentColor"
+																d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+															/>
+														</svg>
+														Discovering...
+													</>
+												) : (
+													<>
+														<svg
+															className="w-3 h-3 mr-1"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																strokeWidth={2}
+																d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+															/>
+														</svg>
+														Discover Properties
+													</>
+												)}
+											</Button>
+										</div>
+										<Textarea
+											id="wmsCqlFilter"
+											value={wmsCqlFilter}
+											onChange={(e) => setWmsCqlFilter(e.target.value)}
+											placeholder="e.g. category_column='All' AND category='All'"
+											rows={2}
+											className="font-mono text-xs"
+										/>
+
+										{/* Discovered properties */}
+										{discoveredProperties.length > 0 && (
+											<div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+												<p className="text-xs font-medium text-slate-700 mb-2">
+													Available Properties (click to add):
+												</p>
+												<div className="flex flex-wrap gap-1">
+													{discoveredProperties.map((prop) => (
+														<button
+															key={prop.name}
+															type="button"
+															onClick={() => {
+																// Add property to filter
+																const filterPart =
+																	prop.sampleValue !== null
+																		? `${prop.name}='${prop.sampleValue}'`
+																		: `${prop.name}=''`;
+																setWmsCqlFilter((prev) =>
+																	prev
+																		? `${prev} AND ${filterPart}`
+																		: filterPart,
+																);
+															}}
+															className="inline-flex items-center px-2 py-1 bg-white border border-slate-300 rounded text-xs hover:bg-blue-50 hover:border-blue-300 transition-colors"
+															title={`Sample value: ${prop.sampleValue ?? "null"}`}
+														>
+															<span className="font-mono text-slate-700">
+																{prop.name}
+															</span>
+															{prop.sampleValue && (
+																<span className="ml-1 text-slate-400">
+																	= "{prop.sampleValue}"
+																</span>
+															)}
+														</button>
+													))}
+												</div>
+												<p className="text-xs text-slate-400 mt-2">
+													Sample values shown. Modify as needed.
+												</p>
+											</div>
+										)}
+
+										<p className="text-xs text-slate-500">
+											Server-side filter expression (GeoServer CQL).
+											Click "Discover Properties" to find available filter fields.
 										</p>
 									</div>
 								)}

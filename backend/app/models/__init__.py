@@ -4,6 +4,7 @@ from app.models.layer import Layer, MapLayer
 from app.models.collaborator import MapCollaborator
 from app.models.feature import LayerFeature
 from app.models.comment import Comment
+from app.models.wms_server import WmsServer
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "MapCollaborator",
     "LayerFeature",
     "Comment",
+    "WmsServer",
 ]

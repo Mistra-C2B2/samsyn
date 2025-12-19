@@ -21,6 +21,7 @@ from app.models import (
     MapCollaborator,
     LayerFeature,
     Comment,
+    WmsServer,
 )
 
 # this is the Alembic Config object, which provides

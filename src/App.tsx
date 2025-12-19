@@ -36,6 +36,10 @@ import { Toaster } from "./components/ui/sonner";
 import { useCommentService } from "./services/commentService";
 import { useLayerService } from "./services/layerService";
 import { useMapService } from "./services/mapService";
+import {
+	type WmsServer,
+	useWmsServerService,
+} from "./services/wmsServerService";
 import type { CommentResponse } from "./types/api";
 
 // Get Clerk publishable key from environment variables
@@ -142,6 +146,7 @@ function AppContent() {
 	const [showLayerCreator, setShowLayerCreator] = useState(false);
 	const [showAdminPanel, setShowAdminPanel] = useState(false);
 	const [availableLayers, setAvailableLayers] = useState<Layer[]>([]);
+	const [wmsServers, setWmsServers] = useState<WmsServer[]>([]);
 	const [basemap, setBasemap] = useState<string>("osm");
 	const [drawingMode, setDrawingMode] = useState<
 		| "Point"
@@ -189,6 +194,7 @@ function AppContent() {
 	const commentService = useCommentService();
 	const layerService = useLayerService();
 	const mapService = useMapService();
+	const wmsServerService = useWmsServerService();
 
 	// Pre-configured Global Fishing Watch layer (available without backend setup)
 	const DEFAULT_GFW_LAYER: Layer = useMemo(
@@ -242,6 +248,17 @@ function AppContent() {
 		}
 	}, [layerService, DEFAULT_GFW_LAYER]);
 
+	// Function to load WMS servers from API
+	const loadWmsServers = useCallback(async () => {
+		try {
+			const servers = await wmsServerService.listServers();
+			setWmsServers(servers);
+		} catch (error) {
+			console.error("Failed to load WMS servers:", error);
+			// Silent fail - WMS servers are optional
+		}
+	}, [wmsServerService]);
+
 	// Function to load maps from API
 	const loadMaps = useCallback(async () => {
 		setMapsLoading(true);
@@ -292,6 +309,11 @@ function AppContent() {
 	useEffect(() => {
 		loadLayers();
 	}, [loadLayers]);
+
+	// Load WMS servers on component mount
+	useEffect(() => {
+		loadWmsServers();
+	}, [loadWmsServers]);
 
 	// Load maps on component mount
 	useEffect(() => {
@@ -1487,6 +1509,70 @@ function AppContent() {
 							}
 						}}
 						onClose={() => setShowAdminPanel(false)}
+						wmsServers={wmsServers}
+						onAddWmsServer={async (data) => {
+							try {
+								const server = await wmsServerService.createServer(data);
+								setWmsServers((prev) => [...prev, server]);
+								toast.success("WMS server added");
+								return server;
+							} catch (error) {
+								console.error("Failed to add WMS server:", error);
+								toast.error("Failed to add WMS server");
+								throw error;
+							}
+						}}
+						onRemoveWmsServer={async (serverId) => {
+							try {
+								await wmsServerService.deleteServer(serverId);
+								setWmsServers((prev) =>
+									prev.filter((s) => s.id !== serverId),
+								);
+								toast.success("WMS server removed");
+							} catch (error) {
+								console.error("Failed to remove WMS server:", error);
+								toast.error("Failed to remove WMS server");
+							}
+						}}
+						onUpdateWmsServer={async (serverId, updates) => {
+							try {
+								const server = await wmsServerService.updateServer(
+									serverId,
+									updates,
+								);
+								setWmsServers((prev) =>
+									prev.map((s) => (s.id === serverId ? server : s)),
+								);
+								toast.success("WMS server updated");
+							} catch (error) {
+								console.error("Failed to update WMS server:", error);
+								toast.error("Failed to update WMS server");
+							}
+						}}
+						onRefreshWmsServer={async (serverId) => {
+							try {
+								const server =
+									await wmsServerService.refreshCapabilities(serverId);
+								setWmsServers((prev) =>
+									prev.map((s) => (s.id === serverId ? server : s)),
+								);
+								toast.success("WMS capabilities refreshed");
+								return server;
+							} catch (error) {
+								console.error("Failed to refresh WMS server:", error);
+								toast.error("Failed to refresh capabilities");
+								throw error;
+							}
+						}}
+						onGetWmsServerLayers={async (serverId) => {
+							try {
+								return await wmsServerService.getLayers(serverId);
+							} catch (error) {
+								console.error("Failed to get WMS layers:", error);
+								toast.error("Failed to load layers");
+								throw error;
+							}
+						}}
 					/>
 				)}
 

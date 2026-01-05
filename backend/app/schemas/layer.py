@@ -29,6 +29,19 @@ class LayerEditabilityEnum(str, Enum):
     everyone = "everyone"
 
 
+class LayerVisibilityEnum(str, Enum):
+    """Layer visibility levels in library"""
+    private = "private"
+    public = "public"
+
+
+class CreationSourceEnum(str, Enum):
+    """Layer creation source - identifies how the layer was created"""
+    layer_creator = "layer_creator"  # User created via "Create Layer" button
+    admin_panel = "admin_panel"  # Created via Admin Panel
+    system = "system"  # System/programmatic layers (GFW copies, etc.)
+
+
 # Source-specific configuration models
 class WMSSourceConfig(BaseModel):
     """
@@ -105,6 +118,8 @@ class LayerCreate(LayerBase):
     """
 
     is_global: bool = Field(default=False, description="Whether layer is available globally in layer library")
+    visibility: LayerVisibilityEnum = Field(default=LayerVisibilityEnum.private, description="Layer visibility in library (private=creator only, public=everyone)")
+    creation_source: CreationSourceEnum = Field(default=CreationSourceEnum.system, description="How the layer was created (layer_creator, admin_panel, system)")
     source_config: Dict[str, Any] = Field(..., description="Source-specific configuration (WMS, GeoTIFF, or Vector)")
     style_config: Dict[str, Any] = Field(default_factory=dict, description="Mapbox style specification")
     legend_config: Dict[str, Any] = Field(default_factory=dict, description="Legend configuration (gradient or categories)")
@@ -126,6 +141,7 @@ class LayerUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=100)
     editable: Optional[LayerEditabilityEnum] = None
     is_global: Optional[bool] = None
+    visibility: Optional[LayerVisibilityEnum] = None
     source_config: Optional[Dict[str, Any]] = None
     style_config: Optional[Dict[str, Any]] = None
     legend_config: Optional[Dict[str, Any]] = None
@@ -177,6 +193,8 @@ class LayerResponse(BaseModel):
     created_by: UUID
     editable: str
     is_global: bool
+    visibility: str
+    creation_source: str
     source_config: Dict[str, Any]
     style_config: Dict[str, Any]
     legend_config: Dict[str, Any]
@@ -206,6 +224,8 @@ class LayerListResponse(BaseModel):
     source_type: str
     category: Optional[str]
     is_global: bool
+    visibility: str
+    creation_source: str
     created_by: UUID
     created_at: datetime
 

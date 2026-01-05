@@ -34,6 +34,7 @@ class LayerService:
         category: Optional[str] = None,
         is_global: Optional[bool] = None,
         search: Optional[str] = None,
+        include_my_layers: Optional[bool] = None,
     ) -> List[Layer]:
         """
         Get layers accessible to user with optional filtering.
@@ -41,6 +42,7 @@ class LayerService:
         Returns:
         - All global layers (is_global=True)
         - All layers created by the user (if user_id provided)
+        - All public non-global layers from other users (visibility='public')
 
         Filters can be applied on top of this base set.
 
@@ -50,21 +52,45 @@ class LayerService:
             category: Filter by category
             is_global: Filter by global status (True=only global, False=only non-global, None=all)
             search: Search in name and description (case-insensitive)
+            include_my_layers: If True, return only user's own non-global layers (for "My Layers" section)
 
         Returns:
             List of Layer instances matching criteria
         """
-        # Build base query - global layers OR user's own layers (if authenticated)
+        # Special case: "My Layers" section - only user's own non-global layers
+        # created via the "Create Layer" button (creation_source = "layer_creator")
+        if include_my_layers is True and user_id:
+            query = self.db.query(Layer).filter(
+                and_(
+                    Layer.created_by == user_id,
+                    Layer.is_global == False,
+                    Layer.creation_source == "layer_creator"
+                )
+            )
+            # Skip other filters for "My Layers" section, go directly to ordering
+            query = query.order_by(Layer.created_at.desc())
+            return query.all()
+
+        # Build base query - global layers OR user's own layers OR public non-global layers
         if user_id:
             query = self.db.query(Layer).filter(
                 or_(
                     Layer.is_global == True,
-                    Layer.created_by == user_id
+                    Layer.created_by == user_id,
+                    and_(
+                        Layer.visibility == "public",
+                        Layer.is_global == False
+                    )
                 )
             )
         else:
-            # Not authenticated - only show global layers
-            query = self.db.query(Layer).filter(Layer.is_global == True)
+            # Not authenticated - show global layers + public non-global layers
+            query = self.db.query(Layer).filter(
+                or_(
+                    Layer.is_global == True,
+                    Layer.visibility == "public"
+                )
+            )
 
         # Apply filters
         if source_type is not None:
@@ -124,6 +150,8 @@ class LayerService:
             created_by=creator_id,
             editable=layer_data.editable.value,
             is_global=layer_data.is_global,
+            visibility=layer_data.visibility.value if layer_data.visibility else "private",
+            creation_source=layer_data.creation_source.value if layer_data.creation_source else "system",
             source_config=layer_data.source_config or {},
             style_config=layer_data.style_config or {},
             legend_config=layer_data.legend_config or {},
@@ -172,6 +200,8 @@ class LayerService:
             if field == "source_type" and value is not None:
                 value = value.value
             elif field == "editable" and value is not None:
+                value = value.value
+            elif field == "visibility" and value is not None:
                 value = value.value
             # Handle metadata alias (Pydantic uses 'metadata' but model uses 'layer_metadata')
             if field == "metadata":

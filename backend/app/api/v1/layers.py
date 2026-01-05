@@ -55,6 +55,8 @@ def serialize_layer_to_dict(layer):
         "created_by": layer.created_by,
         "editable": layer.editable,
         "is_global": layer.is_global,
+        "visibility": layer.visibility or "private",
+        "creation_source": layer.creation_source or "system",
         "source_config": layer.source_config or {},
         "style_config": layer.style_config or {},
         "legend_config": layer.legend_config or {},
@@ -102,6 +104,8 @@ def serialize_layer_list_to_dict(layer):
         "source_type": layer.source_type,
         "category": layer.category,
         "is_global": layer.is_global,
+        "visibility": layer.visibility or "private",
+        "creation_source": layer.creation_source or "system",
         "created_by": layer.created_by,
         "created_at": layer.created_at,
         "feature_count": len(layer.features) if hasattr(layer, 'features') else 0,
@@ -122,6 +126,7 @@ async def list_layers(
     category: Optional[str] = Query(None, description="Filter by category"),
     is_global: Optional[bool] = Query(None, description="Filter by global status"),
     search: Optional[str] = Query(None, description="Search in name and description"),
+    include_my_layers: Optional[bool] = Query(None, description="If true, return only user's own non-global layers (for 'My Layers' section)"),
 ):
     """
     List all layers with optional filtering.
@@ -134,6 +139,7 @@ async def list_layers(
     - category: Filter by category
     - is_global: Filter by global status (true/false)
     - search: Search text in layer name and description
+    - include_my_layers: If true, return only user's own non-global layers
 
     Returns:
         List of layers matching the filters (simplified response without full config)
@@ -145,6 +151,7 @@ async def list_layers(
         category=category,
         is_global=is_global,
         search=search,
+        include_my_layers=include_my_layers,
     )
 
     return [LayerListResponse(**serialize_layer_list_to_dict(layer)) for layer in layers]

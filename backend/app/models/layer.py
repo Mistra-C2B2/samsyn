@@ -18,6 +18,8 @@ class Layer(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     editable = Column(String, default="creator-only")  # creator-only, everyone
     is_global = Column(Boolean, default=False)
+    visibility = Column(String, default="private")  # "private" or "public"
+    creation_source = Column(String, default="system")  # "layer_creator", "admin_panel", "system"
 
     # JSONB fields for flexible configuration
     source_config = Column(JSONB, nullable=False, default={})

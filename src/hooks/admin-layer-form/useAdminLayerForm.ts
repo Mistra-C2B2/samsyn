@@ -4,6 +4,7 @@ import type { LayerSource } from "./types";
 import { useGeoTiffForm } from "./useGeoTiffForm";
 import { useLayerMetadataForm } from "./useLayerMetadataForm";
 import { useLegendForm } from "./useLegendForm";
+import { useVectorForm } from "./useVectorForm";
 import { useWmsForm } from "./useWmsForm";
 
 // ============================================================================
@@ -22,9 +23,7 @@ export interface UseAdminLayerFormOptions {
  * Facade hook that composes all admin layer form hooks.
  * Provides a unified API for the AdminPanel component.
  */
-export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
-	const { editingLayer } = options;
-
+export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 	// Layer source selection
 	const [layerSource, setLayerSource] = useState<LayerSource>("wms");
 	const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
@@ -33,6 +32,7 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 	const metadata = useLayerMetadataForm();
 	const legend = useLegendForm();
 	const geotiff = useGeoTiffForm();
+	const vector = useVectorForm();
 
 	// WMS form with callbacks for auto-populating metadata
 	const wms = useWmsForm({
@@ -87,7 +87,8 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 		legend.reset();
 		wms.reset();
 		geotiff.reset();
-	}, [metadata, legend, wms, geotiff]);
+		vector.reset();
+	}, [metadata, legend, wms, geotiff, vector]);
 
 	// Load layer for editing
 	const loadLayerForEdit = useCallback(
@@ -103,13 +104,14 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 				geotiff.loadFromLayer(layer);
 			} else {
 				setLayerSource("vector");
+				vector.loadFromLayer(layer);
 			}
 
 			// Load common data
 			metadata.loadFromLayer(layer);
 			legend.loadFromLayer(layer);
 		},
-		[metadata, legend, wms, geotiff],
+		[metadata, legend, wms, geotiff, vector],
 	);
 
 	// Build layer object for saving
@@ -118,8 +120,14 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 			return null;
 		}
 
+		// For vector layers, require valid GeoJSON
+		if (layerSource === "vector" && !vector.isValid) {
+			return null;
+		}
+
 		const legendState = legend.getState();
 		const metadataState = metadata.getState();
+		const vectorState = vector.getState();
 
 		// Base layer data
 		const layerData: Omit<Layer, "id"> = {
@@ -127,7 +135,7 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 			type:
 				layerSource === "wms" || layerSource === "geotiff"
 					? "raster"
-					: "vector",
+					: "geojson",
 			visible: true,
 			opacity: 1,
 			description: metadataState.description || undefined,
@@ -204,11 +212,21 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 			layerData.geotiffUrl = geotiffState.url;
 		}
 
-		return layerData;
-	}, [layerSource, metadata, legend, wms, geotiff]);
+		// Add Vector/GeoJSON-specific properties
+		if (layerSource === "vector") {
+			layerData.data = vectorState.parsedGeoJson;
+			layerData.color = vectorState.styling.color;
+			layerData.lineWidth = vectorState.styling.lineWidth;
+			layerData.fillPolygons = vectorState.styling.fillPolygons;
+		}
 
-	// Validation
-	const isValid = metadata.name.trim().length > 0;
+		return layerData;
+	}, [layerSource, metadata, legend, wms, geotiff, vector]);
+
+	// Validation - require name and source-specific validation
+	const isValid =
+		metadata.name.trim().length > 0 &&
+		(layerSource !== "vector" || vector.isValid);
 
 	return {
 		// Layer source
@@ -221,6 +239,7 @@ export function useAdminLayerForm(options: UseAdminLayerFormOptions = {}) {
 		legend,
 		wms,
 		geotiff,
+		vector,
 
 		// Actions
 		resetForm,

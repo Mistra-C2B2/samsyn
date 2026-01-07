@@ -93,6 +93,32 @@ export interface GeoTiffFormState {
 }
 
 // ============================================================================
+// Vector/GeoJSON Types
+// ============================================================================
+
+export interface VectorFormState {
+	rawJson: string;
+	parsedGeoJson: unknown;
+	validation: {
+		valid: boolean;
+		error?: string;
+		errorLine?: number;
+		featureCount?: number;
+		geometryTypes?: string[];
+		bounds?: [number, number, number, number];
+		hasProperties?: boolean;
+		propertyKeys?: string[];
+	} | null;
+	styling: {
+		color: string;
+		lineWidth: number;
+		fillPolygons: boolean;
+	};
+	inputMode: "paste" | "upload";
+	fileName: string | null;
+}
+
+// ============================================================================
 // Combined Form State
 // ============================================================================
 

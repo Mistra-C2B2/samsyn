@@ -30,6 +30,8 @@ interface AdminPanelProps {
 		updates: Partial<Layer>,
 	) => void | Promise<void>;
 	onClose: () => void;
+	// Preview layer support
+	onPreviewLayer?: (layer: Layer | null) => void;
 	// WMS Server props
 	wmsServers: WmsServer[];
 	onAddWmsServer: (data: {
@@ -56,6 +58,7 @@ export function AdminPanel({
 	onRemoveLayer,
 	onUpdateLayer,
 	onClose,
+	onPreviewLayer,
 	wmsServers,
 	onAddWmsServer,
 	onRemoveWmsServer,
@@ -74,8 +77,12 @@ export function AdminPanel({
 	const [layerToDelete, setLayerToDelete] = useState<Layer | null>(null);
 
 	// WMS layer creation flow state
-	const [wmsLayerStep, setWmsLayerStep] = useState<"select-server" | "select-layer" | "configure">("select-server");
-	const [selectedWmsServer, setSelectedWmsServer] = useState<WmsServer | null>(null);
+	const [wmsLayerStep, setWmsLayerStep] = useState<
+		"select-server" | "select-layer" | "configure"
+	>("select-server");
+	const [selectedWmsServer, setSelectedWmsServer] = useState<WmsServer | null>(
+		null,
+	);
 
 	// WMS Server view state
 	const [wmsServerView, setWmsServerView] = useState<
@@ -120,12 +127,37 @@ export function AdminPanel({
 		form.resetForm();
 		setWmsLayerStep("select-server");
 		setSelectedWmsServer(null);
+		// Clear any preview layer
+		onPreviewLayer?.(null);
+	};
+
+	// Handle preview for vector/GeoJSON layers
+	const handleVectorPreview = () => {
+		if (!form.vector.isValid || !form.vector.parsedGeoJson) return;
+
+		const previewLayer: Layer = {
+			id: "__preview__",
+			name: form.metadata.name || "Preview",
+			type: "geojson",
+			visible: true,
+			opacity: 1,
+			data: form.vector.parsedGeoJson,
+			color: form.vector.styling.color,
+			lineWidth: form.vector.styling.lineWidth,
+			fillPolygons: form.vector.styling.fillPolygons,
+		};
+
+		onPreviewLayer?.(previewLayer);
 	};
 
 	const handleSubmitLayer = async () => {
 		const layerData = form.buildLayer();
 		if (!layerData) {
-			alert("Please enter a layer name");
+			if (form.layerSource === "vector" && !form.vector.isValid) {
+				alert("Please provide valid GeoJSON data");
+			} else {
+				alert("Please enter a layer name");
+			}
 			return;
 		}
 
@@ -144,6 +176,8 @@ export function AdminPanel({
 
 			form.resetForm();
 			setShowAddLayerForm(false);
+			// Clear preview after successful save
+			onPreviewLayer?.(null);
 		} catch (error) {
 			console.error("Failed to save layer:", error);
 		} finally {
@@ -180,7 +214,10 @@ export function AdminPanel({
 		setWmsLayerStep("select-layer");
 	};
 
-	const handleSelectWmsLayerFromBrowser = (server: WmsServer, layer: WmsLayerInfo) => {
+	const handleSelectWmsLayerFromBrowser = (
+		server: WmsServer,
+		layer: WmsLayerInfo,
+	) => {
 		// Pre-fill the form with the selected WMS layer
 		form.wms.setUrl(server.baseUrl);
 		form.wms.setLayerName(layer.name);
@@ -357,13 +394,17 @@ export function AdminPanel({
 				<Button variant="outline" onClick={handleCancelLayerForm} size="sm">
 					← Back
 				</Button>
-				<span className="text-sm font-medium text-slate-700">Select WMS Server</span>
+				<span className="text-sm font-medium text-slate-700">
+					Select WMS Server
+				</span>
 			</div>
 			<div className="flex-1 overflow-y-auto">
 				{wmsServers.length === 0 ? (
 					<div className="p-8 text-center">
 						<Globe className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-						<p className="text-sm text-slate-600 mb-2">No WMS servers configured</p>
+						<p className="text-sm text-slate-600 mb-2">
+							No WMS servers configured
+						</p>
 						<p className="text-xs text-slate-500 mb-4">
 							Add a WMS server first in the "WMS Servers" tab
 						</p>
@@ -394,7 +435,9 @@ export function AdminPanel({
 									<h4 className="font-medium text-slate-900 text-sm truncate">
 										{server.name}
 									</h4>
-									<p className="text-xs text-slate-500 truncate">{server.baseUrl}</p>
+									<p className="text-xs text-slate-500 truncate">
+										{server.baseUrl}
+									</p>
 									<p className="text-xs text-slate-400 mt-1">
 										{server.layerCount} layers available
 									</p>
@@ -411,17 +454,25 @@ export function AdminPanel({
 	const renderWmsLayerConfigForm = () => (
 		<>
 			<div className="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
-				<Button variant="outline" onClick={handleBackFromWmsConfigure} size="sm">
+				<Button
+					variant="outline"
+					onClick={handleBackFromWmsConfigure}
+					size="sm"
+				>
 					← Back
 				</Button>
-				<span className="text-sm font-medium text-slate-700">Configure Layer</span>
+				<span className="text-sm font-medium text-slate-700">
+					Configure Layer
+				</span>
 			</div>
 
 			<div className="flex-1 overflow-y-auto p-4 space-y-4">
 				{/* Show selected layer info */}
 				<div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
 					<p className="text-xs text-teal-600 font-medium">Selected Layer</p>
-					<p className="text-sm text-teal-900 font-medium">{form.wms.layerName}</p>
+					<p className="text-sm text-teal-900 font-medium">
+						{form.wms.layerName}
+					</p>
 					<p className="text-xs text-teal-700 truncate">{form.wms.url}</p>
 				</div>
 
@@ -481,7 +532,9 @@ export function AdminPanel({
 				<>
 					{/* Add Layer Buttons */}
 					<div className="px-4 py-3 border-b border-slate-200 space-y-2">
-						<p className="text-xs text-slate-500 font-medium mb-2">Add New Layer</p>
+						<p className="text-xs text-slate-500 font-medium mb-2">
+							Add New Layer
+						</p>
 						<div className="grid grid-cols-3 gap-2">
 							<Button
 								onClick={() => handleStartAddLayer("wms")}
@@ -560,7 +613,9 @@ export function AdminPanel({
 					<Button variant="outline" onClick={handleCancelLayerForm} size="sm">
 						← Back
 					</Button>
-					<span className="text-sm font-medium text-slate-700">{formTitle}</span>
+					<span className="text-sm font-medium text-slate-700">
+						{formTitle}
+					</span>
 				</div>
 
 				{/* Form Content */}
@@ -572,13 +627,20 @@ export function AdminPanel({
 						/>
 					)}
 
-					{form.layerSource === "vector" && <VectorLayerForm />}
+					{form.layerSource === "vector" && (
+						<VectorLayerForm
+							form={form.vector}
+							onPreview={handleVectorPreview}
+						/>
+					)}
 
 					{/* For editing WMS layers, show a simplified view */}
 					{form.layerSource === "wms" && form.editingLayerId && (
 						<div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
 							<p className="text-xs text-teal-600 font-medium">WMS Layer</p>
-							<p className="text-sm text-teal-900 font-medium">{form.wms.layerName}</p>
+							<p className="text-sm text-teal-900 font-medium">
+								{form.wms.layerName}
+							</p>
 							<p className="text-xs text-teal-700 truncate">{form.wms.url}</p>
 						</div>
 					)}

@@ -288,6 +288,8 @@ export interface LayerCreate {
 	category?: string | null;
 	editable?: LayerEditability; // default: "creator-only"
 	is_global?: boolean; // default: false
+	visibility?: "private" | "public"; // default: "private"
+	creation_source?: "layer_creator" | "admin_panel" | "system"; // default: "system"
 	source_config: Record<string, unknown>;
 	style_config?: Record<string, unknown>;
 	legend_config?: Record<string, unknown>;
@@ -304,6 +306,7 @@ export interface LayerUpdate {
 	category?: string | null;
 	editable?: LayerEditability;
 	is_global?: boolean;
+	visibility?: "private" | "public";
 	source_config?: Record<string, unknown>;
 	style_config?: Record<string, unknown>;
 	legend_config?: Record<string, unknown>;
@@ -345,6 +348,8 @@ export interface LayerResponse {
 	created_by: string; // UUID
 	editable: string;
 	is_global: boolean;
+	visibility: string;
+	creation_source: string;
 	source_config: Record<string, unknown>;
 	style_config: Record<string, unknown>;
 	legend_config: Record<string, unknown>;
@@ -365,6 +370,8 @@ export interface LayerListResponse {
 	source_type: string;
 	category: string | null;
 	is_global: boolean;
+	visibility: string;
+	creation_source: string;
 	created_by: string; // UUID
 	created_at: string; // ISO datetime
 	feature_count: number;

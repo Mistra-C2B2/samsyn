@@ -4,10 +4,12 @@ import {
 	Eye,
 	EyeOff,
 	Focus,
+	Globe,
 	GripVertical,
 	Info,
 	Library,
 	Loader2,
+	Lock,
 	MessageSquare,
 	Pencil,
 	Plus,
@@ -56,6 +58,12 @@ import {
 interface LayerManagerProps {
 	layers: Layer[];
 	availableLayers: Layer[];
+	myLayers?: Layer[]; // User's own non-global layers for "My Layers" section
+	onRefreshMyLayers?: () => void; // Refresh "My Layers" after changes
+	onUpdateMyLayerVisibility?: (
+		layerId: string,
+		visibility: "private" | "public",
+	) => Promise<void>; // Update visibility of a layer in "My Layers"
 	mapName: string;
 	basemap: string;
 	onUpdateLayer: (layerId: string, updates: Partial<Layer>) => void;
@@ -78,6 +86,9 @@ interface LayerManagerProps {
 export function LayerManager({
 	layers,
 	availableLayers,
+	myLayers = [],
+	onRefreshMyLayers,
+	onUpdateMyLayerVisibility,
 	mapName,
 	basemap,
 	onUpdateLayer,
@@ -130,6 +141,9 @@ export function LayerManager({
 	const [sortBy, setSortBy] = useState<"name" | "type" | "category">("name");
 	const [filterType, setFilterType] = useState<string>("all");
 	const [filterCategory, setFilterCategory] = useState<string>("all");
+	const [updatingVisibilityId, setUpdatingVisibilityId] = useState<
+		string | null
+	>(null);
 
 	const handleDragStart = (index: number) => {
 		setDraggedIndex(index);
@@ -154,22 +168,39 @@ export function LayerManager({
 		setDragOverIndex(null);
 	};
 
-	// Get layers that are not yet added to the current map
+	// Get all layers that are not yet added to the current map
+	// Combines library layers (availableLayers) and user's own layers (myLayers)
 	const layersNotInMap = availableLayers.filter(
 		(availableLayer) => !layers.some((layer) => layer.id === availableLayer.id),
 	);
 
+	const myLayersNotInMap = myLayers.filter((myLayer) => {
+		// Exclude layers already on the map
+		if (layers.some((layer) => layer.id === myLayer.id)) return false;
+
+		// Only show layers created by user via "Create Layer" button
+		// This is redundant since backend already filters, but provides safety
+		if (myLayer.creationSource !== "layer_creator") return false;
+
+		return true;
+	});
+
+	// Combine all available layers into one list
+	const allAvailableLayers = [...layersNotInMap, ...myLayersNotInMap];
+
 	// Get unique types and categories for filters
-	const uniqueTypes = Array.from(new Set(layersNotInMap.map((l) => l.type)));
+	const uniqueTypes = Array.from(
+		new Set(allAvailableLayers.map((l) => l.type)),
+	);
 	const uniqueCategories = Array.from(
 		new Set(
-			layersNotInMap.map((l) => l.category).filter((c): c is string => !!c),
+			allAvailableLayers.map((l) => l.category).filter((c): c is string => !!c),
 		),
 	);
 
 	// Filter and sort layers
 	const getFilteredAndSortedLayers = () => {
-		let filtered = layersNotInMap;
+		let filtered = allAvailableLayers;
 
 		// Apply search filter
 		if (searchQuery) {
@@ -225,7 +256,7 @@ export function LayerManager({
 				// Layer Library View
 				<>
 					<div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-						<h3 className="text-sm text-slate-700">Add from Library</h3>
+						<h3 className="text-sm text-slate-700">Add Layers</h3>
 						<Button
 							variant="ghost"
 							size="sm"
@@ -348,28 +379,113 @@ export function LayerManager({
 												>
 													{layer.name}
 												</h3>
-												<div className="flex items-center gap-2">
-													<p className="text-slate-500 text-xs capitalize">
-														{layer.type}
+												<div className="flex items-center gap-2 flex-wrap">
+													<p className="text-slate-500 text-xs">
+														{layer.isGlobal
+															? "Library layer"
+															: layer.createdBy === user?.id
+																? "My layer"
+																: "Community layer"}
 													</p>
 													{layer.category && (
 														<Badge variant="outline" className="text-xs">
 															{layer.category}
 														</Badge>
 													)}
+													{/* Show visibility tag only for user's own layers */}
+													{layer.createdBy === user?.id && (
+														<Badge
+															variant={
+																layer.visibility === "public"
+																	? "default"
+																	: "secondary"
+															}
+															className={`text-xs ${
+																layer.visibility === "public"
+																	? "bg-teal-100 text-teal-700 hover:bg-teal-100"
+																	: "bg-slate-100 text-slate-600"
+															}`}
+														>
+															{layer.visibility === "public" ? (
+																<>
+																	<Globe className="w-3 h-3 mr-1" />
+																	Public
+																</>
+															) : (
+																<>
+																	<Lock className="w-3 h-3 mr-1" />
+																	Private
+																</>
+															)}
+														</Badge>
+													)}
 												</div>
 											</div>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => {
-													onAddLayer(layer);
-													setShowLibrary(false);
-												}}
-											>
-												<Plus className="w-3 h-3" />
-												Add
-											</Button>
+											<div className="flex items-center gap-1">
+												{/* Show visibility toggle button for user's own layers */}
+												{layer.createdBy === user?.id &&
+													onUpdateMyLayerVisibility && (
+														<TooltipProvider>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Button
+																		variant="ghost"
+																		size="sm"
+																		disabled={updatingVisibilityId === layer.id}
+																		onClick={async (e) => {
+																			e.stopPropagation();
+																			setUpdatingVisibilityId(layer.id);
+																			try {
+																				// Toggle visibility
+																				const newVisibility =
+																					layer.visibility === "public"
+																						? "private"
+																						: "public";
+																				await onUpdateMyLayerVisibility(
+																					layer.id,
+																					newVisibility,
+																				);
+																			} finally {
+																				setUpdatingVisibilityId(null);
+																			}
+																		}}
+																		className={
+																			layer.visibility === "public"
+																				? "text-slate-500 hover:text-slate-700"
+																				: "text-slate-500 hover:text-teal-600"
+																		}
+																	>
+																		{updatingVisibilityId === layer.id ? (
+																			<Loader2 className="w-4 h-4 animate-spin" />
+																		) : layer.visibility === "public" ? (
+																			<Lock className="w-4 h-4" />
+																		) : (
+																			<Globe className="w-4 h-4" />
+																		)}
+																	</Button>
+																</TooltipTrigger>
+																<TooltipContent>
+																	<p>
+																		{layer.visibility === "public"
+																			? "Make private"
+																			: "Make public"}
+																	</p>
+																</TooltipContent>
+															</Tooltip>
+														</TooltipProvider>
+													)}
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => {
+														onAddLayer(layer);
+														setShowLibrary(false);
+													}}
+												>
+													<Plus className="w-3 h-3" />
+													Add
+												</Button>
+											</div>
 										</div>
 										{layer.legend && (
 											<div className="text-xs text-slate-500">
@@ -814,25 +930,19 @@ export function LayerManager({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{layerToDelete &&
-							availableLayers.some((l) => l.id === layerToDelete.id)
-								? "Remove layer?"
-								: "Delete layer?"}
-						</AlertDialogTitle>
+						<AlertDialogTitle>Remove layer from map?</AlertDialogTitle>
 						<AlertDialogDescription>
 							{layerToDelete && (
 								<>
 									{availableLayers.some((l) => l.id === layerToDelete.id) ? (
 										<>
-											This will remove the layer "{layerToDelete.name}" from
-											this map. The layer will still be available in the
-											library.
+											This will remove "{layerToDelete.name}" from this map. The
+											layer will still be available in the Library.
 										</>
 									) : (
 										<>
-											This will permanently delete the layer "
-											{layerToDelete.name}". This action cannot be undone.
+											This will remove "{layerToDelete.name}" from this map. You
+											can re-add it from "My Layers" later.
 										</>
 									)}
 								</>
@@ -850,10 +960,7 @@ export function LayerManager({
 							}}
 							className="bg-red-600 hover:bg-red-700"
 						>
-							{layerToDelete &&
-							availableLayers.some((l) => l.id === layerToDelete.id)
-								? "Remove Layer"
-								: "Delete Layer"}
+							Remove Layer
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

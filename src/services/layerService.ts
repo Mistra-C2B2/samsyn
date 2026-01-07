@@ -28,6 +28,7 @@ export class LayerService {
 		category?: string;
 		is_global?: boolean;
 		search?: string;
+		include_my_layers?: boolean;
 	}) {
 		const queryParams = new URLSearchParams();
 
@@ -42,6 +43,9 @@ export class LayerService {
 		}
 		if (params?.search) {
 			queryParams.append("search", params.search);
+		}
+		if (params?.include_my_layers !== undefined) {
+			queryParams.append("include_my_layers", String(params.include_my_layers));
 		}
 
 		const queryString = queryParams.toString();
@@ -202,6 +206,13 @@ export class LayerService {
 			createdBy: layerResponse.created_by,
 			editable: layerResponse.editable as "creator-only" | "everyone",
 			isGlobal: layerResponse.is_global, // Whether layer is in the global library
+			visibility:
+				(layerResponse.visibility as "private" | "public") || "private",
+			creationSource:
+				(layerResponse.creation_source as
+					| "layer_creator"
+					| "admin_panel"
+					| "system") || "system",
 			// Style properties from style_config
 			color: styleConfig?.color,
 			lineWidth: styleConfig?.lineWidth,
@@ -356,10 +367,16 @@ export class LayerService {
 	 * @param layer - The layer data to transform
 	 * @param options - Optional settings
 	 * @param options.isGlobal - Whether this is a library layer (Admin Panel) or map-specific layer (LayerCreator)
+	 * @param options.mapVisibility - Map's visibility setting to inherit for layer visibility
+	 * @param options.creationSource - How the layer was created (layer_creator, admin_panel, system)
 	 */
 	transformToLayerCreate(
 		layer: Partial<Layer>,
-		options?: { isGlobal?: boolean },
+		options?: {
+			isGlobal?: boolean;
+			mapVisibility?: "private" | "public";
+			creationSource?: "layer_creator" | "admin_panel" | "system";
+		},
 	): LayerCreate {
 		// Determine backend source_type from frontend type
 		let sourceType: "wms" | "geotiff" | "vector" = "vector";
@@ -482,6 +499,8 @@ export class LayerService {
 			category: layer.category || null,
 			editable: layer.editable || "creator-only",
 			is_global: options?.isGlobal ?? false, // Library layers (Admin) = true, map layers (LayerCreator) = false
+			visibility: layer.visibility || options?.mapVisibility || "private", // Inherit from layer or map visibility
+			creation_source: options?.creationSource || "system", // How the layer was created
 			source_config: sourceConfig,
 			style_config:
 				Object.keys(styleConfig).length > 0 ? styleConfig : undefined,

@@ -4,6 +4,7 @@ import {
 	SignedOut,
 	SignInButton,
 	UserButton,
+	useUser,
 } from "@clerk/clerk-react";
 import {
 	Layers,
@@ -37,8 +38,8 @@ import { useCommentService } from "./services/commentService";
 import { useLayerService } from "./services/layerService";
 import { useMapService } from "./services/mapService";
 import {
-	type WmsServer,
 	useWmsServerService,
+	type WmsServer,
 } from "./services/wmsServerService";
 import type { CommentResponse } from "./types/api";
 
@@ -68,6 +69,8 @@ export interface Layer {
 	createdBy?: string; // User ID of the creator
 	editable?: "creator-only" | "everyone"; // Who can edit this layer
 	isGlobal?: boolean; // Whether layer is in the global library (Admin Panel layers)
+	visibility?: "private" | "public"; // Layer visibility in library (private=creator only, public=everyone)
+	creationSource?: "layer_creator" | "admin_panel" | "system"; // How the layer was created
 	// Style settings (layer-level)
 	lineWidth?: number;
 	fillPolygons?: boolean;
@@ -146,6 +149,7 @@ function AppContent() {
 	const [showLayerCreator, setShowLayerCreator] = useState(false);
 	const [showAdminPanel, setShowAdminPanel] = useState(false);
 	const [availableLayers, setAvailableLayers] = useState<Layer[]>([]);
+	const [myLayers, setMyLayers] = useState<Layer[]>([]); // User's own non-global layers for "My Layers" section
 	const [wmsServers, setWmsServers] = useState<WmsServer[]>([]);
 	const [basemap, setBasemap] = useState<string>("osm");
 	const [drawingMode, setDrawingMode] = useState<
@@ -188,6 +192,8 @@ function AppContent() {
 	>("default");
 	const [currentMarkerColor, setCurrentMarkerColor] =
 		useState<string>("#3b82f6");
+	// Preview layer for admin panel GeoJSON preview
+	const [previewLayer, setPreviewLayer] = useState<Layer | null>(null);
 	const mapViewRef = useRef<MapViewRef>(null);
 
 	// Initialize services
@@ -195,6 +201,9 @@ function AppContent() {
 	const layerService = useLayerService();
 	const mapService = useMapService();
 	const wmsServerService = useWmsServerService();
+
+	// Get current user from Clerk
+	const { user } = useUser();
 
 	// Pre-configured Global Fishing Watch layer (available without backend setup)
 	const DEFAULT_GFW_LAYER: Layer = useMemo(
@@ -223,12 +232,15 @@ function AppContent() {
 		[],
 	);
 
-	// Function to load layers from API (only library layers with is_global=true)
+	// Function to load layers from API (library layers: global + other users' public layers)
 	const loadLayers = useCallback(async () => {
 		setLayersLoading(true);
 		try {
-			// Only load library layers (is_global=true) - these are created via Admin Panel
-			const layerList = await layerService.listLayers({ is_global: true });
+			// Load all accessible layers:
+			// - Global layers (is_global=true) from Admin Panel
+			// - Public non-global layers (visibility=public, is_global=false) from all users
+			// The backend handles this filtering automatically
+			const layerList = await layerService.listLayers();
 			// Transform each layer to frontend format
 			const backendLayers = await Promise.all(
 				layerList.map(async (listItem) => {
@@ -236,8 +248,13 @@ function AppContent() {
 					return layerService.transformToLayer(fullLayer);
 				}),
 			);
+			// Exclude the current user's own layers from Library
+			// (they appear in "My Layers" tab instead)
+			const libraryLayers = backendLayers.filter(
+				(layer) => !user?.id || layer.createdBy !== user.id,
+			);
 			// Merge default GFW layer with backend layers
-			setAvailableLayers([DEFAULT_GFW_LAYER, ...backendLayers]);
+			setAvailableLayers([DEFAULT_GFW_LAYER, ...libraryLayers]);
 		} catch (error) {
 			console.error("Failed to load layers:", error);
 			toast.error("Failed to load layer library");
@@ -246,7 +263,50 @@ function AppContent() {
 		} finally {
 			setLayersLoading(false);
 		}
-	}, [layerService, DEFAULT_GFW_LAYER]);
+	}, [layerService, DEFAULT_GFW_LAYER, user?.id]);
+
+	// Function to load user's own non-global layers ("My Layers" section)
+	const loadMyLayers = useCallback(async () => {
+		try {
+			// Only load user's own non-global layers
+			const layerList = await layerService.listLayers({
+				include_my_layers: true,
+			});
+			// Transform each layer to frontend format
+			const userLayers = await Promise.all(
+				layerList.map(async (listItem) => {
+					const fullLayer = await layerService.getLayer(listItem.id);
+					return layerService.transformToLayer(fullLayer);
+				}),
+			);
+			setMyLayers(userLayers);
+		} catch (error) {
+			console.error("Failed to load my layers:", error);
+			// Silent fail - my layers are optional
+			setMyLayers([]);
+		}
+	}, [layerService]);
+
+	// Function to update a layer's visibility in "My Layers"
+	const updateMyLayerVisibility = useCallback(
+		async (layerId: string, visibility: "private" | "public") => {
+			try {
+				await layerService.updateLayer(layerId, { visibility });
+				// Refresh my layers to get the updated visibility
+				await loadMyLayers();
+				toast.success(
+					visibility === "public"
+						? "Layer is now public"
+						: "Layer is now private",
+				);
+			} catch (error) {
+				console.error("Failed to update layer visibility:", error);
+				toast.error("Failed to update layer visibility");
+				throw error;
+			}
+		},
+		[layerService, loadMyLayers],
+	);
 
 	// Function to load WMS servers from API
 	const loadWmsServers = useCallback(async () => {
@@ -310,6 +370,11 @@ function AppContent() {
 		loadLayers();
 	}, [loadLayers]);
 
+	// Load user's own layers on component mount
+	useEffect(() => {
+		loadMyLayers();
+	}, [loadMyLayers]);
+
 	// Load WMS servers on component mount
 	useEffect(() => {
 		loadWmsServers();
@@ -367,8 +432,8 @@ function AppContent() {
 	// Update layers with temporal data based on current time
 	// Also hide the layer being edited so only TerraDraw features are shown
 	const layersWithTemporalData = useMemo(() => {
-		if (!currentMap) return [];
-		return currentMap.layers.map((layer) => {
+		if (!currentMap) return previewLayer ? [previewLayer] : [];
+		const result = currentMap.layers.map((layer) => {
 			// Hide the layer being edited - but only after TerraDraw has loaded the features
 			// This prevents a flash where the layer disappears before TerraDraw shows features
 			if (
@@ -467,7 +532,20 @@ function AppContent() {
 			const closestData = sortedData[0];
 			return { ...layer, data: closestData.data };
 		});
-	}, [currentMap, currentTimeRange, editingLayer, terraDrawSnapshot.length]);
+
+		// Add preview layer if it exists (for admin panel GeoJSON preview)
+		if (previewLayer) {
+			result.push(previewLayer);
+		}
+
+		return result;
+	}, [
+		currentMap,
+		currentTimeRange,
+		editingLayer,
+		terraDrawSnapshot.length,
+		previewLayer,
+	]);
 
 	// Get comment count for a specific layer
 	const getLayerCommentCount = (layerId: string) => {
@@ -821,8 +899,14 @@ function AppContent() {
 
 			if (needsBackendCreation) {
 				// Create new map-specific layer via API (is_global=false by default)
-				// These layers are NOT added to the library - they only exist on this map
-				const createData = layerService.transformToLayerCreate(layer);
+				// Visibility is inherited from the map's view_permission
+				// Set creation_source based on layer origin:
+				// - "system" for isLocalOnly layers (GFW copies, etc.) - excluded from "My Layers"
+				// - "layer_creator" for user-created layers - shown in "My Layers"
+				const createData = layerService.transformToLayerCreate(layer, {
+					mapVisibility: currentMap.permissions?.visibility,
+					creationSource: layer.isLocalOnly ? "system" : "layer_creator",
+				});
 				const createdLayer = await layerService.createLayer(createData);
 				const transformedLayer = layerService.transformToLayer(createdLayer);
 				layerId = transformedLayer.id;
@@ -887,6 +971,9 @@ function AppContent() {
 					layers: prev.layers.filter((layer) => layer.id !== layerId),
 				};
 			});
+
+			// Refresh "My Layers" to show the removed layer (if it was user-created)
+			loadMyLayers();
 
 			toast.success("Layer removed from map");
 		} catch (error) {
@@ -1309,6 +1396,9 @@ function AppContent() {
 					<LayerManager
 						layers={currentMap.layers}
 						availableLayers={availableLayers}
+						myLayers={myLayers}
+						onRefreshMyLayers={loadMyLayers}
+						onUpdateMyLayerVisibility={updateMyLayerVisibility}
 						mapName={currentMap.name}
 						basemap={basemap}
 						onUpdateLayer={updateLayer}
@@ -1420,6 +1510,7 @@ function AppContent() {
 								// Create layer via API - Admin Panel layers are global (library) layers
 								const createData = layerService.transformToLayerCreate(layer, {
 									isGlobal: true,
+									creationSource: "admin_panel",
 								});
 								const createdLayer = await layerService.createLayer(createData);
 								const transformedLayer =
@@ -1508,7 +1599,12 @@ function AppContent() {
 								toast.error("Failed to update layer");
 							}
 						}}
-						onClose={() => setShowAdminPanel(false)}
+						onClose={() => {
+							setShowAdminPanel(false);
+							// Clear any preview layer when closing
+							setPreviewLayer(null);
+						}}
+						onPreviewLayer={setPreviewLayer}
 						wmsServers={wmsServers}
 						onAddWmsServer={async (data) => {
 							try {
@@ -1525,9 +1621,7 @@ function AppContent() {
 						onRemoveWmsServer={async (serverId) => {
 							try {
 								await wmsServerService.deleteServer(serverId);
-								setWmsServers((prev) =>
-									prev.filter((s) => s.id !== serverId),
-								);
+								setWmsServers((prev) => prev.filter((s) => s.id !== serverId));
 								toast.success("WMS server removed");
 							} catch (error) {
 								console.error("Failed to remove WMS server:", error);

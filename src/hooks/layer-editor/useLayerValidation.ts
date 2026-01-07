@@ -13,6 +13,8 @@ export interface ValidationResult {
 
 export interface UseLayerValidationOptions {
 	layerName: string;
+	category: string;
+	description: string;
 	features: Feature[];
 }
 
@@ -25,11 +27,17 @@ export interface UseLayerValidationOptions {
  * Checks layer name and features for completeness.
  */
 export function useLayerValidation(options: UseLayerValidationOptions) {
-	const { layerName, features } = options;
+	const { layerName, category, description, features } = options;
 
 	const validate = useCallback((): ValidationResult => {
 		if (!layerName.trim()) {
 			return { valid: false, error: "Please enter a layer name" };
+		}
+		if (!category.trim()) {
+			return { valid: false, error: "Please select or enter a category" };
+		}
+		if (!description.trim()) {
+			return { valid: false, error: "Please enter a description" };
 		}
 		if (features.length === 0) {
 			return {
@@ -38,7 +46,7 @@ export function useLayerValidation(options: UseLayerValidationOptions) {
 			};
 		}
 		return { valid: true };
-	}, [layerName, features]);
+	}, [layerName, category, description, features]);
 
 	return {
 		validate,

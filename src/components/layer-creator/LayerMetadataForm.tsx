@@ -34,7 +34,9 @@ export function LayerMetadataForm({
 		<>
 			{/* Layer Name */}
 			<div className="space-y-2">
-				<Label htmlFor="layer-name">Layer Name</Label>
+				<Label htmlFor="layer-name">
+					Name <span className="text-red-500">*</span>
+				</Label>
 				<Input
 					id="layer-name"
 					placeholder="e.g., Fishing Zones"
@@ -48,11 +50,14 @@ export function LayerMetadataForm({
 				value={category}
 				onChange={setCategory}
 				existingCategories={existingCategories}
+				required
 			/>
 
 			{/* Description */}
 			<div className="space-y-2">
-				<Label htmlFor="layer-description">Layer Description (optional)</Label>
+				<Label htmlFor="layer-description">
+					Description <span className="text-red-500">*</span>
+				</Label>
 				<Textarea
 					id="layer-description"
 					placeholder="Describe this layer..."

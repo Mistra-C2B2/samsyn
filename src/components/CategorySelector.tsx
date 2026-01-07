@@ -96,7 +96,9 @@ export function CategorySelector({
 
 	return (
 		<div className="space-y-2">
-			<Label htmlFor="category">{label}</Label>
+			<Label htmlFor="category">
+				{label} {required && <span className="text-red-500">*</span>}
+			</Label>
 			<Select
 				value={
 					value && value !== "__none__" ? value : required ? "" : "__none__"

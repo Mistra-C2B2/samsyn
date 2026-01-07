@@ -178,7 +178,11 @@ export function LayerCreator({
 
 	// Derived state
 	const canSave =
-		editor.layerName.trim() && editor.features.length > 0 && !editor.saving;
+		editor.layerName.trim() &&
+		editor.category.trim() &&
+		editor.description.trim() &&
+		editor.features.length > 0 &&
+		!editor.saving;
 
 	// Memoized handlers for feature cards to prevent unnecessary re-renders
 	const handleFeatureUpdate = useCallback(

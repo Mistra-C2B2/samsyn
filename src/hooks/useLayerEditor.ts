@@ -124,6 +124,8 @@ export function useLayerEditor(options: UseLayerEditorOptions = {}) {
 	// 3. Validation Hook
 	const validation = useLayerValidation({
 		layerName: metadata.layerName,
+		category: metadata.category,
+		description: metadata.description,
 		features: featureManager.features,
 	});
 

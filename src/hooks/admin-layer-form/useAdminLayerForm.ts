@@ -223,9 +223,13 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 		return layerData;
 	}, [layerSource, metadata, legend, wms, geotiff, vector]);
 
-	// Validation - require name and source-specific validation
+	// Validation - require all metadata fields and source-specific validation
 	const isValid =
 		metadata.name.trim().length > 0 &&
+		metadata.description.trim().length > 0 &&
+		metadata.author.trim().length > 0 &&
+		metadata.category.trim().length > 0 &&
+		metadata.category !== "__none__" &&
 		(layerSource !== "vector" || vector.isValid);
 
 	return {

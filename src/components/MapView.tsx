@@ -1385,7 +1385,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					return `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${timeHash}-${styleHash}-${versionHash}-${cqlHash}`;
 				}
 				if (!layer.data) return "";
-				return JSON.stringify(layer.data);
+				// Include styling properties in hash so layer recreates when color/lineWidth/fillPolygons change
+				return `${JSON.stringify(layer.data)}-${layer.color || ""}-${layer.lineWidth || ""}-${layer.fillPolygons}`;
 			};
 
 			// Helper function to remove a layer and its source from the map
@@ -1504,18 +1505,37 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					// Opacity is already in 0-1 range from the frontend layer state
 					const normalizedOpacity = layer.opacity;
 
-					// Determine fill color based on intensity or use layer color
-					const firstFeature = layer.data.features?.[0];
-					const intensity = firstFeature?.properties?.intensity;
-					let fillColor = layer.color || "#3388ff";
-
-					if (intensity === "high") fillColor = "#d73027";
-					else if (intensity === "medium") fillColor = "#fee08b";
-					else if (intensity === "low") fillColor = "#1a9850";
-
 					// Get layer-level style settings (with defaults)
 					const layerLineWidth = layer.lineWidth ?? 2;
 					const layerFillPolygons = layer.fillPolygons ?? true;
+
+					// Create color expression
+					// If layer has explicit color set, use it for ALL features (overrides feature properties)
+					// Otherwise, check feature properties, then intensity, then default
+					let colorExpression: any;
+
+					if (layer.color) {
+						// Layer-level color is set - use it for ALL features
+						colorExpression = layer.color;
+					} else {
+						// No layer color - check feature properties, then intensity-based colors
+						const firstFeature = layer.data.features?.[0];
+						const intensity = firstFeature?.properties?.intensity;
+						let fallbackColor = "#3388ff";
+
+						if (intensity === "high") fallbackColor = "#d73027";
+						else if (intensity === "medium") fallbackColor = "#fee08b";
+						else if (intensity === "low") fallbackColor = "#1a9850";
+
+						colorExpression = [
+							"coalesce",
+							["get", "color"],
+							["get", "fill"],
+							["get", "stroke"],
+							["get", "marker-color"],
+							fallbackColor,
+						];
+					}
 
 					// Add polygon fills (respect fillPolygons setting)
 					map.addLayer({
@@ -1524,7 +1544,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						source: layer.id,
 						filter: ["==", ["geometry-type"], "Polygon"],
 						paint: {
-							"fill-color": fillColor,
+							"fill-color": colorExpression,
 							"fill-opacity": layerFillPolygons ? normalizedOpacity : 0,
 						},
 					});
@@ -1540,7 +1560,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							["literal", ["Polygon", "LineString"]],
 						],
 						paint: {
-							"line-color": fillColor,
+							"line-color": colorExpression,
 							"line-width": layerLineWidth,
 							"line-opacity": normalizedOpacity,
 						},
@@ -1558,7 +1578,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						],
 						paint: {
 							"circle-radius": 8,
-							"circle-color": fillColor,
+							"circle-color": colorExpression,
 							"circle-opacity": normalizedOpacity,
 							"circle-stroke-width": 0,
 							"circle-stroke-color": "transparent",
@@ -1568,10 +1588,14 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					// Add symbol layer for Markers with icon support
 					// First, load the marker icons for this layer's color
 					const markerIconType = layer.markerIcon || "default";
-					const markerIconId = getMarkerIconId(markerIconType, fillColor);
+					const markerColor =
+						typeof colorExpression === "string"
+							? colorExpression
+							: layer.color || "#3388ff";
+					const markerIconId = getMarkerIconId(markerIconType, markerColor);
 
 					// Load icons asynchronously
-					loadMarkerIcons(map, fillColor).then(() => {
+					loadMarkerIcons(map, markerColor).then(() => {
 						// Only add symbol layer if icons loaded successfully
 						if (map.hasImage(markerIconId)) {
 							// Check if layer still exists (might have been removed during async load)
@@ -2173,109 +2197,109 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			markerOverlaySnapshot,
 		]);
 
-	// Helper function to show a popup (closes any existing popup first)
-	const showPopup = useCallback((lngLat: maplibregl.LngLat, html: string) => {
-		if (!mapRef.current) return;
+		// Helper function to show a popup (closes any existing popup first)
+		const showPopup = useCallback((lngLat: maplibregl.LngLat, html: string) => {
+			if (!mapRef.current) return;
 
-		// Close existing popup if any
-		if (currentPopupRef.current) {
-			currentPopupRef.current.remove();
-		}
-
-		// Create and show new popup
-		const popup = new maplibregl.Popup({
-			closeButton: true,
-			closeOnClick: true,
-			maxWidth: "400px",
-		})
-			.setLngLat(lngLat)
-			.setHTML(html)
-			.addTo(mapRef.current);
-
-		// Store reference to current popup
-		currentPopupRef.current = popup;
-
-		// Clear reference when popup is closed
-		popup.on("close", () => {
-			if (currentPopupRef.current === popup) {
-				currentPopupRef.current = null;
+			// Close existing popup if any
+			if (currentPopupRef.current) {
+				currentPopupRef.current.remove();
 			}
-		});
-	}, []);
 
-	// Unified click handler for all layers (vector + WMS)
-	useEffect(() => {
-		if (!mapRef.current || !mapLoaded) return;
+			// Create and show new popup
+			const popup = new maplibregl.Popup({
+				closeButton: true,
+				closeOnClick: true,
+				maxWidth: "400px",
+			})
+				.setLngLat(lngLat)
+				.setHTML(html)
+				.addTo(mapRef.current);
 
-		const map = mapRef.current;
+			// Store reference to current popup
+			currentPopupRef.current = popup;
 
-		// Check drawing mode (preserve existing logic)
-		const isDrawing =
-			drawingMode &&
-			drawingMode !== "select" &&
-			drawingMode !== "delete" &&
-			drawingMode !== "delete-selection";
-		if (isDrawing) return;
-
-		// Helper to extract base layer ID (remove -marker, -fill, -circle, etc. suffixes)
-		const getOriginalLayerId = (mapLayerId: string): string => {
-			const suffixes = [
-				"-marker",
-				"-fill",
-				"-circle",
-				"-line",
-				"-symbol",
-				"-raster",
-			];
-			for (const suffix of suffixes) {
-				if (mapLayerId.endsWith(suffix)) {
-					return mapLayerId.slice(0, -suffix.length);
+			// Clear reference when popup is closed
+			popup.on("close", () => {
+				if (currentPopupRef.current === popup) {
+					currentPopupRef.current = null;
 				}
-			}
-			return mapLayerId;
-		};
+			});
+		}, []);
 
-		// Async helper to fetch WMS data and update popup section
-		const fetchWMSDataAndUpdatePopup = async (
-			layer: Layer,
-			lngLat: maplibregl.LngLat,
-		) => {
-			if (!onWMSFeatureInfoRequestRef.current) return;
+		// Unified click handler for all layers (vector + WMS)
+		useEffect(() => {
+			if (!mapRef.current || !mapLoaded) return;
 
-			// Build GetFeatureInfo request params
-			const bounds = map.getBounds();
-			const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-			const canvas = map.getCanvas();
-			const width = canvas.width;
-			const height = canvas.height;
-			const point = map.project(lngLat);
-			const x = Math.round(point.x);
-			const y = Math.round(point.y);
+			const map = mapRef.current;
 
-			try {
-				const result = await onWMSFeatureInfoRequestRef.current({
-					wmsUrl: layer.wmsUrl!,
-					layers: layer.wmsLayerName!,
-					bbox,
-					width,
-					height,
-					x,
-					y,
-					time: layer.wmsTimeDimension?.current,
-					version: layer.wmsVersion,
-					cqlFilter: layer.wmsCqlFilter,
-				});
+			// Check drawing mode (preserve existing logic)
+			const isDrawing =
+				drawingMode &&
+				drawingMode !== "select" &&
+				drawingMode !== "delete" &&
+				drawingMode !== "delete-selection";
+			if (isDrawing) return;
 
-				// Update section with result
-				if (result && currentPopupRef.current) {
-					const newContent = formatFeatureInfoHTML(result, layer.name);
-					const popupElement = currentPopupRef.current.getElement();
-					if (popupElement) {
-						updatePopupSection(popupElement, layer.id, newContent);
+			// Helper to extract base layer ID (remove -marker, -fill, -circle, etc. suffixes)
+			const getOriginalLayerId = (mapLayerId: string): string => {
+				const suffixes = [
+					"-marker",
+					"-fill",
+					"-circle",
+					"-line",
+					"-symbol",
+					"-raster",
+				];
+				for (const suffix of suffixes) {
+					if (mapLayerId.endsWith(suffix)) {
+						return mapLayerId.slice(0, -suffix.length);
 					}
-				} else if (currentPopupRef.current) {
-					// No result - update with "no data" message
-					const noDataContent = `
+				}
+				return mapLayerId;
+			};
+
+			// Async helper to fetch WMS data and update popup section
+			const fetchWMSDataAndUpdatePopup = async (
+				layer: Layer,
+				lngLat: maplibregl.LngLat,
+			) => {
+				if (!onWMSFeatureInfoRequestRef.current) return;
+
+				// Build GetFeatureInfo request params
+				const bounds = map.getBounds();
+				const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+				const canvas = map.getCanvas();
+				const width = canvas.width;
+				const height = canvas.height;
+				const point = map.project(lngLat);
+				const x = Math.round(point.x);
+				const y = Math.round(point.y);
+
+				try {
+					const result = await onWMSFeatureInfoRequestRef.current({
+						wmsUrl: layer.wmsUrl!,
+						layers: layer.wmsLayerName!,
+						bbox,
+						width,
+						height,
+						x,
+						y,
+						time: layer.wmsTimeDimension?.current,
+						version: layer.wmsVersion,
+						cqlFilter: layer.wmsCqlFilter,
+					});
+
+					// Update section with result
+					if (result && currentPopupRef.current) {
+						const newContent = formatFeatureInfoHTML(result, layer.name);
+						const popupElement = currentPopupRef.current.getElement();
+						if (popupElement) {
+							updatePopupSection(popupElement, layer.id, newContent);
+						}
+					} else if (currentPopupRef.current) {
+						// No result - update with "no data" message
+						const noDataContent = `
 						<div style="font-size: 13px; min-width: 150px;">
 							<div style="margin-bottom: 4px;">
 								<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
@@ -2286,16 +2310,16 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							</div>
 						</div>
 					`;
-					const popupElement = currentPopupRef.current.getElement();
-					if (popupElement) {
-						updatePopupSection(popupElement, layer.id, noDataContent);
+						const popupElement = currentPopupRef.current.getElement();
+						if (popupElement) {
+							updatePopupSection(popupElement, layer.id, noDataContent);
+						}
 					}
-				}
-			} catch (error) {
-				console.warn(`WMS GetFeatureInfo failed for ${layer.name}:`, error);
-				// Update with error message
-				if (currentPopupRef.current) {
-					const errorContent = `
+				} catch (error) {
+					console.warn(`WMS GetFeatureInfo failed for ${layer.name}:`, error);
+					// Update with error message
+					if (currentPopupRef.current) {
+						const errorContent = `
 						<div style="font-size: 13px; min-width: 150px;">
 							<div style="margin-bottom: 4px;">
 								<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
@@ -2306,92 +2330,97 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							</div>
 						</div>
 					`;
-					const popupElement = currentPopupRef.current.getElement();
-					if (popupElement) {
-						updatePopupSection(popupElement, layer.id, errorContent);
+						const popupElement = currentPopupRef.current.getElement();
+						if (popupElement) {
+							updatePopupSection(popupElement, layer.id, errorContent);
+						}
 					}
 				}
-			}
-		};
+			};
 
-		// Main click handler
-		const handleUnifiedClick = async (e: maplibregl.MapMouseEvent) => {
-			// Query all features at click point
-			const features = map.queryRenderedFeatures(e.point);
+			// Main click handler
+			const handleUnifiedClick = async (e: maplibregl.MapMouseEvent) => {
+				// Query all features at click point
+				const features = map.queryRenderedFeatures(e.point);
 
-			// Group by base layer ID (remove -fill, -marker suffixes)
-			const layerFeatureMap = new Map<string, any[]>();
-			for (const feature of features) {
-				const layerId = getOriginalLayerId(feature.layer.id);
-				const layer = layers.find((l) => l.id === layerId);
-				if (layer && layer.visible) {
-					if (!layerFeatureMap.has(layerId)) {
-						layerFeatureMap.set(layerId, []);
+				// Group by base layer ID (remove -fill, -marker suffixes)
+				const layerFeatureMap = new Map<string, any[]>();
+				for (const feature of features) {
+					const layerId = getOriginalLayerId(feature.layer.id);
+					const layer = layers.find((l) => l.id === layerId);
+					if (layer && layer.visible) {
+						if (!layerFeatureMap.has(layerId)) {
+							layerFeatureMap.set(layerId, []);
+						}
+						layerFeatureMap.get(layerId)!.push(feature);
 					}
-					layerFeatureMap.get(layerId)!.push(feature);
 				}
-			}
 
-			// Build sections for vector layers (immediate)
-			const sections: PopupSection[] = [];
-			for (const [layerId, features] of layerFeatureMap.entries()) {
-				const layer = layers.find((l) => l.id === layerId)!;
-				const layerIndex = layers.indexOf(layer);
+				// Build sections for vector layers (immediate)
+				const sections: PopupSection[] = [];
+				for (const [layerId, features] of layerFeatureMap.entries()) {
+					const layer = layers.find((l) => l.id === layerId)!;
+					const layerIndex = layers.indexOf(layer);
 
-				if (features.length > 0) {
-					const feature = features[0];
-					const content = generateFeaturePopupHTML({
-						layerName: layer.name,
-						featureName: feature.properties?.name,
-						description: feature.properties?.description,
-					});
-					sections.push({ layerId, layerName: layer.name, content, layerIndex });
+					if (features.length > 0) {
+						const feature = features[0];
+						const content = generateFeaturePopupHTML({
+							layerName: layer.name,
+							featureName: feature.properties?.name,
+							description: feature.properties?.description,
+							properties: feature.properties,
+						});
+						sections.push({
+							layerId,
+							layerName: layer.name,
+							content,
+							layerIndex,
+						});
+					}
 				}
-			}
 
-			// Add WMS layer placeholders
-			const wmsLayers = layers.filter(
-				(l) => l.visible && l.wmsUrl && l.wmsLayerName,
-			);
-			for (const layer of wmsLayers) {
-				sections.push(
-					createLoadingSection(layer.id, layer.name, layers.indexOf(layer)),
+				// Add WMS layer placeholders
+				const wmsLayers = layers.filter(
+					(l) => l.visible && l.wmsUrl && l.wmsLayerName,
 				);
-			}
-
-			// Show popup if any data
-			if (sections.length === 0) return;
-
-			// Sort by layer index (top layers first)
-			sections.sort((a, b) => a.layerIndex - b.layerIndex);
-			const html = generateAggregatedPopupHTML(sections);
-			showPopup(e.lngLat, html);
-
-			// Notify parent of top layer click (for highlighting)
-			if (layerFeatureMap.size > 0 && onFeatureClickRef.current) {
-				const topLayerId = Array.from(layerFeatureMap.keys())
-					.map((id) => ({ id, index: layers.findIndex((l) => l.id === id) }))
-					.filter((item) => item.index !== -1)
-					.sort((a, b) => a.index - b.index)[0]?.id;
-				if (topLayerId) {
-					onFeatureClickRef.current(topLayerId);
+				for (const layer of wmsLayers) {
+					sections.push(
+						createLoadingSection(layer.id, layer.name, layers.indexOf(layer)),
+					);
 				}
-			}
 
-			// Fetch WMS data asynchronously
-			for (const layer of wmsLayers) {
-				fetchWMSDataAndUpdatePopup(layer, e.lngLat);
-			}
-		};
+				// Show popup if any data
+				if (sections.length === 0) return;
 
-		// Register unified click handler
-		map.on("click", handleUnifiedClick);
+				// Sort by layer index (top layers first)
+				sections.sort((a, b) => a.layerIndex - b.layerIndex);
+				const html = generateAggregatedPopupHTML(sections);
+				showPopup(e.lngLat, html);
 
-		return () => {
-			map.off("click", handleUnifiedClick);
-		};
-	}, [mapLoaded, layers, drawingMode]);
+				// Notify parent of top layer click (for highlighting)
+				if (layerFeatureMap.size > 0 && onFeatureClickRef.current) {
+					const topLayerId = Array.from(layerFeatureMap.keys())
+						.map((id) => ({ id, index: layers.findIndex((l) => l.id === id) }))
+						.filter((item) => item.index !== -1)
+						.sort((a, b) => a.index - b.index)[0]?.id;
+					if (topLayerId) {
+						onFeatureClickRef.current(topLayerId);
+					}
+				}
 
+				// Fetch WMS data asynchronously
+				for (const layer of wmsLayers) {
+					fetchWMSDataAndUpdatePopup(layer, e.lngLat);
+				}
+			};
+
+			// Register unified click handler
+			map.on("click", handleUnifiedClick);
+
+			return () => {
+				map.off("click", handleUnifiedClick);
+			};
+		}, [mapLoaded, layers, drawingMode]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
 		const activeLegend = visibleLayers.find((layer) => layer.legend);

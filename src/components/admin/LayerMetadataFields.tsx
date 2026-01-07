@@ -11,13 +11,11 @@ interface LayerMetadataFieldsProps {
 	name: string;
 	description: string;
 	author: string;
-	doi: string;
 	category: string;
 	existingCategories: string[];
 	onNameChange: (value: string) => void;
 	onDescriptionChange: (value: string) => void;
 	onAuthorChange: (value: string) => void;
-	onDoiChange: (value: string) => void;
 	onCategoryChange: (value: string) => void;
 }
 
@@ -29,13 +27,11 @@ export function LayerMetadataFields({
 	name,
 	description,
 	author,
-	doi,
 	category,
 	existingCategories,
 	onNameChange,
 	onDescriptionChange,
 	onAuthorChange,
-	onDoiChange,
 	onCategoryChange,
 }: LayerMetadataFieldsProps) {
 	return (
@@ -54,7 +50,7 @@ export function LayerMetadataFields({
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="description">Description</Label>
+					<Label htmlFor="description">Description *</Label>
 					<Textarea
 						id="description"
 						value={description}
@@ -65,7 +61,7 @@ export function LayerMetadataFields({
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="author">Author / Source</Label>
+					<Label htmlFor="author">Author / Source *</Label>
 					<Input
 						id="author"
 						value={author}
@@ -74,20 +70,12 @@ export function LayerMetadataFields({
 					/>
 				</div>
 
-				<div className="space-y-2">
-					<Label htmlFor="doi">DOI (optional)</Label>
-					<Input
-						id="doi"
-						value={doi}
-						onChange={(e) => onDoiChange(e.target.value)}
-						placeholder="10.1234/example"
-					/>
-				</div>
-
 				<CategorySelector
 					value={category}
 					onChange={onCategoryChange}
 					existingCategories={existingCategories}
+					label="Category *"
+					required={true}
 				/>
 			</div>
 		</div>

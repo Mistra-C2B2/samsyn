@@ -450,6 +450,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const [mapLoaded, setMapLoaded] = useState(false);
 		const mapLoadedRef = useRef(false);
 		const previousLayerIdsRef = useRef<Set<string>>(new Set());
+		// Counter to force layer re-rendering after basemap changes
+		const [styleReloadCounter, setStyleReloadCounter] = useState(0);
+		// Track when basemap is changing to prevent layer effect from running during transition
+		const isChangingBasemapRef = useRef(false);
+		// Track previous basemap to detect actual changes vs initial load
+		const prevBasemapRef = useRef(basemap);
 		// Track previous layer state for efficient updates (only recreate when data changes)
 		const previousLayerStateRef = useRef<
 			Map<string, { visible: boolean; opacity: number; dataHash: string }>
@@ -1217,6 +1223,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		useEffect(() => {
 			if (!mapRef.current || !mapLoaded) return;
 
+			// Skip if basemap hasn't actually changed (e.g., on initial load when mapLoaded becomes true)
+			if (prevBasemapRef.current === basemap) return;
+			prevBasemapRef.current = basemap;
+
 			const map = mapRef.current;
 
 			// Use raster tile sources for better compatibility
@@ -1289,10 +1299,21 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				drawRef.current = null;
 			}
 
+			// Set flag to prevent layer effect from running during basemap transition
+			isChangingBasemapRef.current = true;
+
 			map.setStyle(getBasemapStyle(basemap));
 
-			// Wait for style to load before re-adding layers and terradraw
-			map.once("style.load", async () => {
+			// Function to handle when style is ready
+			const handleStyleReady = () => {
+				// Clear layer caches so all layers will be recreated
+				previousLayerStateRef.current.clear();
+				previousLayerIdsRef.current.clear();
+
+				// Clear flag and trigger layer effect to re-run
+				isChangingBasemapRef.current = false;
+				setStyleReloadCounter((c) => c + 1);
+
 				setMapLoaded(true);
 
 				// Re-add terradraw control after style change (class should already be loaded)
@@ -1320,23 +1341,31 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						terraDraw.on("finish", (id: string | number) => {
 							if (onDrawCompleteRef.current) {
 								const snapshot = terraDraw.getSnapshot();
-								// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								const feature = snapshot.find((f: any) => f.id === id);
+								const feature = snapshot.find(
+									(f: TerraDrawFeature) => f.id === id,
+								);
 								if (feature) {
 									onDrawCompleteRef.current(feature);
-									// Don't clear here - keep the drawing visible until the layer is created
 								}
 							}
 						});
 					}
 				}
-			});
+			};
+
+			// Use 'idle' event which fires after the map finishes rendering
+			// This is more reliable than 'style.load' which can be missed for simple raster styles
+			map.once("idle", handleStyleReady);
 		}, [basemap, mapLoaded]);
 
 		useEffect(() => {
 			if (!mapRef.current || !mapLoaded) return;
 
+			// Don't add layers while basemap is changing - wait for idle handler in basemap effect
+			if (isChangingBasemapRef.current) return;
+
 			const map = mapRef.current;
+
 			const currentLayerIds = new Set(layers.map((l) => l.id));
 			const previousLayerIds = previousLayerIdsRef.current;
 			const previousLayerState = previousLayerStateRef.current;
@@ -1946,7 +1975,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			for (const tdLayerId of terraDrawLayers) {
 				map.moveLayer(tdLayerId);
 			}
-		}, [layers, mapLoaded]);
+		}, [layers, mapLoaded, styleReloadCounter, basemap]);
 
 		// Handle layer selection - pan/zoom to fit layer bounds
 		useEffect(() => {

@@ -31,9 +31,7 @@ export function WmsServerLayerBrowser({
 				const response = await onLoadLayers(server.id);
 				setLayers(response.layers);
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Failed to load layers",
-				);
+				setError(err instanceof Error ? err.message : "Failed to load layers");
 			} finally {
 				setLoading(false);
 			}

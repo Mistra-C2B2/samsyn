@@ -57,7 +57,10 @@ export function WmsServerList({
 							<h3 className="font-medium text-slate-900 truncate">
 								{server.name}
 							</h3>
-							<p className="text-xs text-slate-500 truncate" title={server.baseUrl}>
+							<p
+								className="text-xs text-slate-500 truncate"
+								title={server.baseUrl}
+							>
 								{server.baseUrl}
 							</p>
 						</div>
@@ -73,7 +76,10 @@ export function WmsServerList({
 							<span className="text-slate-400">v{server.version}</span>
 						)}
 						{server.serviceProvider && (
-							<span className="truncate text-slate-400" title={server.serviceProvider}>
+							<span
+								className="truncate text-slate-400"
+								title={server.serviceProvider}
+							>
 								{server.serviceProvider}
 							</span>
 						)}

@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import type {
 	WmsServerCreate,
+	WmsServerLayersResponse,
 	WmsServerListResponse,
 	WmsServerResponse,
 	WmsServerUpdate,
-	WmsServerLayersResponse,
 } from "../types/api";
 import { useApiClient } from "./api";
 
@@ -41,8 +41,9 @@ export class WmsServerService {
 	 * GET /api/v1/wms-servers
 	 */
 	async listServers(): Promise<WmsServer[]> {
-		const response =
-			await this.client.get<WmsServerListResponse[]>("/api/v1/wms-servers");
+		const response = await this.client.get<WmsServerListResponse[]>(
+			"/api/v1/wms-servers",
+		);
 		return response.map(this.transformToWmsServer);
 	}
 
@@ -72,10 +73,10 @@ export class WmsServerService {
 			description: data.description,
 		};
 
-		const response = await this.client.post<
-			WmsServerResponse,
-			WmsServerCreate
-		>("/api/v1/wms-servers", createData);
+		const response = await this.client.post<WmsServerResponse, WmsServerCreate>(
+			"/api/v1/wms-servers",
+			createData,
+		);
 		return this.transformToWmsServer(response);
 	}
 
@@ -92,10 +93,10 @@ export class WmsServerService {
 		if (data.description !== undefined)
 			updateData.description = data.description;
 
-		const response = await this.client.put<
-			WmsServerResponse,
-			WmsServerUpdate
-		>(`/api/v1/wms-servers/${id}`, updateData);
+		const response = await this.client.put<WmsServerResponse, WmsServerUpdate>(
+			`/api/v1/wms-servers/${id}`,
+			updateData,
+		);
 		return this.transformToWmsServer(response);
 	}
 
@@ -148,7 +149,9 @@ export class WmsServerService {
 			createdBy: response.created_by,
 			createdAt: new Date(response.created_at),
 			updatedAt:
-				"updated_at" in response ? new Date(response.updated_at) : new Date(response.created_at),
+				"updated_at" in response
+					? new Date(response.updated_at)
+					: new Date(response.created_at),
 		};
 	}
 }

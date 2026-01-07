@@ -1,6 +1,7 @@
 import maplibregl from "maplibre-gl";
 import {
 	forwardRef,
+	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useRef,
@@ -8,6 +9,12 @@ import {
 } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
+import {
+	createLoadingSection,
+	generateAggregatedPopupHTML,
+	type PopupSection,
+	updatePopupSection,
+} from "../utils/aggregatedPopup";
 import { generateFeaturePopupHTML } from "../utils/featurePopup";
 import { Legend } from "./Legend";
 
@@ -229,6 +236,187 @@ export interface MapViewRef {
 	zoomToBounds: (bounds: [number, number, number, number]) => void;
 }
 
+/**
+ * Formats WMS GetFeatureInfo response data into styled HTML
+ * Handles multiple response formats: HTML, text, GeoJSON features, and raw JSON
+ */
+const formatFeatureInfoHTML = (
+	data: WMSFeatureInfoResponse,
+	layerName: string,
+): string => {
+	// Handle HTML response
+	if (data.type === "html" && data.content) {
+		return `
+			<div style="font-size: 13px; min-width: 150px;">
+				<div style="margin-bottom: 4px;">
+					<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+					<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+				</div>
+				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+					<div style="font-size: 12px;">${data.content}</div>
+				</div>
+			</div>
+		`;
+	}
+
+	// Handle text response
+	if (data.type === "text" && data.content) {
+		return `
+			<div style="font-size: 13px; min-width: 150px;">
+				<div style="margin-bottom: 4px;">
+					<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+					<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+				</div>
+				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+					<pre style="font-size: 12px; white-space: pre-wrap; margin: 0;">${data.content}</pre>
+				</div>
+			</div>
+		`;
+	}
+
+	// Handle empty features array (no data at location)
+	if (data.features && data.features.length === 0) {
+		return `
+			<div style="font-size: 13px; min-width: 150px;">
+				<div style="margin-bottom: 4px;">
+					<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+					<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+				</div>
+				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+					<div style="font-size: 12px; color: #64748b;">No data at this location</div>
+				</div>
+			</div>
+		`;
+	}
+
+	// Handle GeoJSON/JSON response with features
+	if (data.features && data.features.length > 0) {
+		const feature = data.features[0];
+		const props = feature.properties || {};
+
+		// Label mappings for better display
+		const labelMap: Record<string, string> = {
+			DEFAULT: "Density (hours/km²)",
+			time: "Time Period",
+			category: "Category",
+		};
+
+		// Fields to hide (not useful to display)
+		const hideFields = ["category_column"];
+
+		// Build property list
+		const propEntries = Object.entries(props)
+			.filter(
+				([key]) =>
+					!key.startsWith("_") &&
+					key !== "geometry" &&
+					!hideFields.includes(key),
+			)
+			.slice(0, 10); // Limit to 10 properties
+
+		if (propEntries.length === 0) {
+			return `
+				<div style="font-size: 13px; min-width: 150px;">
+					<div style="margin-bottom: 4px;">
+						<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+						<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+					</div>
+					<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+						<div style="font-size: 12px; color: #64748b;">No properties available</div>
+					</div>
+				</div>
+			`;
+		}
+
+		const propsHtml = propEntries
+			.map(([key, value]) => {
+				const label = labelMap[key] || key;
+				let displayValue = value ?? "—";
+
+				// Format numeric values
+				if (key === "DEFAULT" && typeof value === "string") {
+					const num = parseFloat(value);
+					if (!isNaN(num)) {
+						displayValue = num.toFixed(2);
+					}
+				}
+
+				// Skip "time" field - we'll show the queried range instead
+				if (key === "time") {
+					return "";
+				}
+
+				return `<tr>
+					<td style="padding-right: 8px; color: #64748b;">${label}:</td>
+					<td style="font-weight: 500; color: #334155;">${displayValue}</td>
+				</tr>`;
+			})
+			.filter(Boolean)
+			.join("");
+
+		return `
+			<div style="font-size: 13px; min-width: 150px;">
+				<div style="margin-bottom: 4px;">
+					<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+					<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+				</div>
+				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+					<table style="font-size: 12px; width: 100%;">
+						<tbody>${propsHtml}</tbody>
+					</table>
+				</div>
+			</div>
+		`;
+	}
+
+	// Try to parse as raw JSON response (some servers return properties directly)
+	const rawProps = Object.entries(data)
+		.filter(
+			([key]) =>
+				!["type", "content", "features", "raw"].includes(key) &&
+				!key.startsWith("_"),
+		)
+		.slice(0, 10);
+
+	if (rawProps.length > 0) {
+		const propsHtml = rawProps
+			.map(
+				([key, value]) =>
+					`<tr>
+						<td style="padding-right: 8px; color: #64748b;">${key}:</td>
+						<td style="font-weight: 500; color: #334155;">${typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</td>
+					</tr>`,
+			)
+			.join("");
+
+		return `
+			<div style="font-size: 13px; min-width: 150px;">
+				<div style="margin-bottom: 4px;">
+					<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+					<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+				</div>
+				<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+					<table style="font-size: 12px; width: 100%;">
+						<tbody>${propsHtml}</tbody>
+					</table>
+				</div>
+			</div>
+		`;
+	}
+
+	return `
+		<div style="font-size: 13px; min-width: 150px;">
+			<div style="margin-bottom: 4px;">
+				<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+				<div style="font-weight: 600; color: #1e293b;">${layerName}</div>
+			</div>
+			<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+				<div style="font-size: 12px; color: #64748b;">No data at this location</div>
+			</div>
+		</div>
+	`;
+};
+
 export const MapView = forwardRef<MapViewRef, MapViewProps>(
 	(
 		{
@@ -257,6 +445,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const onTerraDrawChangeRef = useRef(onTerraDrawChange);
 		const onFeatureClickRef = useRef(onFeatureClick);
 		const onWMSFeatureInfoRequestRef = useRef(onWMSFeatureInfoRequest);
+		const currentPopupRef = useRef<maplibregl.Popup | null>(null);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
 		const mapLoadedRef = useRef(false);
@@ -1379,32 +1568,6 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 									},
 								});
 
-								// Add click handler for marker layer
-								map.on("click", `${layer.id}-marker`, (e: unknown) => {
-									const event = e as {
-										features?: Array<{
-											properties: { name?: string; description?: string };
-										}>;
-										lngLat: maplibregl.LngLat;
-									};
-									if (onFeatureClickRef.current) {
-										onFeatureClickRef.current(layer.id);
-									}
-									if (event.features?.[0]) {
-										const feature = event.features[0];
-										new maplibregl.Popup()
-											.setLngLat(event.lngLat)
-											.setHTML(
-												generateFeaturePopupHTML({
-													layerName: layer.name,
-													featureName: feature.properties.name,
-													description: feature.properties.description,
-												}),
-											)
-											.addTo(map);
-									}
-								});
-
 								// Change cursor on hover for markers
 								map.on("mouseenter", `${layer.id}-marker`, () => {
 									map.getCanvas().style.cursor = "pointer";
@@ -1413,59 +1576,6 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 									map.getCanvas().style.cursor = "";
 								});
 							}
-						}
-					});
-
-					// Add popups on click and notify layer selection
-					map.on("click", `${layer.id}-fill`, (e: unknown) => {
-						// Notify parent about the clicked layer
-						if (onFeatureClickRef.current) {
-							onFeatureClickRef.current(layer.id);
-						}
-						const event = e as {
-							features?: Array<{
-								properties: { name?: string; description?: string };
-							}>;
-							lngLat: maplibregl.LngLat;
-						};
-						if (event.features?.[0]) {
-							const feature = event.features[0];
-							new maplibregl.Popup()
-								.setLngLat(event.lngLat)
-								.setHTML(
-									generateFeaturePopupHTML({
-										layerName: layer.name,
-										featureName: feature.properties.name,
-										description: feature.properties.description,
-									}),
-								)
-								.addTo(map);
-						}
-					});
-
-					map.on("click", `${layer.id}-circle`, (e: unknown) => {
-						// Notify parent about the clicked layer
-						if (onFeatureClickRef.current) {
-							onFeatureClickRef.current(layer.id);
-						}
-						const event = e as {
-							features?: Array<{
-								properties: { name?: string; description?: string };
-							}>;
-							lngLat: maplibregl.LngLat;
-						};
-						if (event.features?.[0]) {
-							const feature = event.features[0];
-							new maplibregl.Popup()
-								.setLngLat(event.lngLat)
-								.setHTML(
-									generateFeaturePopupHTML({
-										layerName: layer.name,
-										featureName: feature.properties.name,
-										description: feature.properties.description,
-									}),
-								)
-								.addTo(map);
 						}
 					});
 
@@ -2034,229 +2144,225 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			markerOverlaySnapshot,
 		]);
 
-		// WMS GetFeatureInfo click handler for queryable layers
-		useEffect(() => {
-			if (!mapRef.current || !mapLoaded) return;
+	// Helper function to show a popup (closes any existing popup first)
+	const showPopup = useCallback((lngLat: maplibregl.LngLat, html: string) => {
+		if (!mapRef.current) return;
 
-			const map = mapRef.current;
+		// Close existing popup if any
+		if (currentPopupRef.current) {
+			currentPopupRef.current.remove();
+		}
 
-			// Helper to format feature info HTML for popup
-			const formatFeatureInfoHTML = (
-				data: WMSFeatureInfoResponse,
-				layerName: string,
-			): string => {
-				// Handle HTML response
-				if (data.type === "html" && data.content) {
-					return `<div class="wms-feature-info">
-						<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-						<div class="text-xs">${data.content}</div>
-					</div>`;
+		// Create and show new popup
+		const popup = new maplibregl.Popup({
+			closeButton: true,
+			closeOnClick: true,
+			maxWidth: "400px",
+		})
+			.setLngLat(lngLat)
+			.setHTML(html)
+			.addTo(mapRef.current);
+
+		// Store reference to current popup
+		currentPopupRef.current = popup;
+
+		// Clear reference when popup is closed
+		popup.on("close", () => {
+			if (currentPopupRef.current === popup) {
+				currentPopupRef.current = null;
+			}
+		});
+	}, []);
+
+	// Unified click handler for all layers (vector + WMS)
+	useEffect(() => {
+		if (!mapRef.current || !mapLoaded) return;
+
+		const map = mapRef.current;
+
+		// Check drawing mode (preserve existing logic)
+		const isDrawing =
+			drawingMode &&
+			drawingMode !== "select" &&
+			drawingMode !== "delete" &&
+			drawingMode !== "delete-selection";
+		if (isDrawing) return;
+
+		// Helper to extract base layer ID (remove -marker, -fill, -circle, etc. suffixes)
+		const getOriginalLayerId = (mapLayerId: string): string => {
+			const suffixes = [
+				"-marker",
+				"-fill",
+				"-circle",
+				"-line",
+				"-symbol",
+				"-raster",
+			];
+			for (const suffix of suffixes) {
+				if (mapLayerId.endsWith(suffix)) {
+					return mapLayerId.slice(0, -suffix.length);
 				}
+			}
+			return mapLayerId;
+		};
 
-				// Handle text response
-				if (data.type === "text" && data.content) {
-					return `<div class="wms-feature-info">
-						<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-						<pre class="text-xs whitespace-pre-wrap">${data.content}</pre>
-					</div>`;
-				}
+		// Async helper to fetch WMS data and update popup section
+		const fetchWMSDataAndUpdatePopup = async (
+			layer: Layer,
+			lngLat: maplibregl.LngLat,
+		) => {
+			if (!onWMSFeatureInfoRequestRef.current) return;
 
-				// Handle empty features array (no data at location)
-				if (data.features && data.features.length === 0) {
-					return `<div class="wms-feature-info">
-						<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-						<p class="text-xs text-gray-500">No data at this location</p>
-					</div>`;
-				}
+			// Build GetFeatureInfo request params
+			const bounds = map.getBounds();
+			const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+			const canvas = map.getCanvas();
+			const width = canvas.width;
+			const height = canvas.height;
+			const point = map.project(lngLat);
+			const x = Math.round(point.x);
+			const y = Math.round(point.y);
 
-				// Handle GeoJSON/JSON response with features
-				if (data.features && data.features.length > 0) {
-					const feature = data.features[0];
-					const props = feature.properties || {};
+			try {
+				const result = await onWMSFeatureInfoRequestRef.current({
+					wmsUrl: layer.wmsUrl!,
+					layers: layer.wmsLayerName!,
+					bbox,
+					width,
+					height,
+					x,
+					y,
+					time: layer.wmsTimeDimension?.current,
+					version: layer.wmsVersion,
+					cqlFilter: layer.wmsCqlFilter,
+				});
 
-					// Label mappings for better display
-					const labelMap: Record<string, string> = {
-						DEFAULT: "Density (hours/km²)",
-						time: "Time Period",
-						category: "Category",
-					};
-
-					// Fields to hide (not useful to display)
-					const hideFields = ["category_column"];
-
-					// Build property list
-					const propEntries = Object.entries(props)
-						.filter(
-							([key]) =>
-								!key.startsWith("_") &&
-								key !== "geometry" &&
-								!hideFields.includes(key),
-						)
-						.slice(0, 10); // Limit to 10 properties
-
-					if (propEntries.length === 0) {
-						return `<div class="wms-feature-info">
-							<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-							<p class="text-xs text-gray-500">No properties available</p>
-						</div>`;
+				// Update section with result
+				if (result && currentPopupRef.current) {
+					const newContent = formatFeatureInfoHTML(result, layer.name);
+					const popupElement = currentPopupRef.current.getElement();
+					if (popupElement) {
+						updatePopupSection(popupElement, layer.id, newContent);
 					}
-
-					const propsHtml = propEntries
-						.map(([key, value]) => {
-							const label = labelMap[key] || key;
-							let displayValue = value ?? "—";
-
-							// Format numeric values
-							if (key === "DEFAULT" && typeof value === "string") {
-								const num = parseFloat(value);
-								if (!isNaN(num)) {
-									displayValue = num.toFixed(2);
-								}
-							}
-
-							// Skip "time" field - we'll show the queried range instead
-							if (key === "time") {
-								return "";
-							}
-
-							return `<tr>
-								<td class="pr-2 text-gray-500">${label}:</td>
-								<td class="font-medium">${displayValue}</td>
-							</tr>`;
-						})
-						.filter(Boolean)
-						.join("");
-
-					return `<div class="wms-feature-info">
-						<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-						<table class="text-xs">
-							<tbody>${propsHtml}</tbody>
-						</table>
-					</div>`;
+				} else if (currentPopupRef.current) {
+					// No result - update with "no data" message
+					const noDataContent = `
+						<div style="font-size: 13px; min-width: 150px;">
+							<div style="margin-bottom: 4px;">
+								<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+								<div style="font-weight: 600; color: #1e293b;">${layer.name}</div>
+							</div>
+							<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+								<div style="font-size: 12px; color: #64748b;">No data at this location</div>
+							</div>
+						</div>
+					`;
+					const popupElement = currentPopupRef.current.getElement();
+					if (popupElement) {
+						updatePopupSection(popupElement, layer.id, noDataContent);
+					}
 				}
-
-				// Try to parse as raw JSON response (some servers return properties directly)
-				const rawProps = Object.entries(data)
-					.filter(
-						([key]) =>
-							!["type", "content", "features", "raw"].includes(key) &&
-							!key.startsWith("_"),
-					)
-					.slice(0, 10);
-
-				if (rawProps.length > 0) {
-					const propsHtml = rawProps
-						.map(
-							([key, value]) =>
-								`<tr>
-									<td class="pr-2 text-gray-500">${key}:</td>
-									<td class="font-medium">${typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</td>
-								</tr>`,
-						)
-						.join("");
-
-					return `<div class="wms-feature-info">
-						<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-						<table class="text-xs">
-							<tbody>${propsHtml}</tbody>
-						</table>
-					</div>`;
+			} catch (error) {
+				console.warn(`WMS GetFeatureInfo failed for ${layer.name}:`, error);
+				// Update with error message
+				if (currentPopupRef.current) {
+					const errorContent = `
+						<div style="font-size: 13px; min-width: 150px;">
+							<div style="margin-bottom: 4px;">
+								<span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Layer</span>
+								<div style="font-weight: 600; color: #1e293b;">${layer.name}</div>
+							</div>
+							<div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px;">
+								<div style="font-size: 12px; color: #ef4444;">Failed to load data</div>
+							</div>
+						</div>
+					`;
+					const popupElement = currentPopupRef.current.getElement();
+					if (popupElement) {
+						updatePopupSection(popupElement, layer.id, errorContent);
+					}
 				}
+			}
+		};
 
-				return `<div class="wms-feature-info">
-					<h4 class="font-semibold text-sm mb-2">${layerName}</h4>
-					<p class="text-xs text-gray-500">No data at this location</p>
-				</div>`;
-			};
+		// Main click handler
+		const handleUnifiedClick = async (e: maplibregl.MapMouseEvent) => {
+			// Query all features at click point
+			const features = map.queryRenderedFeatures(e.point);
 
-			// Click handler for WMS layers (attempts GetFeatureInfo)
-			const handleWMSClick = async (e: maplibregl.MapMouseEvent) => {
-				// Check if callback is available
-				if (!onWMSFeatureInfoRequestRef.current) {
-					return;
+			// Group by base layer ID (remove -fill, -marker suffixes)
+			const layerFeatureMap = new Map<string, any[]>();
+			for (const feature of features) {
+				const layerId = getOriginalLayerId(feature.layer.id);
+				const layer = layers.find((l) => l.id === layerId);
+				if (layer && layer.visible) {
+					if (!layerFeatureMap.has(layerId)) {
+						layerFeatureMap.set(layerId, []);
+					}
+					layerFeatureMap.get(layerId)!.push(feature);
 				}
+			}
 
-				// Find visible WMS layers (try GetFeatureInfo on all WMS layers, not just explicitly queryable ones)
-				// Some layers may not have wmsQueryable set if created before the feature was added
-				const wmsLayers = layers.filter(
-					(l) => l.visible && l.wmsUrl && l.wmsLayerName,
-				);
+			// Build sections for vector layers (immediate)
+			const sections: PopupSection[] = [];
+			for (const [layerId, features] of layerFeatureMap.entries()) {
+				const layer = layers.find((l) => l.id === layerId)!;
+				const layerIndex = layers.indexOf(layer);
 
-				if (wmsLayers.length === 0) {
-					return;
-				}
-
-				// Get map bounds and dimensions for WMS request
-				const bounds = map.getBounds();
-				const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-				const canvas = map.getCanvas();
-				const width = canvas.width;
-				const height = canvas.height;
-
-				// Calculate pixel coordinates
-				const point = map.project(e.lngLat);
-				const x = Math.round(point.x);
-				const y = Math.round(point.y);
-
-				// Query the first WMS layer
-				const layer = wmsLayers[0];
-
-				// Show loading popup
-				const loadingPopup = new maplibregl.Popup({
-					closeButton: true,
-					closeOnClick: true,
-					className: "wms-feature-info-popup",
-				})
-					.setLngLat(e.lngLat)
-					.setHTML(
-						`<div class="wms-feature-info">
-							<p class="text-xs text-gray-500">Loading...</p>
-						</div>`,
-					)
-					.addTo(map);
-
-				try {
-					const result = await onWMSFeatureInfoRequestRef.current({
-						wmsUrl: layer.wmsUrl!,
-						layers: layer.wmsLayerName!,
-						bbox,
-						width,
-						height,
-						x,
-						y,
-						time: layer.wmsTimeDimension?.current,
-						version: layer.wmsVersion,
-						cqlFilter: layer.wmsCqlFilter,
+				if (features.length > 0) {
+					const feature = features[0];
+					const content = generateFeaturePopupHTML({
+						layerName: layer.name,
+						featureName: feature.properties?.name,
+						description: feature.properties?.description,
 					});
-
-					// Remove loading popup
-					loadingPopup.remove();
-
-					if (result) {
-						// Show result popup
-						new maplibregl.Popup({
-							closeButton: true,
-							closeOnClick: true,
-							className: "wms-feature-info-popup",
-							maxWidth: "300px",
-						})
-							.setLngLat(e.lngLat)
-							.setHTML(formatFeatureInfoHTML(result, layer.name))
-							.addTo(map);
-					}
-				} catch (error) {
-					console.warn("WMS GetFeatureInfo failed:", error);
-					loadingPopup.remove();
+					sections.push({ layerId, layerName: layer.name, content, layerIndex });
 				}
-			};
+			}
 
-			// Add click handler
-			map.on("click", handleWMSClick);
+			// Add WMS layer placeholders
+			const wmsLayers = layers.filter(
+				(l) => l.visible && l.wmsUrl && l.wmsLayerName,
+			);
+			for (const layer of wmsLayers) {
+				sections.push(
+					createLoadingSection(layer.id, layer.name, layers.indexOf(layer)),
+				);
+			}
 
-			return () => {
-				map.off("click", handleWMSClick);
-			};
-		}, [mapLoaded, layers]);
+			// Show popup if any data
+			if (sections.length === 0) return;
+
+			// Sort by layer index (top layers first)
+			sections.sort((a, b) => a.layerIndex - b.layerIndex);
+			const html = generateAggregatedPopupHTML(sections);
+			showPopup(e.lngLat, html);
+
+			// Notify parent of top layer click (for highlighting)
+			if (layerFeatureMap.size > 0 && onFeatureClickRef.current) {
+				const topLayerId = Array.from(layerFeatureMap.keys())
+					.map((id) => ({ id, index: layers.findIndex((l) => l.id === id) }))
+					.filter((item) => item.index !== -1)
+					.sort((a, b) => a.index - b.index)[0]?.id;
+				if (topLayerId) {
+					onFeatureClickRef.current(topLayerId);
+				}
+			}
+
+			// Fetch WMS data asynchronously
+			for (const layer of wmsLayers) {
+				fetchWMSDataAndUpdatePopup(layer, e.lngLat);
+			}
+		};
+
+		// Register unified click handler
+		map.on("click", handleUnifiedClick);
+
+		return () => {
+			map.off("click", handleUnifiedClick);
+		};
+	}, [mapLoaded, layers, drawingMode]);
+
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
 		const activeLegend = visibleLayers.find((layer) => layer.legend);

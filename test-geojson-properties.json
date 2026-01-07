@@ -1,0 +1,68 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.0, 50.0]
+      },
+      "properties": {
+        "name": "Red Point",
+        "color": "#ff0000",
+        "category": "Important",
+        "value": 42,
+        "description": "A test point with red color"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [11.0, 51.0]
+      },
+      "properties": {
+        "name": "Blue Point",
+        "fill": "#0000ff",
+        "category": "Normal",
+        "value": 15,
+        "description": "A test point with blue fill color"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [12.0, 50.5]
+      },
+      "properties": {
+        "name": "Green Point",
+        "stroke": "#00ff00",
+        "category": "Success",
+        "status": "active"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.5, 49.5],
+            [12.5, 49.5],
+            [12.5, 51.5],
+            [9.5, 51.5],
+            [9.5, 49.5]
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Purple Area",
+        "color": "#9333ea",
+        "category": "Zone",
+        "description": "A test polygon with purple color",
+        "area_km2": 150
+      }
+    }
+  ]
+}

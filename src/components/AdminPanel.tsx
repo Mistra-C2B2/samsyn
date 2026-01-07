@@ -1,5 +1,5 @@
 import { FileJson, Globe, Image, Loader2, Plus, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Layer } from "../App";
 import { useAdminLayerForm } from "../hooks/admin-layer-form";
 import type { WmsServer } from "../services/wmsServerService";
@@ -9,7 +9,6 @@ import {
 	GeoTiffLayerForm,
 	LayerLibraryList,
 	LayerMetadataFields,
-	LegendConfigSection,
 	VectorLayerForm,
 	WmsServerForm,
 	WmsServerLayerBrowser,
@@ -135,20 +134,60 @@ export function AdminPanel({
 	const handleVectorPreview = () => {
 		if (!form.vector.isValid || !form.vector.parsedGeoJson) return;
 
-		const previewLayer: Layer = {
-			id: "__preview__",
-			name: form.metadata.name || "Preview",
-			type: "geojson",
-			visible: true,
-			opacity: 1,
-			data: form.vector.parsedGeoJson,
-			color: form.vector.styling.color,
-			lineWidth: form.vector.styling.lineWidth,
-			fillPolygons: form.vector.styling.fillPolygons,
-		};
+		const newShowPreview = !form.vector.showPreview;
+		form.vector.setShowPreview(newShowPreview);
 
-		onPreviewLayer?.(previewLayer);
+		if (newShowPreview) {
+			// Turning preview ON
+			const previewLayer: Layer = {
+				id: "__preview__",
+				name: form.metadata.name || "Preview",
+				type: "geojson",
+				visible: true,
+				opacity: 1,
+				data: form.vector.parsedGeoJson,
+				color: form.vector.styling.color,
+				lineWidth: form.vector.styling.lineWidth,
+				fillPolygons: form.vector.styling.fillPolygons,
+			};
+			onPreviewLayer?.(previewLayer);
+		} else {
+			// Turning preview OFF
+			onPreviewLayer?.(null);
+		}
 	};
+
+	// Auto-update preview when styling changes
+	useEffect(() => {
+		// Only update if preview is already showing and we have valid GeoJSON
+		if (
+			form.vector.showPreview &&
+			form.vector.isValid &&
+			form.vector.parsedGeoJson
+		) {
+			const updatedPreview: Layer = {
+				id: "__preview__",
+				name: form.metadata.name || "Preview",
+				type: "geojson",
+				visible: true,
+				opacity: 1,
+				data: form.vector.parsedGeoJson,
+				color: form.vector.styling.color,
+				lineWidth: form.vector.styling.lineWidth,
+				fillPolygons: form.vector.styling.fillPolygons,
+			};
+			onPreviewLayer?.(updatedPreview);
+		}
+	}, [
+		form.vector.styling.color,
+		form.vector.styling.lineWidth,
+		form.vector.styling.fillPolygons,
+		form.vector.showPreview,
+		form.vector.isValid,
+		form.vector.parsedGeoJson,
+		form.metadata.name,
+		onPreviewLayer,
+	]);
 
 	const handleSubmitLayer = async () => {
 		const layerData = form.buildLayer();
@@ -481,30 +520,12 @@ export function AdminPanel({
 					name={form.metadata.name}
 					description={form.metadata.description}
 					author={form.metadata.author}
-					doi={form.metadata.doi}
 					category={form.metadata.category}
 					existingCategories={existingCategories}
 					onNameChange={form.metadata.setName}
 					onDescriptionChange={form.metadata.setDescription}
 					onAuthorChange={form.metadata.setAuthor}
-					onDoiChange={form.metadata.setDoi}
 					onCategoryChange={form.metadata.setCategory}
-				/>
-
-				{/* Legend Configuration */}
-				<LegendConfigSection
-					legendType={form.legend.legendType}
-					legendItems={form.legend.legendItems}
-					legendSource={form.legend.legendSource}
-					wmsLegendUrl={form.legend.wmsLegendUrl}
-					legendImageError={form.legend.legendImageError}
-					showWmsOption={true}
-					onLegendTypeChange={form.legend.setLegendType}
-					onLegendSourceChange={form.legend.setLegendSource}
-					onLegendImageError={() => form.legend.setLegendImageError(true)}
-					onAddItem={form.legend.addItem}
-					onUpdateItem={form.legend.updateItem}
-					onRemoveItem={form.legend.removeItem}
 				/>
 			</div>
 
@@ -650,30 +671,12 @@ export function AdminPanel({
 						name={form.metadata.name}
 						description={form.metadata.description}
 						author={form.metadata.author}
-						doi={form.metadata.doi}
-						category={form.metadata.category}
+								category={form.metadata.category}
 						existingCategories={existingCategories}
 						onNameChange={form.metadata.setName}
 						onDescriptionChange={form.metadata.setDescription}
 						onAuthorChange={form.metadata.setAuthor}
-						onDoiChange={form.metadata.setDoi}
 						onCategoryChange={form.metadata.setCategory}
-					/>
-
-					{/* Legend Configuration */}
-					<LegendConfigSection
-						legendType={form.legend.legendType}
-						legendItems={form.legend.legendItems}
-						legendSource={form.legend.legendSource}
-						wmsLegendUrl={form.legend.wmsLegendUrl}
-						legendImageError={form.legend.legendImageError}
-						showWmsOption={form.layerSource === "wms"}
-						onLegendTypeChange={form.legend.setLegendType}
-						onLegendSourceChange={form.legend.setLegendSource}
-						onLegendImageError={() => form.legend.setLegendImageError(true)}
-						onAddItem={form.legend.addItem}
-						onUpdateItem={form.legend.updateItem}
-						onRemoveItem={form.legend.removeItem}
 					/>
 				</div>
 

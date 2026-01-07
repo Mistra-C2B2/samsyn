@@ -141,6 +141,74 @@ export function useVectorForm() {
 		setStyling((prev) => ({ ...prev, fillPolygons }));
 	}, []);
 
+	// Update feature properties
+	const updateFeatureProperties = useCallback(
+		(featureIndex: number, newProperties: Record<string, unknown>) => {
+			if (!parsedGeoJson) return;
+
+			try {
+				// Type guard for FeatureCollection
+				const geojson = parsedGeoJson as {
+					type: string;
+					features: Array<{
+						type: string;
+						properties: Record<string, unknown>;
+						geometry: unknown;
+					}>;
+				};
+
+				if (
+					geojson.type !== "FeatureCollection" ||
+					!Array.isArray(geojson.features)
+				) {
+					console.error("Parsed GeoJSON is not a FeatureCollection");
+					return;
+				}
+
+				if (featureIndex < 0 || featureIndex >= geojson.features.length) {
+					console.error(
+						`Feature index ${featureIndex} out of bounds (0-${geojson.features.length - 1})`,
+					);
+					return;
+				}
+
+				// Create updated feature with merged properties
+				const updatedFeatures = geojson.features.map((feature, index) => {
+					if (index === featureIndex) {
+						return {
+							...feature,
+							properties: {
+								...feature.properties,
+								...newProperties,
+							},
+						};
+					}
+					return feature;
+				});
+
+				// Create updated GeoJSON
+				const updatedGeoJson = {
+					...geojson,
+					features: updatedFeatures,
+				};
+
+				// Update state
+				setParsedGeoJson(updatedGeoJson);
+
+				// Update raw JSON to match
+				const newRawJson = JSON.stringify(updatedGeoJson, null, 2);
+				setRawJson(newRawJson);
+
+				// Re-validate
+				const result = validateGeoJSON(newRawJson);
+				setValidation(result);
+			} catch (error) {
+				console.error("Error updating feature properties:", error);
+			}
+		},
+		[parsedGeoJson],
+	);
+
 	// Reset entire form
 	const reset = useCallback(() => {
 		setInputMode("paste");
@@ -215,6 +283,9 @@ export function useVectorForm() {
 		updateColor,
 		updateLineWidth,
 		updateFillPolygons,
+
+		// Feature editing
+		updateFeatureProperties,
 
 		// Preview
 		showPreview,

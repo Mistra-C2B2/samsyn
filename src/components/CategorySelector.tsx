@@ -16,6 +16,7 @@ interface CategorySelectorProps {
 	onChange: (value: string) => void;
 	existingCategories: string[];
 	label?: string;
+	required?: boolean;
 }
 
 export function CategorySelector({
@@ -23,6 +24,7 @@ export function CategorySelector({
 	onChange,
 	existingCategories,
 	label = "Category",
+	required = false,
 }: CategorySelectorProps) {
 	const [isAddingNew, setIsAddingNew] = useState(false);
 	const [newCategory, setNewCategory] = useState("");
@@ -95,14 +97,23 @@ export function CategorySelector({
 	return (
 		<div className="space-y-2">
 			<Label htmlFor="category">{label}</Label>
-			<Select value={value || "__none__"} onValueChange={handleSelectChange}>
+			<Select
+				value={value && value !== "__none__" ? value : required ? "" : "__none__"}
+				onValueChange={handleSelectChange}
+			>
 				<SelectTrigger id="category">
-					<SelectValue placeholder="Select or add category" />
+					<SelectValue
+						placeholder={
+							required ? "Select or add category" : "Select or add category"
+						}
+					/>
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="__none__">
-						<span className="text-slate-400">No category</span>
-					</SelectItem>
+					{!required && (
+						<SelectItem value="__none__">
+							<span className="text-slate-400">No category</span>
+						</SelectItem>
+					)}
 					{allCategories.length > 0 &&
 						allCategories.map((cat) => (
 							<SelectItem key={cat} value={cat}>

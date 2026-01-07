@@ -31,6 +31,7 @@ interface VectorLayerFormProps {
 
 export function VectorLayerForm({ form, onPreview }: VectorLayerFormProps) {
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
 
 	// Handle drag events
@@ -77,13 +78,28 @@ export function VectorLayerForm({ form, onPreview }: VectorLayerFormProps) {
 		[form],
 	);
 
-	const handlePaste = useCallback(() => {
-		navigator.clipboard.readText().then((text) => {
-			form.setRawJson(text);
-			form.setInputMode("paste");
-			// Auto-validate after paste
-			setTimeout(() => form.validate(), 0);
-		});
+	const handlePaste = useCallback(async () => {
+		if (textareaRef.current) {
+			// Focus the textarea
+			textareaRef.current.focus();
+
+			try {
+				// Try the modern clipboard API first (works if permission already granted)
+				const text = await navigator.clipboard.readText();
+				form.setRawJson(text);
+				form.setInputMode("paste");
+				setTimeout(() => form.validate(), 0);
+			} catch {
+				// Fallback: trigger paste event programmatically
+				// This requires the user to actually paste (Ctrl/Cmd+V)
+				try {
+					document.execCommand("paste");
+				} catch {
+					// If both fail, the textarea is focused so user can paste manually
+					// The onPaste handler will auto-validate
+				}
+			}
+		}
 	}, [form]);
 
 	const handleTextChange = useCallback(
@@ -97,6 +113,13 @@ export function VectorLayerForm({ form, onPreview }: VectorLayerFormProps) {
 		if (form.rawJson.trim()) {
 			form.validate();
 		}
+	}, [form]);
+
+	const handleTextareaPaste = useCallback(() => {
+		// Auto-validate after the paste completes
+		// Let the browser handle the paste naturally via onChange
+		// Then validate after the state updates
+		setTimeout(() => form.validate(), 100);
 	}, [form]);
 
 	return (
@@ -146,9 +169,11 @@ export function VectorLayerForm({ form, onPreview }: VectorLayerFormProps) {
 						</Button>
 					</div>
 					<textarea
+						ref={textareaRef}
 						value={form.rawJson}
 						onChange={handleTextChange}
 						onBlur={handleTextBlur}
+						onPaste={handleTextareaPaste}
 						placeholder={`{
   "type": "FeatureCollection",
   "features": [
@@ -371,59 +396,6 @@ export function VectorLayerForm({ form, onPreview }: VectorLayerFormProps) {
 							checked={form.styling.fillPolygons}
 							onCheckedChange={form.updateFillPolygons}
 						/>
-					</div>
-
-					{/* Style Preview */}
-					<div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-						<p className="text-xs text-slate-500 mb-2">Preview</p>
-						<div className="flex items-center gap-4">
-							{/* Polygon preview */}
-							<div className="flex items-center gap-2">
-								<svg width="24" height="24" viewBox="0 0 24 24">
-									<polygon
-										points="4,20 12,4 20,20"
-										fill={
-											form.styling.fillPolygons
-												? `${form.styling.color}40`
-												: "none"
-										}
-										stroke={form.styling.color}
-										strokeWidth={form.styling.lineWidth}
-									/>
-								</svg>
-								<span className="text-xs text-slate-500">Polygon</span>
-							</div>
-
-							{/* Line preview */}
-							<div className="flex items-center gap-2">
-								<svg width="24" height="24" viewBox="0 0 24 24">
-									<path
-										d="M4,20 L12,8 L20,16"
-										fill="none"
-										stroke={form.styling.color}
-										strokeWidth={form.styling.lineWidth}
-										strokeLinecap="round"
-										strokeLinejoin="round"
-									/>
-								</svg>
-								<span className="text-xs text-slate-500">Line</span>
-							</div>
-
-							{/* Point preview */}
-							<div className="flex items-center gap-2">
-								<svg width="24" height="24" viewBox="0 0 24 24">
-									<circle
-										cx="12"
-										cy="12"
-										r="6"
-										fill={form.styling.color}
-										stroke="white"
-										strokeWidth="2"
-									/>
-								</svg>
-								<span className="text-xs text-slate-500">Point</span>
-							</div>
-						</div>
 					</div>
 				</div>
 			)}

@@ -98,7 +98,9 @@ export function CategorySelector({
 		<div className="space-y-2">
 			<Label htmlFor="category">{label}</Label>
 			<Select
-				value={value && value !== "__none__" ? value : required ? "" : "__none__"}
+				value={
+					value && value !== "__none__" ? value : required ? "" : "__none__"
+				}
 				onValueChange={handleSelectChange}
 			>
 				<SelectTrigger id="category">

@@ -671,7 +671,7 @@ export function AdminPanel({
 						name={form.metadata.name}
 						description={form.metadata.description}
 						author={form.metadata.author}
-								category={form.metadata.category}
+						category={form.metadata.category}
 						existingCategories={existingCategories}
 						onNameChange={form.metadata.setName}
 						onDescriptionChange={form.metadata.setDescription}

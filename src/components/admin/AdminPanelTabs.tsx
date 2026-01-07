@@ -1,8 +1,10 @@
 import { cn } from "../ui/utils";
 
+export type AdminTab = "wms-servers" | "library-layers" | "community-layers";
+
 interface AdminPanelTabsProps {
-	activeTab: "wms-servers" | "layers";
-	onTabChange: (tab: "wms-servers" | "layers") => void;
+	activeTab: AdminTab;
+	onTabChange: (tab: AdminTab) => void;
 }
 
 export function AdminPanelTabs({
@@ -15,7 +17,7 @@ export function AdminPanelTabs({
 				type="button"
 				onClick={() => onTabChange("wms-servers")}
 				className={cn(
-					"flex-1 px-4 py-2 text-sm font-medium transition-colors",
+					"flex-1 px-3 py-2 text-xs font-medium transition-colors",
 					activeTab === "wms-servers"
 						? "text-teal-700 border-b-2 border-teal-600 bg-teal-50/50"
 						: "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
@@ -25,15 +27,27 @@ export function AdminPanelTabs({
 			</button>
 			<button
 				type="button"
-				onClick={() => onTabChange("layers")}
+				onClick={() => onTabChange("library-layers")}
 				className={cn(
-					"flex-1 px-4 py-2 text-sm font-medium transition-colors",
-					activeTab === "layers"
+					"flex-1 px-3 py-2 text-xs font-medium transition-colors",
+					activeTab === "library-layers"
 						? "text-teal-700 border-b-2 border-teal-600 bg-teal-50/50"
 						: "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
 				)}
 			>
-				Layers
+				Library Layers
+			</button>
+			<button
+				type="button"
+				onClick={() => onTabChange("community-layers")}
+				className={cn(
+					"flex-1 px-3 py-2 text-xs font-medium transition-colors",
+					activeTab === "community-layers"
+						? "text-teal-700 border-b-2 border-teal-600 bg-teal-50/50"
+						: "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
+				)}
+			>
+				Community Layers
 			</button>
 		</div>
 	);

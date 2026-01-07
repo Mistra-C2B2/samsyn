@@ -188,10 +188,14 @@ export function LayerManager({
 	// Combine all available layers into one list
 	const allAvailableLayers = [...layersNotInMap, ...myLayersNotInMap];
 
-	// Get unique types and categories for filters
-	const uniqueTypes = Array.from(
-		new Set(allAvailableLayers.map((l) => l.type)),
-	);
+	// Helper to get layer source type
+	const getLayerSourceType = (layer: Layer) => {
+		if (layer.isGlobal) return "library";
+		if (layer.createdBy === user?.id) return "my";
+		return "community";
+	};
+
+	// Get unique categories for filters
 	const uniqueCategories = Array.from(
 		new Set(
 			allAvailableLayers.map((l) => l.category).filter((c): c is string => !!c),
@@ -211,9 +215,11 @@ export function LayerManager({
 			);
 		}
 
-		// Apply type filter
+		// Apply source type filter
 		if (filterType !== "all") {
-			filtered = filtered.filter((layer) => layer.type === filterType);
+			filtered = filtered.filter(
+				(layer) => getLayerSourceType(layer) === filterType,
+			);
 		}
 
 		// Apply category filter
@@ -310,16 +316,14 @@ export function LayerManager({
 								<SelectTrigger className="flex-1">
 									<div className="flex items-center gap-2">
 										<SlidersHorizontal className="w-3 h-3" />
-										<span className="text-xs">Type</span>
+										<span className="text-xs">Source</span>
 									</div>
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">All Types</SelectItem>
-									{uniqueTypes.map((type) => (
-										<SelectItem key={type} value={type} className="capitalize">
-											{type}
-										</SelectItem>
-									))}
+									<SelectItem value="all">All Sources</SelectItem>
+									<SelectItem value="library">Library layer</SelectItem>
+									<SelectItem value="my">My layer</SelectItem>
+									<SelectItem value="community">Community layer</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -618,8 +622,12 @@ export function LayerManager({
 											<GripVertical className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
 											<div className="flex-1 min-w-0">
 												<h3 className="text-slate-900 text-sm">{layer.name}</h3>
-												<p className="text-slate-500 text-xs capitalize">
-													{layer.type}
+												<p className="text-slate-500 text-xs">
+													{layer.isGlobal
+														? "Library layer"
+														: layer.createdBy === user?.id
+															? "My layer"
+															: "Community layer"}
 												</p>
 											</div>
 										</div>

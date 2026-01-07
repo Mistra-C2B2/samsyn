@@ -1,4 +1,4 @@
-export { AdminPanelTabs } from "./AdminPanelTabs";
+export { AdminPanelTabs, type AdminTab } from "./AdminPanelTabs";
 export { GeoTiffLayerForm } from "./GeoTiffLayerForm";
 export { LayerLibraryList } from "./LayerLibraryList";
 export { LayerMetadataFields } from "./LayerMetadataFields";

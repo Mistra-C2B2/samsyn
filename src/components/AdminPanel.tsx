@@ -6,6 +6,7 @@ import type { WmsServer } from "../services/wmsServerService";
 import type { WmsLayerInfo, WmsServerLayersResponse } from "../types/api";
 import {
 	AdminPanelTabs,
+	type AdminTab,
 	GeoTiffLayerForm,
 	LayerLibraryList,
 	LayerMetadataFields,
@@ -66,9 +67,11 @@ export function AdminPanel({
 	onGetWmsServerLayers,
 }: AdminPanelProps) {
 	// Tab state
-	const [activeTab, setActiveTab] = useState<"wms-servers" | "layers">(
-		"wms-servers",
-	);
+	const [activeTab, setActiveTab] = useState<AdminTab>("wms-servers");
+
+	// Filter layers by type
+	const libraryLayers = availableLayers.filter((layer) => layer.isGlobal);
+	const communityLayers = availableLayers.filter((layer) => !layer.isGlobal);
 
 	// Layer view state
 	const [showAddLayerForm, setShowAddLayerForm] = useState(false);
@@ -364,7 +367,7 @@ export function AdminPanel({
 
 		// Switch to layer form
 		setShowAddLayerForm(true);
-		setActiveTab("layers");
+		setActiveTab("library-layers");
 		setWmsServerView("list");
 		setBrowsingServer(null);
 	};
@@ -546,8 +549,8 @@ export function AdminPanel({
 		</>
 	);
 
-	// Render Layers tab content
-	const renderLayersContent = () => {
+	// Render Library Layers tab content
+	const renderLibraryLayersContent = () => {
 		if (!showAddLayerForm) {
 			return (
 				<>
@@ -589,12 +592,15 @@ export function AdminPanel({
 
 					{/* Layer List */}
 					<LayerLibraryList
-						layers={availableLayers}
+						layers={libraryLayers}
 						layerToDelete={layerToDelete}
 						onEdit={handleEditLayer}
 						onDeleteRequest={setLayerToDelete}
 						onDeleteConfirm={handleDeleteLayerConfirm}
 						onDeleteCancel={() => setLayerToDelete(null)}
+						title="Library Layers"
+						subtitle="Library layer"
+						emptyMessage="No layers in library"
 					/>
 				</>
 			);
@@ -699,6 +705,23 @@ export function AdminPanel({
 		);
 	};
 
+	// Render Community Layers tab content
+	const renderCommunityLayersContent = () => {
+		return (
+			<LayerLibraryList
+				layers={communityLayers}
+				layerToDelete={layerToDelete}
+				onEdit={handleEditLayer}
+				onDeleteRequest={setLayerToDelete}
+				onDeleteConfirm={handleDeleteLayerConfirm}
+				onDeleteCancel={() => setLayerToDelete(null)}
+				title="Community Layers"
+				subtitle="Community layer"
+				emptyMessage="No community layers yet"
+			/>
+		);
+	};
+
 	return (
 		<div className="absolute left-0 top-0 bottom-0 w-96 bg-white border-r border-slate-200 flex flex-col shadow-lg z-50">
 			{/* Header */}
@@ -717,9 +740,9 @@ export function AdminPanel({
 
 			{/* Tab Content */}
 			<div className="flex-1 flex flex-col overflow-hidden">
-				{activeTab === "wms-servers"
-					? renderWmsServersContent()
-					: renderLayersContent()}
+				{activeTab === "wms-servers" && renderWmsServersContent()}
+				{activeTab === "library-layers" && renderLibraryLayersContent()}
+				{activeTab === "community-layers" && renderCommunityLayersContent()}
 			</div>
 		</div>
 	);

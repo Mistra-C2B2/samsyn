@@ -33,12 +33,14 @@ class MapService:
 
     def list_user_maps(self, user_id: Optional[UUID]) -> List[Map]:
         """
-        Get all maps owned by or shared with user.
+        Get all maps accessible to the user.
 
-        Returns maps where user is:
-        - The creator/owner
-        - A collaborator (viewer or editor)
-        - For unauthenticated users (user_id=None), only public maps
+        Returns maps where:
+        - Map has public view permission
+        - User is the creator/owner
+        - User is a collaborator (viewer or editor)
+
+        For unauthenticated users (user_id=None), only public maps are returned.
 
         Args:
             user_id: User's internal UUID, or None for unauthenticated users
@@ -46,11 +48,14 @@ class MapService:
         Returns:
             List of Map instances user has access to
         """
+        # Get all public maps (accessible to everyone)
+        public_maps = self.db.query(Map).filter(Map.view_permission == "public").all()
+
         # Unauthenticated users only see public maps
         if user_id is None:
-            return self.db.query(Map).filter(Map.view_permission == "public").all()
+            return public_maps
 
-        # Get maps owned by user
+        # Get maps owned by user (including private ones)
         owned_maps = self.db.query(Map).filter(Map.created_by == user_id).all()
 
         # Get maps where user is a collaborator
@@ -70,8 +75,8 @@ class MapService:
         else:
             collaborated_maps = []
 
-        # Combine and deduplicate (though owner shouldn't be in collaborators)
-        all_maps = {map.id: map for map in owned_maps + collaborated_maps}
+        # Combine and deduplicate
+        all_maps = {map.id: map for map in public_maps + owned_maps + collaborated_maps}
         return list(all_maps.values())
 
     def get_map(self, map_id: UUID, user_id: Optional[UUID]) -> Optional[Map]:

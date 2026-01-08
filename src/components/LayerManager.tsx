@@ -532,53 +532,55 @@ export function LayerManager({
 						{layers.length === 0 ? (
 							<div className="text-center py-8 space-y-3">
 								<p className="text-slate-500 text-sm">No layers added yet</p>
-								<div className="flex flex-col gap-2 max-w-xs mx-auto">
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<span className="w-full inline-block">
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => setShowLibrary(true)}
-														disabled={!isSignedIn}
-														className="w-full"
-													>
-														<Library className="w-3 h-3" />
-														Add from Library
-													</Button>
-												</span>
-											</TooltipTrigger>
-											{!isSignedIn && (
-												<TooltipContent>
-													<p>Please sign in to add layers.</p>
-												</TooltipContent>
-											)}
-										</Tooltip>
-									</TooltipProvider>
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<span className="w-full inline-block">
-													<Button
-														size="sm"
-														onClick={onOpenLayerCreator}
-														className="w-full"
-														disabled={!isSignedIn}
-													>
-														<Pencil className="w-3 h-3" />
-														Create Layer
-													</Button>
-												</span>
-											</TooltipTrigger>
-											{!isSignedIn && (
-												<TooltipContent>
-													<p>Please sign in to create layers.</p>
-												</TooltipContent>
-											)}
-										</Tooltip>
-									</TooltipProvider>
-								</div>
+								{mapUserRole !== "viewer" && (
+									<div className="flex flex-col gap-2 max-w-xs mx-auto">
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="w-full inline-block">
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => setShowLibrary(true)}
+															disabled={!isSignedIn}
+															className="w-full"
+														>
+															<Library className="w-3 h-3" />
+															Add from Library
+														</Button>
+													</span>
+												</TooltipTrigger>
+												{!isSignedIn && (
+													<TooltipContent>
+														<p>Please sign in to add layers.</p>
+													</TooltipContent>
+												)}
+											</Tooltip>
+										</TooltipProvider>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="w-full inline-block">
+														<Button
+															size="sm"
+															onClick={onOpenLayerCreator}
+															className="w-full"
+															disabled={!isSignedIn}
+														>
+															<Pencil className="w-3 h-3" />
+															Create Layer
+														</Button>
+													</span>
+												</TooltipTrigger>
+												{!isSignedIn && (
+													<TooltipContent>
+														<p>Please sign in to create layers.</p>
+													</TooltipContent>
+												)}
+											</Tooltip>
+										</TooltipProvider>
+									</div>
+								)}
 							</div>
 						) : (
 							layers.map((layer, index) => (
@@ -757,7 +759,7 @@ export function LayerManager({
 						)}
 					</div>
 
-					{layers.length > 0 && (
+					{layers.length > 0 && mapUserRole !== "viewer" && (
 						<div className="p-4 border-t border-slate-200 space-y-2">
 							<TooltipProvider>
 								<Tooltip>

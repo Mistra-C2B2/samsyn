@@ -15,7 +15,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.deps import get_current_user, get_current_user_optional
+from app.api.deps import get_current_user, get_current_user_optional, is_admin_from_payload
+from app.services.auth_service import auth_service
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Security scheme for extracting token
+security = HTTPBearer(auto_error=False)
 from app.models.user import User
 from app.schemas.layer import (
     LayerCreate,
@@ -194,6 +199,7 @@ async def get_layer(
 async def create_layer(
     layer_data: LayerCreate,
     current_user: Annotated[User, Depends(get_current_user)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
@@ -202,12 +208,31 @@ async def create_layer(
     The current user becomes the layer creator.
     Layer editable setting determines who can modify it later.
 
+    Note: Creating global layers (is_global=True) requires admin privileges.
+
     Args:
         layer_data: Layer creation schema with name, source_type, configs, etc.
 
     Returns:
         Created layer details
+
+    Raises:
+        403: If is_global=True and user is not an admin
     """
+    # Check admin privileges for global layers
+    if layer_data.is_global:
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required to create global layers",
+            )
+        payload = await auth_service.verify_token(credentials.credentials)
+        if not is_admin_from_payload(payload):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required to create global layers",
+            )
+
     service = LayerService(db)
     layer = service.create_layer(layer_data, current_user.id)
 
@@ -219,6 +244,7 @@ async def update_layer(
     layer_id: UUID,
     layer_data: LayerUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
@@ -227,6 +253,7 @@ async def update_layer(
     Permission rules:
     - If layer.editable is "creator-only": Only creator can update
     - If layer.editable is "everyone": Any authenticated user can update
+    - Setting is_global=True requires admin privileges
 
     Supports partial updates - only provided fields are updated.
 
@@ -239,8 +266,22 @@ async def update_layer(
 
     Raises:
         404: Layer not found
-        403: User doesn't have edit permission
+        403: User doesn't have edit permission, or trying to set is_global without admin
     """
+    # Check admin privileges if trying to set is_global=True
+    if layer_data.is_global is True:
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required to make layers global",
+            )
+        payload = await auth_service.verify_token(credentials.credentials)
+        if not is_admin_from_payload(payload):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required to make layers global",
+            )
+
     service = LayerService(db)
     layer = service.update_layer(layer_id, layer_data, current_user.id)
 

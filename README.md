@@ -144,6 +144,40 @@ CLERK_WEBHOOK_SECRET=whsec_...
 
 See `backend/.env.example` for all available options.
 
+## Admin Users
+
+Admin users have access to the Admin Panel, which allows managing global layers and WMS servers that are available to all users.
+
+### Setting Up an Admin User
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com/)
+2. Navigate to **Users** and select the user you want to make an admin
+3. Scroll to the **Public metadata** section
+4. Click **Edit** and add the following JSON:
+   ```json
+   {
+     "isAdmin": true
+   }
+   ```
+5. Save the changes
+
+The user will need to sign out and sign back in (or refresh the page) for the changes to take effect.
+
+### What Admins Can Do
+
+- Access the Admin Panel (shield icon in navbar)
+- Create and manage global layers visible to all users
+- Add and manage WMS servers
+- Edit and delete any global layer or WMS server
+
+### Security
+
+Admin privileges are enforced on both frontend and backend:
+- **Frontend**: The Admin button is hidden for non-admin users
+- **Backend**: API endpoints return 403 Forbidden if a non-admin tries to access admin-only operations
+
+The admin status is stored in Clerk's `publicMetadata`, which is signed and cannot be forged by clients.
+
 ## Documentation
 
 - [Implementation Plan](implementation-plan.md) - Full backend implementation roadmap

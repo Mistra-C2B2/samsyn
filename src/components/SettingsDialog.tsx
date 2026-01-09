@@ -1,5 +1,5 @@
 import { toast } from "sonner@2.0.3";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import {
 	Download,
 	Globe,
@@ -11,6 +11,7 @@ import {
 	Type,
 } from "lucide-react";
 import { useState } from "react";
+import { useApiClient } from "../services/api";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -57,8 +58,11 @@ function SettingsDialogContent({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const { user } = useUser();
+	const { signOut } = useAuth();
+	const apiClient = useApiClient();
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [deleteConfirmText, setDeleteConfirmText] = useState("");
+	const [isDeleting, setIsDeleting] = useState(false);
 
 	// Preferences state
 	const [language, setLanguage] = useState("en");
@@ -90,26 +94,38 @@ function SettingsDialogContent({
 		toast.success("Data exported successfully!");
 	};
 
-	const handleDeleteData = () => {
+	const handleDeleteData = async () => {
 		if (deleteConfirmText !== "DELETE") {
 			toast.error("Please type DELETE to confirm");
 			return;
 		}
 
-		// Mock data deletion - in production, this would call your backend API
-		// to delete user's personal data while preserving shared/public resources
+		setIsDeleting(true);
 
-		toast.success(
-			"Your data deletion request has been submitted. You will be signed out.",
-		);
+		try {
+			await apiClient.delete("/api/v1/users/me");
 
-		// Close dialogs and sign out user
-		setShowDeleteConfirm(false);
-		setDeleteConfirmText("");
-		onOpenChange(false);
+			toast.success(
+				"Your account has been deleted. You will now be signed out.",
+			);
 
-		// In production, you would sign out the user after successful deletion
-		// signOut();
+			// Close dialogs
+			setShowDeleteConfirm(false);
+			setDeleteConfirmText("");
+			onOpenChange(false);
+
+			// Sign out the user (Clerk session is now invalid anyway)
+			await signOut();
+		} catch (error) {
+			console.error("Failed to delete account:", error);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to delete account. Please try again or contact support.",
+			);
+		} finally {
+			setIsDeleting(false);
+		}
 	};
 
 	return (
@@ -197,14 +213,14 @@ function SettingsDialogContent({
 										disabled={!user}
 									>
 										<Trash2 className="w-4 h-4" />
-										Delete My Data
+										Delete My Account
 									</Button>
 								</div>
 
 								<p className="text-xs text-slate-500">
-									Export includes your personal maps, layers, and comments.
-									Deleting your data will remove all personal information while
-									preserving shared resources that other users depend on.
+									Export includes your maps, layers, and comments. Deleting your
+									account removes your personal information; your content will
+									be anonymized or transferred to collaborators.
 								</p>
 							</div>
 						</TabsContent>
@@ -416,46 +432,57 @@ function SettingsDialogContent({
 			<AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Your Data</AlertDialogTitle>
-						<AlertDialogDescription className="space-y-3">
-							<p>This action will permanently delete the following:</p>
-							<ul className="list-disc list-inside space-y-1 text-sm">
-								<li>Your personal identification information</li>
-								<li>All custom maps you've created</li>
-								<li>All custom layers you've created</li>
-								<li>All comments you've posted</li>
-							</ul>
-							<p className="text-red-600">
-								This action cannot be undone. Shared resources that other users
-								depend on will be preserved in an anonymized state.
-							</p>
-							<div className="pt-2">
-								<label
-									htmlFor="deleteConfirm"
-									className="text-sm text-slate-700 block mb-2"
-								>
-									Type <span className="font-semibold">DELETE</span> to confirm:
-								</label>
-								<Input
-									id="deleteConfirm"
-									value={deleteConfirmText}
-									onChange={(e) => setDeleteConfirmText(e.target.value)}
-									placeholder="DELETE"
-									className="uppercase"
-								/>
+						<AlertDialogTitle>Delete Your Account</AlertDialogTitle>
+						<AlertDialogDescription asChild>
+							<div className="space-y-3">
+								<p>
+									This action will permanently delete your personal information
+									(name, email, profile).
+								</p>
+								<p className="text-sm text-slate-600">
+									Your content will be preserved but anonymized:
+								</p>
+								<ul className="list-disc list-inside space-y-1 text-sm">
+									<li>
+										Maps will be transferred to collaborators, or shown as
+										"Deleted User"
+									</li>
+									<li>Layers will be shown as created by "Deleted User"</li>
+									<li>Comments will be shown as posted by "Deleted User"</li>
+								</ul>
+								<p className="text-red-600">This action cannot be undone.</p>
+								<div className="pt-2">
+									<label
+										htmlFor="deleteConfirm"
+										className="text-sm text-slate-700 block mb-2"
+									>
+										Type <span className="font-semibold">DELETE</span> to
+										confirm:
+									</label>
+									<Input
+										id="deleteConfirm"
+										value={deleteConfirmText}
+										onChange={(e) => setDeleteConfirmText(e.target.value)}
+										placeholder="DELETE"
+										className="uppercase"
+									/>
+								</div>
 							</div>
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel onClick={() => setDeleteConfirmText("")}>
+						<AlertDialogCancel
+							onClick={() => setDeleteConfirmText("")}
+							disabled={isDeleting}
+						>
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={handleDeleteData}
-							className="bg-red-600 hover:bg-red-700"
-							disabled={deleteConfirmText !== "DELETE"}
+							className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+							disabled={deleteConfirmText !== "DELETE" || isDeleting}
 						>
-							Delete My Data
+							{isDeleting ? "Deleting..." : "Delete My Account"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -536,12 +563,12 @@ export function SettingsDialog({
 									disabled={true}
 								>
 									<Trash2 className="w-4 h-4" />
-									Delete My Data
+									Delete My Account
 								</Button>
 							</div>
 
 							<p className="text-xs text-slate-500">
-								Sign in to export or delete your data.
+								Sign in to export your data or delete your account.
 							</p>
 						</div>
 					</TabsContent>

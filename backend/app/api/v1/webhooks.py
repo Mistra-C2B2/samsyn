@@ -236,6 +236,9 @@ async def handle_user_deleted(event_data: Dict[str, Any], user_service: UserServ
     Deletes user and reassigns all their content to the deleted user placeholder.
     This preserves data for collaborators.
 
+    Note: This handler is idempotent. If the user was already deleted via the
+    self-service /users/me endpoint, this will return early without error.
+
     Args:
         event_data: Clerk event data
         user_service: User service instance
@@ -247,6 +250,12 @@ async def handle_user_deleted(event_data: Dict[str, Any], user_service: UserServ
 
     if not clerk_id:
         raise ValueError("Missing user ID")
+
+    # Check if user still exists (may have been deleted via self-service endpoint)
+    user = user_service.get_by_clerk_id(clerk_id)
+    if not user:
+        print(f"User {clerk_id} not found - likely already deleted via self-service")
+        return
 
     # Delete user and reassign ownership
     deleted = user_service.delete_user(clerk_id)

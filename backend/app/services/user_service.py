@@ -201,6 +201,204 @@ class UserService:
 
         return True
 
+    def _find_new_map_owner(self, map_id: UUID, current_owner_id: UUID) -> Optional[UUID]:
+        """
+        Find the best candidate to become the new map owner.
+
+        Priority:
+        1. Oldest editor collaborator (by created_at)
+        2. Oldest viewer collaborator (by created_at)
+        3. None (caller should use placeholder)
+
+        Args:
+            map_id: Map UUID
+            current_owner_id: Current owner's UUID (to exclude)
+
+        Returns:
+            User UUID of new owner, or None if no suitable candidate
+        """
+        # Try to find an editor first
+        editor = (
+            self.db.query(MapCollaborator)
+            .filter(
+                MapCollaborator.map_id == map_id,
+                MapCollaborator.role == "editor",
+                MapCollaborator.user_id != current_owner_id,
+            )
+            .order_by(MapCollaborator.created_at.asc())
+            .first()
+        )
+
+        if editor:
+            return editor.user_id
+
+        # Fall back to viewer
+        viewer = (
+            self.db.query(MapCollaborator)
+            .filter(
+                MapCollaborator.map_id == map_id,
+                MapCollaborator.role == "viewer",
+                MapCollaborator.user_id != current_owner_id,
+            )
+            .order_by(MapCollaborator.created_at.asc())
+            .first()
+        )
+
+        if viewer:
+            return viewer.user_id
+
+        return None
+
+    async def _delete_from_clerk(self, clerk_id: str) -> bool:
+        """
+        Delete user from Clerk using Backend API.
+
+        Args:
+            clerk_id: Clerk user ID
+
+        Returns:
+            True if deleted or already gone, False on error
+        """
+        import httpx
+        from app.config import settings
+
+        if not settings.CLERK_SECRET_KEY:
+            # Clerk not configured - skip
+            print("Warning: CLERK_SECRET_KEY not configured, skipping Clerk deletion")
+            return True
+
+        clerk_api_url = f"https://api.clerk.com/v1/users/{clerk_id}"
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.delete(
+                    clerk_api_url,
+                    headers={
+                        "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                return True
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    # User already deleted from Clerk
+                    return True
+                # Log error but don't fail - local deletion succeeded
+                print(f"Warning: Failed to delete user from Clerk: {e}")
+                return False
+            except httpx.HTTPError as e:
+                print(f"Warning: Failed to delete user from Clerk: {e}")
+                return False
+
+    async def delete_user_with_smart_transfer(self, clerk_id: str) -> bool:
+        """
+        Delete user with smart ownership transfer for maps.
+
+        This method implements GDPR-compliant user deletion with intelligent
+        ownership transfer:
+
+        1. For each map owned by the user:
+           a. Find oldest editor collaborator → promote to owner
+           b. If no editors: find oldest viewer → promote to owner
+           c. If no collaborators: transfer to deleted user placeholder
+           d. Remove promoted collaborator from MapCollaborator table
+
+        2. Layers: Transfer all to placeholder (no collaborator concept)
+
+        3. Comments: Transfer all to placeholder (anonymize)
+
+        4. Collaborator records: Delete all records where user is a collaborator
+
+        5. Delete user from database
+
+        6. Delete user from Clerk via Backend API
+
+        Args:
+            clerk_id: Clerk user ID
+
+        Returns:
+            True if deleted successfully, False if user not found
+        """
+        user = self.get_by_clerk_id(clerk_id)
+
+        if not user:
+            return False
+
+        user_id = user.id  # Store user ID before any commits
+        print(f"DEBUG: Deleting user {clerk_id} (internal ID: {user_id})")
+
+        # Get or create placeholder for items that can't be transferred
+        placeholder = self.get_or_create_deleted_user_placeholder()
+
+        # Ensure placeholder has a valid ID
+        if not placeholder.id:
+            raise RuntimeError("Deleted user placeholder has no ID")
+
+        placeholder_id = placeholder.id  # Store ID to avoid session issues
+        print(f"DEBUG: Placeholder ID: {placeholder_id}")
+
+        # Step 1: Smart transfer of map ownership
+        # Re-fetch user after potential commit in get_or_create_deleted_user_placeholder
+        user = self.get_by_clerk_id(clerk_id)
+        if not user:
+            raise RuntimeError("User disappeared after placeholder creation")
+
+        # Get map IDs first (just IDs, not full objects to avoid relationship issues)
+        user_map_ids = [
+            m.id for m in self.db.query(Map.id).filter(Map.created_by == user_id).all()
+        ]
+        print(f"DEBUG: Found {len(user_map_ids)} maps owned by user")
+
+        for map_id in user_map_ids:
+            new_owner_id = self._find_new_map_owner(map_id, user_id)
+            print(f"DEBUG: Map {map_id} - new_owner_id: {new_owner_id}, will use placeholder: {new_owner_id is None}")
+
+            target_owner_id = new_owner_id if new_owner_id else placeholder_id
+
+            # Use bulk update to avoid relationship issues
+            self.db.query(Map).filter(Map.id == map_id).update(
+                {Map.created_by: target_owner_id}, synchronize_session=False
+            )
+
+            if new_owner_id:
+                # Remove the promoted collaborator from the collaborators list
+                self.db.query(MapCollaborator).filter(
+                    MapCollaborator.map_id == map_id,
+                    MapCollaborator.user_id == new_owner_id,
+                ).delete(synchronize_session=False)
+
+            print(f"DEBUG: Map {map_id} created_by set to: {target_owner_id}")
+
+        # Step 2: Transfer layers to placeholder (bulk update)
+        self.db.query(Layer).filter(Layer.created_by == user_id).update(
+            {Layer.created_by: placeholder_id}, synchronize_session=False
+        )
+
+        # Step 3: Transfer comments to placeholder (bulk update, anonymize)
+        self.db.query(Comment).filter(Comment.author_id == user_id).update(
+            {Comment.author_id: placeholder_id}, synchronize_session=False
+        )
+
+        # Step 4: Remove user from all collaborations they're part of
+        self.db.query(MapCollaborator).filter(
+            MapCollaborator.user_id == user_id
+        ).delete(synchronize_session=False)
+
+        # Step 5: Delete the user from database
+        # Note: We use user_id to re-fetch since the user object may be stale
+        user_to_delete = self.db.query(User).filter(User.id == user_id).first()
+        if user_to_delete:
+            self.db.delete(user_to_delete)
+        self.db.commit()
+        print("DEBUG: User deleted and committed")
+
+        # Step 6: Delete from Clerk (async)
+        await self._delete_from_clerk(clerk_id)
+
+        return True
+
     def get_or_create(
         self, clerk_id: str, user_data: UserCreate
     ) -> tuple[User, bool]:

@@ -39,6 +39,7 @@ from app.api.v1 import wms_servers
 
 api_router.include_router(wms_servers.router)
 
-# Future routers will be added in later phases
-# from app.api.v1 import users
-# api_router.include_router(users.router)
+# User account management
+from app.api.v1 import users
+
+api_router.include_router(users.router)

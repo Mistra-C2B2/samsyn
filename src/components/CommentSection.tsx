@@ -1,9 +1,28 @@
 import { useUser } from "@clerk/clerk-react";
-import { Loader2, Send, X } from "lucide-react";
+import {
+	Check,
+	CheckCircle,
+	Loader2,
+	Pencil,
+	Send,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useState } from "react";
 import type { Layer } from "../App";
 import type { CommentResponse } from "../types/api";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "./ui/alert-dialog";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
 	Select,
@@ -28,23 +47,44 @@ interface CommentSectionProps {
 	comments: CommentResponse[];
 	loading?: boolean;
 	error?: string | null;
+	mapUserRole?: string | null; // "owner", "editor", "viewer", or null
 	onAddComment: (comment: {
 		content: string;
 		map_id?: string;
 		layer_id?: string;
 		parent_id?: string;
 	}) => void;
+	onEditComment?: (commentId: string, content: string) => void;
+	onDeleteComment?: (commentId: string) => void;
+	onResolveComment?: (commentId: string, isResolved: boolean) => void;
 	onClose: () => void;
 }
 
 interface CommentItemProps {
 	comment: CommentResponse & { replies?: CommentResponse[] };
 	onReply: (commentId: string) => void;
+	onEdit?: (commentId: string, content: string) => void;
+	onDelete?: (commentId: string) => void;
+	onResolve?: (commentId: string, isResolved: boolean) => void;
+	currentUserId?: string | null;
+	canResolve?: boolean; // Only map owners can resolve comments
 	depth?: number;
 }
 
-function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
+function CommentItem({
+	comment,
+	onReply,
+	onEdit,
+	onDelete,
+	onResolve,
+	currentUserId,
+	canResolve = false,
+	depth = 0,
+}: CommentItemProps) {
 	const [collapsed, setCollapsed] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
+	const [editContent, setEditContent] = useState(comment.content);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	const formatTimestamp = (dateString: string) => {
 		const date = new Date(dateString);
@@ -61,6 +101,7 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 	// Check if this comment has nested replies in the tree we built
 	const hasReplies = comment.replies && comment.replies.length > 0;
 	const authorName = comment.author_name || "Unknown User";
+	const isOwner = currentUserId && comment.author_id === currentUserId;
 
 	// Generate initials from author name
 	const getInitials = (name: string) => {
@@ -72,9 +113,36 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 			.slice(0, 2);
 	};
 
+	const handleSaveEdit = () => {
+		if (editContent.trim() && onEdit) {
+			onEdit(comment.id, editContent.trim());
+			setIsEditing(false);
+		}
+	};
+
+	const handleCancelEdit = () => {
+		setEditContent(comment.content);
+		setIsEditing(false);
+	};
+
+	const handleDelete = () => {
+		if (onDelete) {
+			onDelete(comment.id);
+			setShowDeleteDialog(false);
+		}
+	};
+
+	const handleResolve = () => {
+		if (onResolve) {
+			onResolve(comment.id, !comment.is_resolved);
+		}
+	};
+
 	return (
 		<div className="space-y-2">
-			<div className="flex items-start gap-3">
+			<div
+				className={`flex items-start gap-3 ${comment.is_resolved ? "opacity-60" : ""}`}
+			>
 				{hasReplies && (
 					<button
 						type="button"
@@ -91,23 +159,160 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 					</AvatarFallback>
 				</Avatar>
 				<div className="flex-1 min-w-0">
-					<div className="flex items-baseline gap-2">
+					<div className="flex items-center gap-2 flex-wrap">
 						<span className="text-sm text-slate-900">{authorName}</span>
 						<span className="text-xs text-slate-400">
 							{formatTimestamp(comment.created_at)}
 						</span>
+						{comment.is_resolved && (
+							<Badge
+								variant="outline"
+								className="text-[10px] px-1.5 py-0 h-4 bg-green-50 text-green-700 border-green-200"
+							>
+								<CheckCircle className="w-2.5 h-2.5 mr-0.5" />
+								Resolved
+							</Badge>
+						)}
 					</div>
-					<p className="text-sm text-slate-600 mt-1">{comment.content}</p>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onReply(comment.id)}
-						className="mt-1 h-auto p-1 text-xs text-slate-500 hover:text-teal-600"
-					>
-						Reply {comment.reply_count > 0 && `(${comment.reply_count})`}
-					</Button>
+
+					{isEditing ? (
+						<div className="mt-2 space-y-2">
+							<Textarea
+								value={editContent}
+								onChange={(e) => setEditContent(e.target.value)}
+								rows={2}
+								className="text-sm"
+							/>
+							<div className="flex gap-2">
+								<Button size="sm" onClick={handleSaveEdit}>
+									<Check className="w-3 h-3 mr-1" />
+									Save
+								</Button>
+								<Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+									Cancel
+								</Button>
+							</div>
+						</div>
+					) : (
+						<p
+							className={`text-sm text-slate-600 mt-1 ${comment.is_resolved ? "line-through" : ""}`}
+						>
+							{comment.content}
+						</p>
+					)}
+
+					{!isEditing && (
+						<div className="flex items-center gap-1 mt-1">
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => onReply(comment.id)}
+								className="h-auto p-1 text-xs text-slate-500 hover:text-teal-600"
+							>
+								Reply {comment.reply_count > 0 && `(${comment.reply_count})`}
+							</Button>
+
+							{/* Only show resolve button for top-level comments and only for map owners */}
+							{onResolve && !comment.parent_id && canResolve && (
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="inline-block">
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={handleResolve}
+													className={`h-auto p-1 text-xs ${
+														comment.is_resolved
+															? "text-green-600 hover:text-green-700"
+															: "text-slate-500 hover:text-green-600"
+													}`}
+												>
+													<CheckCircle className="w-3 h-3" />
+												</Button>
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p>
+												{comment.is_resolved
+													? "Mark as unresolved"
+													: "Mark as resolved"}
+											</p>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+
+							{isOwner && onEdit && (
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="inline-block">
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => setIsEditing(true)}
+													className="h-auto p-1 text-xs text-slate-500 hover:text-blue-600"
+												>
+													<Pencil className="w-3 h-3" />
+												</Button>
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p>Edit comment</p>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+
+							{isOwner && onDelete && (
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="inline-block">
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => setShowDeleteDialog(true)}
+													className="h-auto p-1 text-xs text-slate-500 hover:text-red-600"
+												>
+													<Trash2 className="w-3 h-3" />
+												</Button>
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p>Delete comment</p>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+						</div>
+					)}
 				</div>
 			</div>
+
+			{/* Delete confirmation dialog */}
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete comment?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete this comment
+							{hasReplies ? " and all its replies" : ""}. This action cannot be
+							undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={handleDelete}
+							className="bg-red-600 hover:bg-red-700"
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* Nested replies */}
 			{hasReplies && !collapsed && (
@@ -117,6 +322,11 @@ function CommentItem({ comment, onReply, depth = 0 }: CommentItemProps) {
 							key={reply.id}
 							comment={reply}
 							onReply={onReply}
+							onEdit={onEdit}
+							onDelete={onDelete}
+							onResolve={onResolve}
+							currentUserId={currentUserId}
+							canResolve={canResolve}
 							depth={depth + 1}
 						/>
 					))}
@@ -134,7 +344,11 @@ export function CommentSection({
 	comments,
 	loading,
 	error,
+	mapUserRole,
 	onAddComment,
+	onEditComment,
+	onDeleteComment,
+	onResolveComment,
 	onClose,
 }: CommentSectionProps) {
 	const [newComment, setNewComment] = useState("");
@@ -143,7 +357,15 @@ export function CommentSection({
 	);
 	const [replyingTo, setReplyingTo] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const { isSignedIn } = useUser();
+	const { isSignedIn, user } = useUser();
+
+	// Get current user's internal ID from Clerk user metadata or ID
+	// Note: This assumes the backend stores Clerk user ID as author_id
+	// If the backend uses a different user ID system, this will need adjustment
+	const currentUserId = user?.id || null;
+
+	// Only map owners can resolve comments
+	const canResolve = mapUserRole === "owner";
 
 	// Loading state
 	if (loading) {
@@ -362,6 +584,11 @@ export function CommentSection({
 						key={comment.id}
 						comment={comment}
 						onReply={setReplyingTo}
+						onEdit={onEditComment}
+						onDelete={onDeleteComment}
+						onResolve={onResolveComment}
+						currentUserId={currentUserId}
+						canResolve={canResolve}
 					/>
 				))}
 

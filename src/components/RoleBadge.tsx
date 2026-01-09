@@ -22,7 +22,8 @@ const roleConfig = {
 	viewer: {
 		label: "Viewer",
 		icon: Eye,
-		className: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200",
+		className:
+			"bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200",
 		description: "You can view this map but cannot edit it",
 	},
 };

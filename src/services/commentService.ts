@@ -89,12 +89,12 @@ export class CommentService {
 
 	/**
 	 * Resolve or unresolve a comment
-	 * PUT /api/v1/comments/{id}/resolve
+	 * PUT /api/v1/comments/{id}/resolve?is_resolved=true/false
 	 */
 	async resolveComment(id: string, isResolved: boolean) {
-		return this.client.put<CommentResponse, { is_resolved: boolean }>(
-			`/api/v1/comments/${id}/resolve`,
-			{ is_resolved: isResolved },
+		return this.client.put<CommentResponse, Record<string, never>>(
+			`/api/v1/comments/${id}/resolve?is_resolved=${isResolved}`,
+			{},
 		);
 	}
 }

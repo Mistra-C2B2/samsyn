@@ -177,6 +177,8 @@ function AppContent() {
 	>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
+	const [commentsLoading, setCommentsLoading] = useState(false);
+	const [commentsError, setCommentsError] = useState<string | null>(null);
 	const [highlightedLayerId, setHighlightedLayerId] = useState<string | null>(
 		null,
 	);
@@ -355,11 +357,18 @@ function AppContent() {
 	// Function to load comments from API
 	const loadComments = useCallback(
 		async (mapId: string) => {
+			setCommentsLoading(true);
+			setCommentsError(null);
 			try {
 				const data = await commentService.listComments({ map_id: mapId });
 				setComments(data);
-			} catch {
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : "Failed to load comments";
+				setCommentsError(errorMessage);
 				toast.error("Failed to load comments");
+			} finally {
+				setCommentsLoading(false);
 			}
 		},
 		[commentService],
@@ -561,51 +570,79 @@ function AppContent() {
 		setShowLayerCreator(false);
 	};
 
-	// Transform API comments to component format
-	const transformedComments = useMemo(() => {
-		return comments.map((comment) => ({
-			id: comment.id,
-			author: comment.author_name || "Unknown User",
-			content: comment.content,
-			timestamp: new Date(comment.created_at),
-			targetType: (comment.map_id && !comment.layer_id ? "map" : "layer") as
-				| "map"
-				| "layer",
-			targetId: comment.layer_id || comment.map_id || "",
-			parentId: comment.parent_id || undefined,
-		}));
-	}, [comments]);
-
-	// Add a new comment - adapter between component and API
+	// Add a new comment
 	const handleAddComment = async (commentData: {
-		author: string;
 		content: string;
-		targetType: "map" | "layer";
-		targetId: string;
-		parentId?: string;
+		map_id?: string;
+		layer_id?: string;
+		parent_id?: string;
 	}) => {
 		if (!currentMap) {
 			toast.error("No map selected");
 			return;
 		}
 		try {
-			const apiCommentData = {
-				content: commentData.content,
-				map_id:
-					commentData.targetType === "map"
-						? commentData.targetId
-						: currentMap.id,
-				layer_id:
-					commentData.targetType === "layer" ? commentData.targetId : undefined,
-				parent_id: commentData.parentId,
-			};
-			const newComment = await commentService.createComment(apiCommentData);
+			const newComment = await commentService.createComment(commentData);
 			setComments([...comments, newComment]);
 			toast.success("Comment added");
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 			toast.error(`Failed to add comment: ${errorMessage}`);
+		}
+	};
+
+	// Edit an existing comment
+	const handleEditComment = async (commentId: string, content: string) => {
+		try {
+			const updatedComment = await commentService.updateComment(commentId, {
+				content,
+			});
+			setComments(
+				comments.map((c) => (c.id === commentId ? updatedComment : c)),
+			);
+			toast.success("Comment updated");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Failed to update comment: ${errorMessage}`);
+		}
+	};
+
+	// Delete a comment
+	const handleDeleteComment = async (commentId: string) => {
+		try {
+			await commentService.deleteComment(commentId);
+			// Remove the comment and any replies to it
+			setComments(
+				comments.filter((c) => c.id !== commentId && c.parent_id !== commentId),
+			);
+			toast.success("Comment deleted");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Failed to delete comment: ${errorMessage}`);
+		}
+	};
+
+	// Toggle comment resolution status
+	const handleResolveComment = async (
+		commentId: string,
+		isResolved: boolean,
+	) => {
+		try {
+			const updatedComment = await commentService.resolveComment(
+				commentId,
+				isResolved,
+			);
+			setComments(
+				comments.map((c) => (c.id === commentId ? updatedComment : c)),
+			);
+			toast.success(isResolved ? "Comment resolved" : "Comment reopened");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Failed to update comment: ${errorMessage}`);
 		}
 	};
 
@@ -1493,8 +1530,14 @@ function AppContent() {
 						mapName={currentMap.name}
 						layers={currentMap.layers}
 						initialLayerId={selectedLayerIdForComments}
-						comments={transformedComments}
+						comments={comments}
+						loading={commentsLoading}
+						error={commentsError}
+						mapUserRole={currentMap.user_role}
 						onAddComment={handleAddComment}
+						onEditComment={handleEditComment}
+						onDeleteComment={handleDeleteComment}
+						onResolveComment={handleResolveComment}
 						onClose={() => {
 							setShowComments(false);
 							setSelectedLayerIdForComments(null);

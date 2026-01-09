@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.deps import get_current_user, get_current_user_optional
+from app.api.deps import get_current_user, get_current_user_optional, get_current_admin
 from app.models.user import User
 from app.schemas.wms_server import (
     WmsServerCreate,
@@ -148,11 +148,11 @@ async def get_wms_server(
 @router.post("", response_model=WmsServerResponse, status_code=status.HTTP_201_CREATED)
 async def create_wms_server(
     server_data: WmsServerCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    Create a new WMS server.
+    Create a new WMS server. Admin only.
 
     Automatically fetches and caches GetCapabilities from the WMS URL.
     The current user becomes the server creator.
@@ -165,6 +165,7 @@ async def create_wms_server(
 
     Raises:
         400: Invalid WMS URL or capabilities fetch failed
+        403: User is not an admin
         409: Server with this URL already exists
     """
     service = WmsServerService(db)
@@ -192,13 +193,12 @@ async def create_wms_server(
 async def update_wms_server(
     server_id: UUID,
     server_data: WmsServerUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    Update WMS server metadata.
+    Update WMS server metadata. Admin only.
 
-    Only the server creator can update.
     Does not change the base_url or refresh capabilities.
 
     Args:
@@ -209,8 +209,8 @@ async def update_wms_server(
         Updated server details
 
     Raises:
+        403: User is not an admin
         404: Server not found
-        403: User is not the server creator
     """
     service = WmsServerService(db)
     server = service.update_server(server_id, server_data, current_user.id)
@@ -234,13 +234,11 @@ async def update_wms_server(
 @router.delete("/{server_id}", status_code=status.HTTP_200_OK)
 async def delete_wms_server(
     server_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    Delete a WMS server.
-
-    Only the server creator can delete.
+    Delete a WMS server. Admin only.
 
     Args:
         server_id: Server UUID
@@ -249,8 +247,8 @@ async def delete_wms_server(
         Status message
 
     Raises:
+        403: User is not an admin
         404: Server not found
-        403: User is not the server creator
     """
     service = WmsServerService(db)
     deleted = service.delete_server(server_id, current_user.id)

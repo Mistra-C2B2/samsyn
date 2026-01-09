@@ -1294,26 +1294,28 @@ function AppContent() {
 						<MessageSquare className="w-4 h-4" />
 						Comments
 					</Button>
-					<Button
-						variant={showAdminPanel ? "default" : "outline"}
-						size="sm"
-						className={
-							!showAdminPanel
-								? "hover:border-teal-400 hover:bg-white hover:text-slate-900"
-								: ""
-						}
-						onClick={() => {
-							setShowLayerManager(false);
-							setShowMapSelector(false);
-							setShowComments(false);
-							setShowLayerCreator(false);
-							// Open the admin panel
-							setShowAdminPanel(!showAdminPanel);
-						}}
-					>
-						<Shield className="w-4 h-4" />
-						Admin
-					</Button>
+					{user?.publicMetadata?.isAdmin === true && (
+						<Button
+							variant={showAdminPanel ? "default" : "outline"}
+							size="sm"
+							className={
+								!showAdminPanel
+									? "hover:border-teal-400 hover:bg-white hover:text-slate-900"
+									: ""
+							}
+							onClick={() => {
+								setShowLayerManager(false);
+								setShowMapSelector(false);
+								setShowComments(false);
+								setShowLayerCreator(false);
+								// Open the admin panel
+								setShowAdminPanel(!showAdminPanel);
+							}}
+						>
+							<Shield className="w-4 h-4" />
+							Admin
+						</Button>
+					)}
 					<div className="h-4 w-px bg-slate-300" />
 					<Button
 						variant="ghost"

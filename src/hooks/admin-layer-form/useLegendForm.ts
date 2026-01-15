@@ -107,6 +107,13 @@ export function useLegendForm(options: UseLegendFormOptions = {}) {
 		};
 	}, [legendType, legendItems, legendSource, wmsLegendUrl, legendImageError]);
 
+	/**
+	 * Set all legend items at once (for colormap auto-generation)
+	 */
+	const setItems = useCallback((items: LegendItem[]) => {
+		setLegendItems(items);
+	}, []);
+
 	return {
 		// State
 		legendType,
@@ -120,6 +127,7 @@ export function useLegendForm(options: UseLegendFormOptions = {}) {
 		setLegendSource,
 		setLegendImageError,
 		setWmsLegend,
+		setItems,
 
 		// Item actions
 		addItem,

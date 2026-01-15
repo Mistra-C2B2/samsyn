@@ -268,36 +268,45 @@ async def update_layer(
         404: Layer not found
         403: User doesn't have edit permission, or trying to set is_global without admin
     """
-    # Check admin privileges if trying to set is_global=True
-    if layer_data.is_global is True:
-        if not credentials:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin access required to make layers global",
-            )
-        payload = await auth_service.verify_token(credentials.credentials)
-        if not is_admin_from_payload(payload):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin access required to make layers global",
-            )
-
     service = LayerService(db)
-    layer = service.update_layer(layer_id, layer_data, current_user.id)
+
+    # Check if user is admin
+    is_admin = False
+    if credentials:
+        try:
+            payload = await auth_service.verify_token(credentials.credentials)
+            is_admin = is_admin_from_payload(payload)
+        except Exception:
+            pass
+
+    # Check admin privileges if trying to set is_global=True
+    if layer_data.is_global is True and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required to make layers global",
+        )
+
+    # Check if layer exists first
+    existing = service.get_layer(layer_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Layer not found",
+        )
+
+    # Admins can edit any global layer
+    if is_admin and existing.is_global:
+        # Bypass normal permission check for admins editing global layers
+        layer = service.update_layer_as_admin(layer_id, layer_data)
+    else:
+        # Normal permission check
+        layer = service.update_layer(layer_id, layer_data, current_user.id)
 
     if not layer:
-        # Check if layer exists to provide better error message
-        existing = service.get_layer(layer_id)
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Layer not found",
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to edit this layer",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to edit this layer",
+        )
 
     return LayerResponse(**serialize_layer_to_dict(layer))
 
@@ -306,12 +315,16 @@ async def update_layer(
 async def delete_layer(
     layer_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
     db: Annotated[Session, Depends(get_db)],
 ):
     """
     Delete a layer.
 
-    Only the layer creator can delete layers.
+    Permission rules:
+    - Layer creator can always delete their layer
+    - Admins can delete any global library layer
+
     This cascades to remove all features and map-layer associations.
 
     Args:
@@ -322,23 +335,39 @@ async def delete_layer(
 
     Raises:
         404: Layer not found
-        403: User is not the layer creator
+        403: User is not authorized to delete this layer
     """
     service = LayerService(db)
+
+    # Check if user is admin
+    is_admin = False
+    if credentials:
+        try:
+            payload = await auth_service.verify_token(credentials.credentials)
+            is_admin = is_admin_from_payload(payload)
+        except Exception:
+            pass
+
+    # Check if layer exists
+    existing = service.get_layer(layer_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Layer not found",
+        )
+
+    # Admins can delete any global layer
+    if is_admin and existing.is_global:
+        service.delete_layer_as_admin(layer_id)
+        return {"status": "success", "message": "Layer deleted"}
+
+    # Normal permission check - only creator can delete
     deleted = service.delete_layer(layer_id, current_user.id)
 
     if not deleted:
-        # Check if layer exists to provide better error message
-        existing = service.get_layer(layer_id)
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Layer not found",
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only layer creator can delete this layer",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only layer creator can delete this layer",
+        )
 
     return {"status": "success", "message": "Layer deleted"}

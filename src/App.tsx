@@ -98,6 +98,10 @@ export interface Layer {
 	wmsCqlFilter?: string; // CQL_FILTER for GeoServer/MapServer (vendor extension)
 	// GeoTIFF properties
 	geotiffUrl?: string;
+	geotiffBounds?: [number, number, number, number]; // [west, south, east, north]
+	geotiffColormap?: string; // TiTiler colormap name (viridis, terrain, etc.)
+	geotiffRescale?: string; // Min,max rescale values (e.g., "0,255")
+	geotiffBidx?: string; // Band index/indices (e.g., "1" or "1,2,3")
 	// Vector properties
 	features?: unknown[];
 	legend?: {
@@ -935,12 +939,14 @@ function AppContent() {
 			let layerId = layer.id;
 
 			if (needsBackendCreation) {
-				// Create new map-specific layer via API (is_global=false by default)
+				// Create new layer via API
 				// Visibility is inherited from the map's view_permission
 				// Set creation_source based on layer origin:
 				// - "system" for isLocalOnly layers (GFW copies, etc.) - excluded from "My Layers"
 				// - "layer_creator" for user-created layers - shown in "My Layers"
+				// Preserve isGlobal flag for library layers (e.g., Global Fishing Effort)
 				const createData = layerService.transformToLayerCreate(layer, {
+					isGlobal: layer.isGlobal,
 					mapVisibility: currentMap.permissions?.visibility,
 					creationSource: layer.isLocalOnly ? "system" : "layer_creator",
 				});

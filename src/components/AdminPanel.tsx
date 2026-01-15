@@ -649,8 +649,11 @@ export function AdminPanel({
 				<div className="flex-1 overflow-y-auto p-4 space-y-4">
 					{form.layerSource === "geotiff" && (
 						<GeoTiffLayerForm
-							url={form.geotiff.url}
-							onUrlChange={form.geotiff.setUrl}
+							form={form.geotiff}
+							onColormapChange={form.handleGeoTiffColormapChange}
+							onRescaleMinChange={form.handleGeoTiffRescaleMinChange}
+							onRescaleMaxChange={form.handleGeoTiffRescaleMaxChange}
+							onInfoFetched={form.syncGeoTiffLegend}
 						/>
 					)}
 

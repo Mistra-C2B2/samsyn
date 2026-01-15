@@ -214,6 +214,48 @@ class LayerService:
 
         return layer
 
+    def update_layer_as_admin(
+        self, layer_id: UUID, layer_data: LayerUpdate
+    ) -> Optional[Layer]:
+        """
+        Update layer without permission check (for admins).
+
+        Only updates fields that are provided (partial update).
+        This method should only be called after verifying admin privileges.
+
+        Args:
+            layer_id: Layer UUID
+            layer_data: Partial update schema
+
+        Returns:
+            Updated Layer or None if not found
+        """
+        layer = self.db.query(Layer).filter(Layer.id == layer_id).first()
+
+        if not layer:
+            return None
+
+        # Update only provided fields
+        update_dict = layer_data.model_dump(exclude_unset=True, by_alias=False)
+        for field, value in update_dict.items():
+            # Handle enum conversion
+            if field == "source_type" and value is not None:
+                value = value.value
+            elif field == "editable" and value is not None:
+                value = value.value
+            elif field == "visibility" and value is not None:
+                value = value.value
+            # Handle metadata alias (Pydantic uses 'metadata' but model uses 'layer_metadata')
+            if field == "metadata":
+                setattr(layer, "layer_metadata", value)
+            else:
+                setattr(layer, field, value)
+
+        self.db.commit()
+        self.db.refresh(layer)
+
+        return layer
+
     def delete_layer(self, layer_id: UUID, user_id: UUID) -> bool:
         """
         Delete layer with permission check.
@@ -235,6 +277,29 @@ class LayerService:
 
         # Only creator can delete layer
         if layer.created_by != user_id:
+            return False
+
+        self.db.delete(layer)
+        self.db.commit()
+
+        return True
+
+    def delete_layer_as_admin(self, layer_id: UUID) -> bool:
+        """
+        Delete layer without permission check (for admins).
+
+        This method should only be called after verifying admin privileges.
+        Cascades to remove all features and map associations.
+
+        Args:
+            layer_id: Layer UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        layer = self.db.query(Layer).filter(Layer.id == layer_id).first()
+
+        if not layer:
             return False
 
         self.db.delete(layer)

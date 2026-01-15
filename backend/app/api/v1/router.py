@@ -34,6 +34,11 @@ from app.api.v1 import wms
 
 api_router.include_router(wms.router)
 
+# TiTiler Proxy (dev mode only) - for COG/GeoTIFF tile serving
+from app.api.v1 import titiler
+
+api_router.include_router(titiler.router)
+
 # WMS Servers
 from app.api.v1 import wms_servers
 

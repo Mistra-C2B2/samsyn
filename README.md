@@ -13,7 +13,8 @@ Original Figma design: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSy
 │   ├── app/               # Application code
 │   ├── alembic/           # Database migrations
 │   └── tests/             # Tests
-├── docker-compose.yml     # PostgreSQL database
+├── docker-compose.yml     # Production: PostgreSQL + TiTiler (internal only)
+├── docker-compose.dev.yml # Development: PostgreSQL + TiTiler (port exposed)
 └── package.json           # Frontend & backend scripts
 ```
 
@@ -37,18 +38,21 @@ Or use the helper script:
 cd backend && ./setup.sh && cd ..
 ```
 
-### 2. Start the Database
+### 2. Start Docker Services
 
-Start PostgreSQL with PostGIS (from host or outside devcontainer):
+Start PostgreSQL and TiTiler (from host or outside devcontainer):
 
 ```bash
-docker-compose up -d db
+# Development (TiTiler port exposed for direct access)
+docker-compose -f docker-compose.dev.yml up -d
+
+# Production (TiTiler only accessible via backend proxy)
+docker-compose up -d
 ```
 
-This starts PostgreSQL on port 5432 with:
-- Database: `samsyn`
-- User: `samsyn`
-- Password: `samsyn`
+This starts:
+- **PostgreSQL** on port 5432 (database: `samsyn`, user: `samsyn`, password: `samsyn`)
+- **TiTiler** for GeoTIFF tile serving (port 8001 in dev, internal only in production)
 
 ### 3. Run Database Migrations
 
@@ -66,9 +70,9 @@ cd backend
 
 You'll need three terminal windows:
 
-**Terminal 1: Database (if not already running)**
+**Terminal 1: Docker services (if not already running)**
 ```bash
-docker-compose up -d db
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 **Terminal 2: Frontend**
@@ -136,13 +140,39 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 
 ### Backend (`backend/.env`)
 ```env
-DATABASE_URL=postgresql://samsyn:samsyn@host.docker.internal:5432/samsyn
+DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn
 FRONTEND_URL=http://localhost:3000
 CLERK_SECRET_KEY=sk_test_...
 CLERK_WEBHOOK_SECRET=whsec_...
+TITILER_URL=http://localhost:8001
 ```
 
 See `backend/.env.example` for all available options.
+
+## Docker Services
+
+The project uses two Docker Compose configurations:
+
+| File | Purpose | TiTiler Access |
+|------|---------|----------------|
+| `docker-compose.dev.yml` | Development | Exposed on port 8001 |
+| `docker-compose.yml` | Production | Internal only (via backend proxy) |
+
+Both files include:
+- **PostgreSQL + PostGIS**: Database on port 5432
+- **TiTiler**: Dynamic tile server for Cloud-Optimized GeoTIFFs (COGs)
+
+### Development vs Production
+
+**Development** (`docker-compose.dev.yml`):
+- TiTiler port 8001 is exposed for direct browser access
+- CORS is enabled for testing
+- Use when running backend locally outside Docker
+
+**Production** (`docker-compose.yml`):
+- TiTiler is only accessible within the Docker network
+- All GeoTIFF tile requests go through the backend proxy (`/api/v1/titiler/*`)
+- Authentication is required (non-dev mode)
 
 ## Admin Users
 
@@ -162,6 +192,23 @@ Admin users have access to the Admin Panel, which allows managing global layers 
 5. Save the changes
 
 The user will need to sign out and sign back in (or refresh the page) for the changes to take effect.
+
+### Configuring JWT Template (Required for Backend)
+
+The backend verifies admin status from the JWT token. By default, Clerk doesn't include `publicMetadata` in JWTs, so you need to configure it:
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com/) → **JWT Templates**
+2. Click **New template** → **Blank**
+3. Name it (e.g., "samsyn")
+4. In the Claims section, add:
+   ```json
+   {
+     "public_metadata": "{{user.public_metadata}}"
+   }
+   ```
+5. Save the template
+
+After configuring the template, users need to sign out and sign back in to get a new token with the admin claim included.
 
 ### What Admins Can Do
 
@@ -193,9 +240,9 @@ The admin status is stored in Clerk's `publicMetadata`, which is signed and cann
 - Check database is running: `docker ps | grep samsyn-db`
 
 ### Database connection fails
-- Ensure PostgreSQL is running: `docker-compose up -d db`
+- Ensure PostgreSQL is running: `docker-compose -f docker-compose.dev.yml up -d`
 - Wait a few seconds for the database to be ready
-- Check connection with: `docker-compose exec db psql -U samsyn -d samsyn -c "SELECT 1;"`
+- Check connection with: `docker-compose -f docker-compose.dev.yml exec db psql -U samsyn -d samsyn -c "SELECT 1;"`
 
 ### Frontend auth issues
 - Ensure `VITE_CLERK_PUBLISHABLE_KEY` is set in `.env.local`
@@ -206,8 +253,8 @@ The admin status is stored in Clerk's `publicMetadata`, which is signed and cann
 Typical development session:
 
 ```bash
-# Start database (first time or after system restart)
-docker-compose up -d db
+# Start Docker services (first time or after system restart)
+docker-compose -f docker-compose.dev.yml up -d
 
 # Terminal 1: Frontend
 npm run dev
@@ -236,3 +283,4 @@ npm run migrate
 - PostgreSQL 16 + PostGIS 3.4
 - Alembic (migrations)
 - Pydantic (validation)
+- TiTiler (GeoTIFF/COG tile serving)

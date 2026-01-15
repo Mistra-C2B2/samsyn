@@ -1384,6 +1384,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					const cqlHash = layer.wmsCqlFilter || "";
 					return `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${timeHash}-${styleHash}-${versionHash}-${cqlHash}`;
 				}
+				// For GeoTIFF/COG layers, include URL and rendering options in the hash
+				if (layer.geotiffUrl) {
+					const colormapHash = layer.geotiffColormap || "";
+					const rescaleHash = layer.geotiffRescale || "";
+					const bidxHash = layer.geotiffBidx || "";
+					return `geotiff-${layer.geotiffUrl}-${colormapHash}-${rescaleHash}-${bidxHash}`;
+				}
 				if (!layer.data) return "";
 				// Include styling properties in hash so layer recreates when color/lineWidth/fillPolygons change
 				return `${JSON.stringify(layer.data)}-${layer.color || ""}-${layer.lineWidth || ""}-${layer.fillPolygons}`;
@@ -1774,6 +1781,69 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						visible: true,
 						opacity: layer.opacity,
 						dataHash: `wms-${layer.wmsUrl}-${layer.wmsLayerName}-${wmsTimeHash}-${wmsStyleHash}-${wmsVersionHash}-${wmsCqlHash}`,
+					});
+				} else if (layer.type === "raster" && layer.geotiffUrl) {
+					// GeoTIFF/COG layer rendering via TiTiler proxy
+					const backendUrl = import.meta.env.VITE_API_URL || "";
+					const encodedUrl = encodeURIComponent(layer.geotiffUrl.trim());
+
+					// Build tile URL with optional rendering parameters
+					let tileUrl = `${backendUrl}/api/v1/titiler/tiles/{z}/{x}/{y}?url=${encodedUrl}`;
+					if (layer.geotiffColormap) {
+						tileUrl += `&colormap=${encodeURIComponent(layer.geotiffColormap)}`;
+					}
+					if (layer.geotiffRescale) {
+						tileUrl += `&rescale=${encodeURIComponent(layer.geotiffRescale)}`;
+					}
+					if (layer.geotiffBidx) {
+						tileUrl += `&bidx=${encodeURIComponent(layer.geotiffBidx)}`;
+					}
+
+					// Add GeoTIFF as a raster tile source
+					const sourceConfig: maplibregl.RasterSourceSpecification = {
+						type: "raster",
+						tiles: [tileUrl],
+						tileSize: 256,
+					};
+
+					// Add bounds if available and valid (helps with tile loading optimization)
+					// TiTiler may return bounds in native CRS (e.g., UTM in meters), so validate they're WGS84
+					if (layer.geotiffBounds) {
+						const [west, south, east, north] = layer.geotiffBounds;
+						const isValidWGS84 =
+							west >= -180 &&
+							west <= 180 &&
+							east >= -180 &&
+							east <= 180 &&
+							south >= -90 &&
+							south <= 90 &&
+							north >= -90 &&
+							north <= 90;
+						if (isValidWGS84) {
+							sourceConfig.bounds = layer.geotiffBounds;
+						}
+					}
+
+					map.addSource(layer.id, sourceConfig);
+
+					// Add raster layer
+					map.addLayer({
+						id: `${layer.id}-raster`,
+						type: "raster",
+						source: layer.id,
+						paint: {
+							"raster-opacity": layer.opacity,
+						},
+					});
+
+					// Track state for this layer
+					const colormapHash = layer.geotiffColormap || "";
+					const rescaleHash = layer.geotiffRescale || "";
+					const bidxHash = layer.geotiffBidx || "";
+					previousLayerState.set(layer.id, {
+						visible: true,
+						opacity: layer.opacity,
+						dataHash: `geotiff-${layer.geotiffUrl}-${colormapHash}-${rescaleHash}-${bidxHash}`,
 					});
 				} else if (layer.gfw4WingsDataset) {
 					// GFW 4Wings layer rendering using MVT (vector tiles)

@@ -259,8 +259,14 @@ function AppContent() {
 			const libraryLayers = backendLayers.filter(
 				(layer) => !user?.id || layer.createdBy !== user.id,
 			);
+			// Filter out any backend copies of the default GFW layer to avoid duplicates
+			// (GFW copies are created when users add the layer to their maps)
+			const filteredLibraryLayers = libraryLayers.filter(
+				(layer) =>
+					layer.gfw4WingsDataset !== DEFAULT_GFW_LAYER.gfw4WingsDataset,
+			);
 			// Merge default GFW layer with backend layers
-			setAvailableLayers([DEFAULT_GFW_LAYER, ...libraryLayers]);
+			setAvailableLayers([DEFAULT_GFW_LAYER, ...filteredLibraryLayers]);
 		} catch (error) {
 			console.error("Failed to load layers:", error);
 			toast.error("Failed to load layer library");

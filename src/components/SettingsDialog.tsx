@@ -1,7 +1,6 @@
 import { toast } from "sonner@2.0.3";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import {
-	Download,
 	Globe,
 	Info,
 	Moon,
@@ -11,6 +10,7 @@ import {
 	Type,
 } from "lucide-react";
 import { useState } from "react";
+import { useSettings } from "../contexts/SettingsContext";
 import { useApiClient } from "../services/api";
 import {
 	AlertDialog,
@@ -60,39 +60,14 @@ function SettingsDialogContent({
 	const { user } = useUser();
 	const { signOut } = useAuth();
 	const apiClient = useApiClient();
+	const { textSize, setTextSize } = useSettings();
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [deleteConfirmText, setDeleteConfirmText] = useState("");
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	// Preferences state
 	const [language, setLanguage] = useState("en");
-	const [textSize, setTextSize] = useState("medium");
 	const [darkMode, setDarkMode] = useState(false);
-
-	const handleExportData = () => {
-		// Mock data export
-		const userData = {
-			profile: {
-				email: user?.emailAddresses[0]?.emailAddress || "",
-				name: user?.fullName || "",
-				joinedAt: user?.createdAt || "",
-			},
-			maps: [],
-			layers: [],
-			comments: [],
-		};
-
-		const dataStr = JSON.stringify(userData, null, 2);
-		const dataBlob = new Blob([dataStr], { type: "application/json" });
-		const url = URL.createObjectURL(dataBlob);
-		const link = document.createElement("a");
-		link.href = url;
-		link.download = `samsyn-data-export-${new Date().toISOString().split("T")[0]}.json`;
-		link.click();
-		URL.revokeObjectURL(url);
-
-		toast.success("Data exported successfully!");
-	};
 
 	const handleDeleteData = async () => {
 		if (deleteConfirmText !== "DELETE") {
@@ -197,17 +172,6 @@ function SettingsDialogContent({
 									<Button
 										variant="outline"
 										size="sm"
-										onClick={handleExportData}
-										className="w-full justify-start hover:border-teal-400 hover:bg-white"
-										disabled={!user}
-									>
-										<Download className="w-4 h-4" />
-										Export My Data
-									</Button>
-
-									<Button
-										variant="outline"
-										size="sm"
 										onClick={() => setShowDeleteConfirm(true)}
 										className="w-full justify-start text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50"
 										disabled={!user}
@@ -218,9 +182,8 @@ function SettingsDialogContent({
 								</div>
 
 								<p className="text-xs text-slate-500">
-									Export includes your maps, layers, and comments. Deleting your
-									account removes your personal information; your content will
-									be anonymized or transferred to collaborators.
+									Deleting your account removes your personal information; your
+									content will be anonymized or transferred to collaborators.
 								</p>
 							</div>
 						</TabsContent>
@@ -496,9 +459,10 @@ export function SettingsDialog({
 	onOpenChange,
 	isClerkConfigured = false,
 }: SettingsDialogProps) {
+	// Use shared settings context
+	const { textSize, setTextSize } = useSettings();
 	// Fallback state when Clerk is not configured - must be declared at top level
 	const [language, setLanguage] = useState("en");
-	const [textSize, setTextSize] = useState("medium");
 	const [darkMode, setDarkMode] = useState(false);
 
 	// Only use Clerk hook if Clerk is configured
@@ -549,16 +513,6 @@ export function SettingsDialog({
 								<Button
 									variant="outline"
 									size="sm"
-									className="w-full justify-start hover:border-teal-400 hover:bg-white"
-									disabled={true}
-								>
-									<Download className="w-4 h-4" />
-									Export My Data
-								</Button>
-
-								<Button
-									variant="outline"
-									size="sm"
 									className="w-full justify-start text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50"
 									disabled={true}
 								>
@@ -568,7 +522,7 @@ export function SettingsDialog({
 							</div>
 
 							<p className="text-xs text-slate-500">
-								Sign in to export your data or delete your account.
+								Sign in to delete your account.
 							</p>
 						</div>
 					</TabsContent>

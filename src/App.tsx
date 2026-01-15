@@ -34,6 +34,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { TimeSlider } from "./components/TimeSlider";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import { useCommentService } from "./services/commentService";
 import { useLayerService } from "./services/layerService";
 import { useMapService } from "./services/mapService";
@@ -1745,7 +1746,7 @@ function AppContent() {
 				isClerkConfigured={isClerkConfigured}
 			/>
 
-			<Toaster />
+			<Toaster position="bottom-center" />
 		</div>
 	);
 }
@@ -1755,11 +1756,17 @@ export default function App() {
 	if (isClerkConfigured) {
 		return (
 			<ClerkProvider publishableKey={clerkPubKey}>
-				<AppContent />
+				<SettingsProvider>
+					<AppContent />
+				</SettingsProvider>
 			</ClerkProvider>
 		);
 	}
 
 	// If Clerk is not configured, render app without authentication
-	return <AppContent />;
+	return (
+		<SettingsProvider>
+			<AppContent />
+		</SettingsProvider>
+	);
 }

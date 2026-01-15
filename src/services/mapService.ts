@@ -156,6 +156,18 @@ export class MapService {
 					}
 				).gfw4wings;
 
+				// Extract GeoTIFF configuration if present
+				const geotiffConfig = layerResponse.source_config as {
+					url?: string;
+					cogUrl?: string;
+					bounds?: [number, number, number, number];
+					processing?: {
+						colormap?: string;
+						rescale?: string;
+						bidx?: string;
+					};
+				};
+
 				// If this is a GFW layer, override the frontend type to vector
 				if (gfw4wingsConfig) {
 					frontendType = "vector";
@@ -214,6 +226,7 @@ export class MapService {
 					category: layerResponse.category || undefined,
 					createdBy: layerResponse.created_by,
 					editable: layerResponse.editable as "creator-only" | "everyone",
+					isGlobal: layerResponse.is_global, // Whether layer is a library layer
 					color: styleConfig?.color,
 					lineWidth: styleConfig?.lineWidth,
 					fillPolygons: styleConfig?.fillPolygons,
@@ -224,6 +237,27 @@ export class MapService {
 						layerResponse.source_type === "wms" ? wmsConfig?.url : undefined,
 					wmsLayerName:
 						layerResponse.source_type === "wms" ? wmsConfig?.layers : undefined,
+					// GeoTIFF properties
+					geotiffUrl:
+						layerResponse.source_type === "geotiff"
+							? geotiffConfig?.url || geotiffConfig?.cogUrl
+							: undefined,
+					geotiffBounds:
+						layerResponse.source_type === "geotiff"
+							? geotiffConfig?.bounds
+							: undefined,
+					geotiffColormap:
+						layerResponse.source_type === "geotiff"
+							? geotiffConfig?.processing?.colormap
+							: undefined,
+					geotiffRescale:
+						layerResponse.source_type === "geotiff"
+							? geotiffConfig?.processing?.rescale
+							: undefined,
+					geotiffBidx:
+						layerResponse.source_type === "geotiff"
+							? geotiffConfig?.processing?.bidx
+							: undefined,
 					// GFW 4Wings properties
 					gfw4WingsDataset: gfw4wingsConfig?.dataset,
 					gfw4WingsInterval: gfw4wingsConfig?.interval,

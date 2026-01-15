@@ -180,6 +180,12 @@ export class LayerService {
 		const geotiffConfig = layerResponse.source_config as {
 			url?: string;
 			cogUrl?: string;
+			bounds?: [number, number, number, number];
+			processing?: {
+				colormap?: string;
+				rescale?: string;
+				bidx?: string;
+			};
 		};
 
 		// Extract vector configuration if present
@@ -192,6 +198,12 @@ export class LayerService {
 			lineWidth?: number;
 			fillPolygons?: boolean;
 			markerIcon?: "default" | "anchor" | "ship" | "warning" | "circle";
+		};
+
+		// Extract layer metadata (author, DOI, etc.)
+		const layerMetadata = layerResponse.layer_metadata as {
+			author?: string;
+			doi?: string;
 		};
 
 		// Build the frontend Layer object
@@ -218,6 +230,9 @@ export class LayerService {
 			lineWidth: styleConfig?.lineWidth,
 			fillPolygons: styleConfig?.fillPolygons,
 			markerIcon: styleConfig?.markerIcon,
+			// Metadata properties
+			author: layerMetadata?.author,
+			doi: layerMetadata?.doi,
 		};
 
 		// Add WMS-specific fields
@@ -287,6 +302,10 @@ export class LayerService {
 		// Add GeoTIFF-specific fields
 		if (layerResponse.source_type === "geotiff" && geotiffConfig) {
 			layer.geotiffUrl = geotiffConfig.url || geotiffConfig.cogUrl;
+			layer.geotiffBounds = geotiffConfig.bounds;
+			layer.geotiffColormap = geotiffConfig.processing?.colormap;
+			layer.geotiffRescale = geotiffConfig.processing?.rescale;
+			layer.geotiffBidx = geotiffConfig.processing?.bidx;
 		}
 
 		// Add vector-specific fields - convert features to GeoJSON data format for MapView
@@ -428,6 +447,23 @@ export class LayerService {
 		} else if (sourceType === "geotiff") {
 			sourceConfig.delivery = "direct";
 			sourceConfig.url = layer.geotiffUrl;
+			if (layer.geotiffBounds) {
+				sourceConfig.bounds = layer.geotiffBounds;
+			}
+			// Add processing parameters if present
+			const processing: Record<string, string> = {};
+			if (layer.geotiffColormap) {
+				processing.colormap = layer.geotiffColormap;
+			}
+			if (layer.geotiffRescale) {
+				processing.rescale = layer.geotiffRescale;
+			}
+			if (layer.geotiffBidx) {
+				processing.bidx = layer.geotiffBidx;
+			}
+			if (Object.keys(processing).length > 0) {
+				sourceConfig.processing = processing;
+			}
 		} else if (sourceType === "vector") {
 			sourceConfig.geometryType = "Polygon"; // Default, should be determined by actual geometry
 			sourceConfig.featureCount =
@@ -538,6 +574,10 @@ export class LayerService {
 			updates.wmsUrl !== undefined ||
 			updates.wmsLayerName !== undefined ||
 			updates.geotiffUrl !== undefined ||
+			updates.geotiffBounds !== undefined ||
+			updates.geotiffColormap !== undefined ||
+			updates.geotiffRescale !== undefined ||
+			updates.geotiffBidx !== undefined ||
 			updates.data !== undefined
 		) {
 			const sourceConfig: Record<string, unknown> = {};
@@ -548,9 +588,34 @@ export class LayerService {
 				sourceConfig.version = "1.3.0";
 				sourceConfig.format = "image/png";
 				sourceConfig.transparent = true;
-			} else if (updates.geotiffUrl) {
+			} else if (
+				updates.geotiffUrl !== undefined ||
+				updates.geotiffColormap !== undefined ||
+				updates.geotiffRescale !== undefined ||
+				updates.geotiffBidx !== undefined ||
+				updates.geotiffBounds !== undefined
+			) {
 				sourceConfig.delivery = "direct";
-				sourceConfig.url = updates.geotiffUrl;
+				if (updates.geotiffUrl !== undefined) {
+					sourceConfig.url = updates.geotiffUrl;
+				}
+				if (updates.geotiffBounds !== undefined) {
+					sourceConfig.bounds = updates.geotiffBounds;
+				}
+				// Add processing parameters
+				const processing: Record<string, string> = {};
+				if (updates.geotiffColormap !== undefined) {
+					processing.colormap = updates.geotiffColormap;
+				}
+				if (updates.geotiffRescale !== undefined) {
+					processing.rescale = updates.geotiffRescale;
+				}
+				if (updates.geotiffBidx !== undefined) {
+					processing.bidx = updates.geotiffBidx;
+				}
+				if (Object.keys(processing).length > 0) {
+					sourceConfig.processing = processing;
+				}
 			} else if (updates.data) {
 				// Update vector layer GeoJSON data (for feature edits/deletions)
 				const geoJsonData = updates.data as {
@@ -756,6 +821,147 @@ export class LayerService {
 		return this.client.get(
 			`/api/v1/wms/discover-properties?${queryParams.toString()}`,
 		);
+	}
+
+	// ========================================================================
+	// TiTiler / GeoTIFF Methods
+	// ========================================================================
+
+	/**
+	 * Get metadata/info for a Cloud-Optimized GeoTIFF file via TiTiler proxy
+	 * GET /api/v1/titiler/info
+	 *
+	 * @param cogUrl - URL to the COG file
+	 * @returns COG metadata including bounds, zoom levels, and band info
+	 */
+	async getGeoTIFFInfo(cogUrl: string): Promise<{
+		bounds: [number, number, number, number];
+		minzoom: number;
+		maxzoom: number;
+		band_metadata: Array<[number, Record<string, string>]>;
+		band_descriptions: Array<[number, string]>;
+		dtype: string;
+		nodata: number | null;
+		colorinterp: string[];
+		count: number;
+		width: number;
+		height: number;
+	}> {
+		const params = new URLSearchParams({ url: cogUrl });
+		return this.client.get(`/api/v1/titiler/info?${params.toString()}`);
+	}
+
+	/**
+	 * Get band statistics for a Cloud-Optimized GeoTIFF file via TiTiler proxy
+	 * GET /api/v1/titiler/statistics
+	 *
+	 * @param cogUrl - URL to the COG file
+	 * @param bidx - Optional band index/indices (e.g., "1" or "1,2,3")
+	 * @returns Statistics per band (min, max, mean, std)
+	 */
+	async getGeoTIFFStatistics(
+		cogUrl: string,
+		bidx?: string,
+	): Promise<
+		Record<
+			string,
+			{
+				min: number;
+				max: number;
+				mean: number;
+				std: number;
+				count: number;
+				sum: number;
+				median: number;
+				majority: number;
+				minority: number;
+				unique: number;
+				histogram: [number[], number[]];
+				valid_percent: number;
+				masked_pixels: number;
+				valid_pixels: number;
+				percentile_2: number;
+				percentile_98: number;
+			}
+		>
+	> {
+		const params = new URLSearchParams({ url: cogUrl });
+		if (bidx) {
+			params.set("bidx", bidx);
+		}
+		return this.client.get(`/api/v1/titiler/statistics?${params.toString()}`);
+	}
+
+	/**
+	 * Build a tile URL template for MapLibre to use with GeoTIFF/COG layers
+	 *
+	 * @param cogUrl - URL to the COG file
+	 * @param options - Optional rendering options (colormap, rescale, bidx)
+	 * @returns Tile URL template with {z}/{x}/{y} placeholders
+	 */
+	buildGeoTIFFTileUrl(
+		cogUrl: string,
+		options?: {
+			colormap?: string;
+			rescale?: string;
+			bidx?: string;
+		},
+	): string {
+		const backendUrl = import.meta.env.VITE_API_URL || "";
+		const encodedUrl = encodeURIComponent(cogUrl);
+
+		let tileUrl = `${backendUrl}/api/v1/titiler/tiles/{z}/{x}/{y}?url=${encodedUrl}`;
+
+		if (options?.colormap) {
+			tileUrl += `&colormap=${encodeURIComponent(options.colormap)}`;
+		}
+		if (options?.rescale) {
+			tileUrl += `&rescale=${encodeURIComponent(options.rescale)}`;
+		}
+		if (options?.bidx) {
+			tileUrl += `&bidx=${encodeURIComponent(options.bidx)}`;
+		}
+
+		return tileUrl;
+	}
+
+	/**
+	 * Get a preview URL for a Cloud-Optimized GeoTIFF file
+	 *
+	 * @param cogUrl - URL to the COG file
+	 * @param options - Optional rendering options
+	 * @returns Preview image URL
+	 */
+	buildGeoTIFFPreviewUrl(
+		cogUrl: string,
+		options?: {
+			width?: number;
+			height?: number;
+			colormap?: string;
+			rescale?: string;
+			bidx?: string;
+		},
+	): string {
+		const backendUrl = import.meta.env.VITE_API_URL || "";
+		const params = new URLSearchParams({ url: cogUrl });
+
+		if (options?.width) {
+			params.set("width", options.width.toString());
+		}
+		if (options?.height) {
+			params.set("height", options.height.toString());
+		}
+		if (options?.colormap) {
+			params.set("colormap", options.colormap);
+		}
+		if (options?.rescale) {
+			params.set("rescale", options.rescale);
+		}
+		if (options?.bidx) {
+			params.set("bidx", options.bidx);
+		}
+
+		return `${backendUrl}/api/v1/titiler/preview?${params.toString()}`;
 	}
 }
 

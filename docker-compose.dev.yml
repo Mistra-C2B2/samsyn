@@ -23,13 +23,15 @@ services:
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
     container_name: samsyn-titiler
-    # In production: Do NOT expose ports - only accessible via internal network
-    # In development: Use docker-compose.dev.yml which exposes port 8001
+    # Development: Expose TiTiler port for direct access/testing
+    # TiTiler listens on port 80 inside the container
+    ports:
+      - "8001:80"
     networks:
       - samsyn-network
     environment:
-      # No CORS needed - only backend accesses TiTiler internally
-      TITILER_API_CORS_ORIGINS: ""
+      # Allow CORS in development for direct browser access
+      TITILER_API_CORS_ORIGINS: "*"
       # Cache settings for better performance
       VSI_CACHE: "TRUE"
       VSI_CACHE_SIZE: "200000000"

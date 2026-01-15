@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { Layer } from "../../App";
 import type { LayerSource } from "./types";
-import { useGeoTiffForm } from "./useGeoTiffForm";
+import { generateLegendFromColormap, useGeoTiffForm } from "./useGeoTiffForm";
 import { useLayerMetadataForm } from "./useLayerMetadataForm";
 import { useLegendForm } from "./useLegendForm";
 import { useVectorForm } from "./useVectorForm";
@@ -62,6 +62,7 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 		(layerName: string) => {
 			const result = wms.selectLayer(layerName);
 			if (result.legendUrl) {
+				legend.setLegendSource("wms");
 				legend.setWmsLegend(result.legendUrl);
 			}
 		},
@@ -73,10 +74,70 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 		(styleName: string) => {
 			const legendUrl = wms.updateStyleAndLegend(styleName);
 			if (legendUrl) {
+				legend.setLegendSource("wms");
 				legend.setWmsLegend(legendUrl);
 			}
 		},
 		[wms, legend],
+	);
+
+	// Sync GeoTIFF colormap/rescale changes to legend
+	const syncGeoTiffLegend = useCallback(() => {
+		const state = geotiff.getState();
+		const items = generateLegendFromColormap(
+			state.colormap,
+			state.rescaleMin,
+			state.rescaleMax,
+		);
+		legend.setItems(items);
+		legend.setLegendType("gradient");
+		legend.setLegendSource("manual");
+	}, [geotiff, legend]);
+
+	// Handle GeoTIFF colormap change with legend sync
+	const handleGeoTiffColormapChange = useCallback(
+		(colormap: string) => {
+			geotiff.setColormap(colormap);
+			const state = geotiff.getState();
+			const items = generateLegendFromColormap(
+				colormap,
+				state.rescaleMin,
+				state.rescaleMax,
+			);
+			legend.setItems(items);
+			legend.setLegendType("gradient");
+		},
+		[geotiff, legend],
+	);
+
+	// Handle GeoTIFF rescale min change with legend sync
+	const handleGeoTiffRescaleMinChange = useCallback(
+		(rescaleMin: string) => {
+			geotiff.setRescaleMin(rescaleMin);
+			const state = geotiff.getState();
+			const items = generateLegendFromColormap(
+				state.colormap,
+				rescaleMin,
+				state.rescaleMax,
+			);
+			legend.setItems(items);
+		},
+		[geotiff, legend],
+	);
+
+	// Handle GeoTIFF rescale max change with legend sync
+	const handleGeoTiffRescaleMaxChange = useCallback(
+		(rescaleMax: string) => {
+			geotiff.setRescaleMax(rescaleMax);
+			const state = geotiff.getState();
+			const items = generateLegendFromColormap(
+				state.colormap,
+				state.rescaleMin,
+				rescaleMax,
+			);
+			legend.setItems(items);
+		},
+		[geotiff, legend],
 	);
 
 	// Reset entire form
@@ -99,17 +160,35 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 			if (layer.wmsUrl) {
 				setLayerSource("wms");
 				wms.loadFromLayer(layer);
+				legend.loadFromLayer(layer);
 			} else if (layer.geotiffUrl) {
 				setLayerSource("geotiff");
 				geotiff.loadFromLayer(layer);
+				// For GeoTIFF layers, auto-generate legend from colormap/rescale if no legend exists
+				if (layer.legend?.items && layer.legend.items.length > 0) {
+					legend.loadFromLayer(layer);
+				} else {
+					// Parse rescale string to get min/max
+					const [rescaleMin, rescaleMax] = (
+						layer.geotiffRescale || "0,255"
+					).split(",");
+					const items = generateLegendFromColormap(
+						layer.geotiffColormap || "",
+						rescaleMin || "0",
+						rescaleMax || "255",
+					);
+					legend.setItems(items);
+					legend.setLegendType("gradient");
+					legend.setLegendSource("manual");
+				}
 			} else {
 				setLayerSource("vector");
 				vector.loadFromLayer(layer);
+				legend.loadFromLayer(layer);
 			}
 
 			// Load common data
 			metadata.loadFromLayer(layer);
-			legend.loadFromLayer(layer);
 		},
 		[metadata, legend, wms, geotiff, vector],
 	);
@@ -210,6 +289,26 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 		if (layerSource === "geotiff") {
 			const geotiffState = geotiff.getState();
 			layerData.geotiffUrl = geotiffState.url;
+
+			// Add bounds if available
+			if (geotiffState.bounds) {
+				layerData.geotiffBounds = geotiffState.bounds;
+			}
+
+			// Add colormap if specified
+			if (geotiffState.colormap && geotiffState.colormap.trim()) {
+				layerData.geotiffColormap = geotiffState.colormap.trim();
+			}
+
+			// Add rescale if both min and max are specified
+			if (geotiffState.rescaleMin && geotiffState.rescaleMax) {
+				layerData.geotiffRescale = `${geotiffState.rescaleMin},${geotiffState.rescaleMax}`;
+			}
+
+			// Add band index if specified
+			if (geotiffState.bidx && geotiffState.bidx.trim()) {
+				layerData.geotiffBidx = geotiffState.bidx.trim();
+			}
 		}
 
 		// Add Vector/GeoJSON-specific properties
@@ -251,6 +350,10 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 		buildLayer,
 		handleWmsLayerSelect,
 		handleWmsStyleChange,
+		handleGeoTiffColormapChange,
+		handleGeoTiffRescaleMinChange,
+		handleGeoTiffRescaleMaxChange,
+		syncGeoTiffLegend,
 
 		// Validation
 		isValid,

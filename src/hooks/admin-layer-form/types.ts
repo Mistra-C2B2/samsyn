@@ -88,8 +88,37 @@ export interface MetadataFormState {
 // GeoTIFF Types
 // ============================================================================
 
+export interface GeoTiffInfo {
+	bounds: [number, number, number, number];
+	minzoom: number;
+	maxzoom: number;
+	dtype: string;
+	nodata: number | null;
+	bandCount: number;
+	width: number;
+	height: number;
+}
+
+export interface GeoTiffStatistics {
+	min: number;
+	max: number;
+	mean: number;
+	std: number;
+	percentile_2: number;
+	percentile_98: number;
+}
+
 export interface GeoTiffFormState {
 	url: string;
+	colormap: string;
+	rescaleMin: string;
+	rescaleMax: string;
+	bidx: string;
+	bounds: [number, number, number, number] | null;
+	info: GeoTiffInfo | null;
+	statistics: Record<string, GeoTiffStatistics> | null;
+	isLoading: boolean;
+	error: string | null;
 }
 
 // ============================================================================

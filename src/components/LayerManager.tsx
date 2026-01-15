@@ -700,20 +700,50 @@ export function LayerManager({
 														<Pencil className="w-4 h-4" />
 													</Button>
 												)}
-												{onZoomToLayer && layer.wmsBounds && (
-													<Button
-														variant="ghost"
-														size="sm"
-														onClick={(e) => {
-															e.stopPropagation();
-															onZoomToLayer(layer.wmsBounds!);
-														}}
-														className="flex-shrink-0"
-														title="Zoom to layer extent"
-													>
-														<Focus className="w-4 h-4 text-blue-600" />
-													</Button>
-												)}
+												{onZoomToLayer &&
+													(() => {
+														// Check for valid bounds (WMS or GeoTIFF)
+														let bounds:
+															| [number, number, number, number]
+															| null = null;
+
+														if (layer.wmsBounds) {
+															bounds = layer.wmsBounds;
+														} else if (layer.geotiffBounds) {
+															// Validate GeoTIFF bounds are in WGS84 (not native CRS like UTM)
+															const [west, south, east, north] =
+																layer.geotiffBounds;
+															const isValidWGS84 =
+																west >= -180 &&
+																west <= 180 &&
+																east >= -180 &&
+																east <= 180 &&
+																south >= -90 &&
+																south <= 90 &&
+																north >= -90 &&
+																north <= 90;
+															if (isValidWGS84) {
+																bounds = layer.geotiffBounds;
+															}
+														}
+
+														if (!bounds) return null;
+
+														return (
+															<Button
+																variant="ghost"
+																size="sm"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	onZoomToLayer(bounds!);
+																}}
+																className="flex-shrink-0"
+																title="Zoom to layer extent"
+															>
+																<Focus className="w-4 h-4 text-blue-600" />
+															</Button>
+														);
+													})()}
 											</div>
 											<Button
 												variant="ghost"

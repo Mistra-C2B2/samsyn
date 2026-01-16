@@ -1,14 +1,6 @@
 import { toast } from "sonner@2.0.3";
 import { useAuth, useUser } from "@clerk/clerk-react";
-import {
-	Globe,
-	Info,
-	Moon,
-	Settings2,
-	Shield,
-	Trash2,
-	Type,
-} from "lucide-react";
+import { Info, Settings2, Shield, Trash2, Type } from "lucide-react";
 import { useState } from "react";
 import { useSettings } from "../contexts/SettingsContext";
 import { useApiClient } from "../services/api";
@@ -60,14 +52,11 @@ function SettingsDialogContent({
 	const { user } = useUser();
 	const { signOut } = useAuth();
 	const apiClient = useApiClient();
-	const { textSize, setTextSize } = useSettings();
+	const { textSize, setTextSize, showCoordinates, setShowCoordinates } =
+		useSettings();
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [deleteConfirmText, setDeleteConfirmText] = useState("");
 	const [isDeleting, setIsDeleting] = useState(false);
-
-	// Preferences state
-	const [language, setLanguage] = useState("en");
-	const [darkMode, setDarkMode] = useState(false);
 
 	const handleDeleteData = async () => {
 		if (deleteConfirmText !== "DELETE") {
@@ -190,40 +179,6 @@ function SettingsDialogContent({
 
 						{/* Preferences Tab */}
 						<TabsContent value="preferences" className="space-y-4 mt-4">
-							{/* Language Settings */}
-							<div className="space-y-3">
-								<h3 className="text-sm text-slate-900 flex items-center gap-2">
-									<Globe className="w-4 h-4 text-teal-600" />
-									Language
-								</h3>
-								<div className="space-y-2">
-									<Label htmlFor="language" className="text-xs text-slate-500">
-										Interface Language
-									</Label>
-									<Select
-										value={language}
-										onValueChange={(value) => {
-											setLanguage(value);
-											toast.success("Language preference updated");
-										}}
-									>
-										<SelectTrigger id="language">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="en">English</SelectItem>
-											<SelectItem value="sv">Svenska (Swedish)</SelectItem>
-											<SelectItem value="fi">Suomi (Finnish)</SelectItem>
-											<SelectItem value="de">Deutsch (German)</SelectItem>
-											<SelectItem value="es">Español (Spanish)</SelectItem>
-											<SelectItem value="fr">Français (French)</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-
-							<Separator />
-
 							{/* Text Size Settings */}
 							<div className="space-y-3">
 								<h3 className="text-sm text-slate-900 flex items-center gap-2">
@@ -259,68 +214,30 @@ function SettingsDialogContent({
 
 							<Separator />
 
-							{/* Dark Mode Settings */}
-							<div className="space-y-3">
-								<h3 className="text-sm text-slate-900 flex items-center gap-2">
-									<Moon className="w-4 h-4 text-teal-600" />
-									Appearance
-								</h3>
-								<div className="flex items-center justify-between">
-									<div className="space-y-0.5">
-										<Label
-											htmlFor="darkMode"
-											className="text-sm text-slate-900"
-										>
-											Dark Mode
-										</Label>
-										<p className="text-xs text-slate-500">
-											Use dark theme for the interface
-										</p>
-									</div>
-									<Switch
-										id="darkMode"
-										checked={darkMode}
-										onCheckedChange={(checked) => {
-											setDarkMode(checked);
-											toast.success(
-												`Dark mode ${checked ? "enabled" : "disabled"}`,
-											);
-										}}
-									/>
-								</div>
-							</div>
-
-							<Separator />
-
 							{/* Map Preferences */}
 							<div className="space-y-3">
 								<h3 className="text-sm text-slate-900 flex items-center gap-2">
 									<Settings2 className="w-4 h-4 text-teal-600" />
 									Map Preferences
 								</h3>
-								<div className="space-y-3">
-									<div className="flex items-center justify-between">
-										<div className="space-y-0.5">
-											<Label className="text-sm text-slate-900">
-												Show Coordinates
-											</Label>
-											<p className="text-xs text-slate-500">
-												Display coordinates on mouse hover
-											</p>
-										</div>
-										<Switch defaultChecked />
+								<div className="flex items-center justify-between">
+									<div className="space-y-0.5">
+										<Label className="text-sm text-slate-900">
+											Show Coordinates
+										</Label>
+										<p className="text-xs text-slate-500">
+											Display coordinates on mouse hover
+										</p>
 									</div>
-									<div className="flex items-center justify-between">
-										<div className="space-y-0.5">
-											<Label className="text-sm text-slate-900">
-												Enable Animations
-											</Label>
-											<p className="text-xs text-slate-500">
-												Smooth transitions and animations
-											</p>
-										</div>
-										<Switch defaultChecked />
-									</div>
+									<Switch
+										checked={showCoordinates}
+										onCheckedChange={(checked) => {
+											setShowCoordinates(checked);
+											toast.success(
+												`Coordinates ${checked ? "shown" : "hidden"}`,
+											);
+										}}
+									/>
 								</div>
 							</div>
 						</TabsContent>
@@ -460,10 +377,8 @@ export function SettingsDialog({
 	isClerkConfigured = false,
 }: SettingsDialogProps) {
 	// Use shared settings context
-	const { textSize, setTextSize } = useSettings();
-	// Fallback state when Clerk is not configured - must be declared at top level
-	const [language, setLanguage] = useState("en");
-	const [darkMode, setDarkMode] = useState(false);
+	const { textSize, setTextSize, showCoordinates, setShowCoordinates } =
+		useSettings();
 
 	// Only use Clerk hook if Clerk is configured
 	if (isClerkConfigured) {
@@ -529,40 +444,6 @@ export function SettingsDialog({
 
 					{/* Preferences Tab */}
 					<TabsContent value="preferences" className="space-y-4 mt-4">
-						{/* Language Settings */}
-						<div className="space-y-3">
-							<h3 className="text-sm text-slate-900 flex items-center gap-2">
-								<Globe className="w-4 h-4 text-teal-600" />
-								Language
-							</h3>
-							<div className="space-y-2">
-								<Label htmlFor="language" className="text-xs text-slate-500">
-									Interface Language
-								</Label>
-								<Select
-									value={language}
-									onValueChange={(value) => {
-										setLanguage(value);
-										toast.success("Language preference updated");
-									}}
-								>
-									<SelectTrigger id="language">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="en">English</SelectItem>
-										<SelectItem value="sv">Svenska (Swedish)</SelectItem>
-										<SelectItem value="fi">Suomi (Finnish)</SelectItem>
-										<SelectItem value="de">Deutsch (German)</SelectItem>
-										<SelectItem value="es">Español (Spanish)</SelectItem>
-										<SelectItem value="fr">Français (French)</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-
-						<Separator />
-
 						{/* Text Size Settings */}
 						<div className="space-y-3">
 							<h3 className="text-sm text-slate-900 flex items-center gap-2">
@@ -598,65 +479,30 @@ export function SettingsDialog({
 
 						<Separator />
 
-						{/* Dark Mode Settings */}
-						<div className="space-y-3">
-							<h3 className="text-sm text-slate-900 flex items-center gap-2">
-								<Moon className="w-4 h-4 text-teal-600" />
-								Appearance
-							</h3>
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label htmlFor="darkMode" className="text-sm text-slate-900">
-										Dark Mode
-									</Label>
-									<p className="text-xs text-slate-500">
-										Use dark theme for the interface
-									</p>
-								</div>
-								<Switch
-									id="darkMode"
-									checked={darkMode}
-									onCheckedChange={(checked) => {
-										setDarkMode(checked);
-										toast.success(
-											`Dark mode ${checked ? "enabled" : "disabled"}`,
-										);
-									}}
-								/>
-							</div>
-						</div>
-
-						<Separator />
-
 						{/* Map Preferences */}
 						<div className="space-y-3">
 							<h3 className="text-sm text-slate-900 flex items-center gap-2">
 								<Settings2 className="w-4 h-4 text-teal-600" />
 								Map Preferences
 							</h3>
-							<div className="space-y-3">
-								<div className="flex items-center justify-between">
-									<div className="space-y-0.5">
-										<Label className="text-sm text-slate-900">
-											Show Coordinates
-										</Label>
-										<p className="text-xs text-slate-500">
-											Display coordinates on mouse hover
-										</p>
-									</div>
-									<Switch defaultChecked />
+							<div className="flex items-center justify-between">
+								<div className="space-y-0.5">
+									<Label className="text-sm text-slate-900">
+										Show Coordinates
+									</Label>
+									<p className="text-xs text-slate-500">
+										Display coordinates on mouse hover
+									</p>
 								</div>
-								<div className="flex items-center justify-between">
-									<div className="space-y-0.5">
-										<Label className="text-sm text-slate-900">
-											Enable Animations
-										</Label>
-										<p className="text-xs text-slate-500">
-											Smooth transitions and animations
-										</p>
-									</div>
-									<Switch defaultChecked />
-								</div>
+								<Switch
+									checked={showCoordinates}
+									onCheckedChange={(checked) => {
+										setShowCoordinates(checked);
+										toast.success(
+											`Coordinates ${checked ? "shown" : "hidden"}`,
+										);
+									}}
+								/>
 							</div>
 						</div>
 					</TabsContent>

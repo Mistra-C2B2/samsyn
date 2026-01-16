@@ -9,6 +9,7 @@ import {
 } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Layer } from "../App";
+import { useSettings } from "../contexts/SettingsContext";
 import {
 	createLoadingSection,
 	generateAggregatedPopupHTML,
@@ -448,6 +449,11 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const currentPopupRef = useRef<maplibregl.Popup | null>(null);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
+		const [mouseCoordinates, setMouseCoordinates] = useState<{
+			lng: number;
+			lat: number;
+		} | null>(null);
+		const { showCoordinates } = useSettings();
 		const mapLoadedRef = useRef(false);
 		const previousLayerIdsRef = useRef<Set<string>>(new Set());
 		// Counter to force layer re-rendering after basemap changes
@@ -2492,6 +2498,31 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			};
 		}, [mapLoaded, layers, drawingMode]);
 
+		// Track mouse coordinates for display
+		useEffect(() => {
+			const map = mapRef.current;
+			if (!map || !mapLoaded) return;
+
+			const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
+				setMouseCoordinates({
+					lng: e.lngLat.lng,
+					lat: e.lngLat.lat,
+				});
+			};
+
+			const handleMouseLeave = () => {
+				setMouseCoordinates(null);
+			};
+
+			map.on("mousemove", handleMouseMove);
+			map.on("mouseleave", handleMouseLeave);
+
+			return () => {
+				map.off("mousemove", handleMouseMove);
+				map.off("mouseleave", handleMouseLeave);
+			};
+		}, [mapLoaded]);
+
 		const visibleLayers = layers.filter((layer) => layer.visible);
 		const activeLegend = visibleLayers.find((layer) => layer.legend);
 
@@ -2505,7 +2536,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		);
 
 		return (
-			<div className="relative w-full h-full">
+			<div className="relative w-full h-full overflow-hidden">
 				<div ref={mapContainerRef} className="w-full h-full" />
 				{!mapLoaded && (
 					<div className="absolute inset-0 flex items-center justify-center bg-slate-100">
@@ -2541,6 +2572,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 								{attribution}
 							</span>
 						))}
+					</div>
+				)}
+				{/* Coordinate display */}
+				{showCoordinates && (
+					<div
+						className="fixed z-50 bg-white px-3 py-1.5 rounded shadow-md border border-slate-200 text-xs text-slate-700 font-mono pointer-events-none"
+						style={{ top: "80px", left: "12px" }}
+					>
+						{mouseCoordinates
+							? `${mouseCoordinates.lat.toFixed(5)}, ${mouseCoordinates.lng.toFixed(5)}`
+							: "Move mouse over map"}
 					</div>
 				)}
 			</div>

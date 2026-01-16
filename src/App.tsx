@@ -1388,9 +1388,9 @@ function AppContent() {
 			</header>
 
 			{/* Main Content */}
-			<div className="flex-1 flex relative">
+			<div className="flex-1 flex relative overflow-hidden">
 				{/* Map */}
-				<div className="flex-1 h-full">
+				<div className="flex-1 h-full overflow-hidden">
 					{currentMap ? (
 						<MapView
 							ref={mapViewRef}

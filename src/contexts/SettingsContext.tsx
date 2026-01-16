@@ -11,6 +11,8 @@ export type TextSize = "small" | "medium" | "large" | "extra-large";
 interface SettingsContextType {
 	textSize: TextSize;
 	setTextSize: (size: TextSize) => void;
+	showCoordinates: boolean;
+	setShowCoordinates: (show: boolean) => void;
 }
 
 const TEXT_SIZE_MAP: Record<TextSize, string> = {
@@ -20,16 +22,25 @@ const TEXT_SIZE_MAP: Record<TextSize, string> = {
 	"extra-large": "20px",
 };
 
-const STORAGE_KEY = "samsyn-text-size";
+const TEXT_SIZE_STORAGE_KEY = "samsyn-text-size";
+const SHOW_COORDINATES_STORAGE_KEY = "samsyn-show-coordinates";
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
 function getInitialTextSize(): TextSize {
-	const stored = localStorage.getItem(STORAGE_KEY);
+	const stored = localStorage.getItem(TEXT_SIZE_STORAGE_KEY);
 	if (stored && stored in TEXT_SIZE_MAP) {
 		return stored as TextSize;
 	}
 	return "medium";
+}
+
+function getInitialShowCoordinates(): boolean {
+	const stored = localStorage.getItem(SHOW_COORDINATES_STORAGE_KEY);
+	if (stored !== null) {
+		return stored === "true";
+	}
+	return true; // Default to showing coordinates
 }
 
 function applyTextSize(size: TextSize) {
@@ -41,6 +52,9 @@ function applyTextSize(size: TextSize) {
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [textSize, setTextSizeState] = useState<TextSize>(getInitialTextSize);
+	const [showCoordinates, setShowCoordinatesState] = useState<boolean>(
+		getInitialShowCoordinates,
+	);
 
 	useEffect(() => {
 		applyTextSize(textSize);
@@ -48,12 +62,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 	const setTextSize = (size: TextSize) => {
 		setTextSizeState(size);
-		localStorage.setItem(STORAGE_KEY, size);
+		localStorage.setItem(TEXT_SIZE_STORAGE_KEY, size);
 		applyTextSize(size);
 	};
 
+	const setShowCoordinates = (show: boolean) => {
+		setShowCoordinatesState(show);
+		localStorage.setItem(SHOW_COORDINATES_STORAGE_KEY, String(show));
+	};
+
 	return (
-		<SettingsContext.Provider value={{ textSize, setTextSize }}>
+		<SettingsContext.Provider
+			value={{ textSize, setTextSize, showCoordinates, setShowCoordinates }}
+		>
 			{children}
 		</SettingsContext.Provider>
 	);

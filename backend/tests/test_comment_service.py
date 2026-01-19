@@ -39,7 +39,7 @@ def test_user(db_session):
         last_name="Author",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -55,7 +55,7 @@ def second_user(db_session):
         last_name="User",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -67,13 +67,14 @@ def test_map(db_session, test_user):
         name="Test Map for Comments",
         description="Test map",
         created_by=test_user.id,
-        permission="private",
+        view_permission="private",
+        edit_permission="private",
         center_lat=37.7749,
         center_lng=-122.4194,
         zoom=10,
     )
     db_session.add(map_obj)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(map_obj)
     return map_obj
 
@@ -85,13 +86,14 @@ def second_map(db_session, test_user):
         name="Second Test Map",
         description="Second test map",
         created_by=test_user.id,
-        permission="private",
+        view_permission="private",
+        edit_permission="private",
         center_lat=40.7128,
         center_lng=-74.0060,
         zoom=12,
     )
     db_session.add(map_obj)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(map_obj)
     return map_obj
 
@@ -110,7 +112,7 @@ def test_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -129,7 +131,7 @@ def second_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -143,7 +145,7 @@ def test_comment_on_map(db_session, test_map, test_user):
         map_id=test_map.id,
     )
     db_session.add(comment)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(comment)
     return comment
 
@@ -157,7 +159,7 @@ def test_comment_on_layer(db_session, test_layer, test_user):
         layer_id=test_layer.id,
     )
     db_session.add(comment)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(comment)
     return comment
 
@@ -401,7 +403,7 @@ class TestCommentRetrieval:
             map_id=test_map.id,
         )
         db_session.add_all([comment1, comment2, comment3])
-        db_session.commit()
+        db_session.flush()
 
         # List all comments
         comments = comment_service.list_comments()
@@ -426,7 +428,7 @@ class TestCommentRetrieval:
             layer_id=test_layer.id,
         )
         db_session.add_all([comment_on_map, comment_on_layer])
-        db_session.commit()
+        db_session.flush()
 
         # Filter by map
         comments = comment_service.list_comments(map_id=test_map.id)
@@ -449,7 +451,7 @@ class TestCommentRetrieval:
             layer_id=test_layer.id,
         )
         db_session.add_all([comment_on_map, comment_on_layer])
-        db_session.commit()
+        db_session.flush()
 
         # Filter by layer
         comments = comment_service.list_comments(layer_id=test_layer.id)
@@ -480,7 +482,7 @@ class TestCommentRetrieval:
             map_id=test_comment_on_map.map_id,
         )
         db_session.add_all([reply1, reply2, other_comment])
-        db_session.commit()
+        db_session.flush()
 
         # List replies
         replies = comment_service.list_comments(parent_id=test_comment_on_map.id)
@@ -501,7 +503,7 @@ class TestCommentRetrieval:
             parent_id=test_comment_on_map.id,
         )
         db_session.add(reply1)
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(reply1)
 
         nested_reply = Comment(
@@ -511,7 +513,7 @@ class TestCommentRetrieval:
             parent_id=reply1.id,
         )
         db_session.add(nested_reply)
-        db_session.commit()
+        db_session.flush()
 
         # Get thread
         thread = comment_service.get_comment_thread(test_comment_on_map.id)
@@ -642,7 +644,7 @@ class TestCommentDeletion:
             parent_id=test_comment_on_map.id,
         )
         db_session.add_all([reply1, reply2])
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(reply1)
         db_session.refresh(reply2)
 
@@ -705,7 +707,7 @@ class TestResolutionStatus:
         """Test marking a resolved comment as unresolved"""
         # First resolve it
         test_comment_on_map.is_resolved = True
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(test_comment_on_map)
 
         assert test_comment_on_map.is_resolved is True
@@ -731,7 +733,7 @@ class TestResolutionStatus:
             is_resolved=False,
         )
         db_session.add_all([resolved_comment, unresolved_comment])
-        db_session.commit()
+        db_session.flush()
 
         # List including resolved
         all_comments = comment_service.list_comments(map_id=test_map.id, include_resolved=True)
@@ -771,7 +773,7 @@ class TestPaginationAndCounting:
                 map_id=test_map.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         # Test limit
         page1 = comment_service.list_comments(map_id=test_map.id, limit=5)
@@ -805,7 +807,7 @@ class TestPaginationAndCounting:
             )
             db_session.add(comment)
 
-        db_session.commit()
+        db_session.flush()
 
         # Count by map
         map_count = comment_service.count_comments(map_id=test_map.id)
@@ -830,7 +832,7 @@ class TestPaginationAndCounting:
                 parent_id=test_comment_on_map.id,
             )
             db_session.add(reply)
-        db_session.commit()
+        db_session.flush()
 
         # Count replies
         reply_count = comment_service.count_comments(parent_id=test_comment_on_map.id)
@@ -857,7 +859,7 @@ class TestPaginationAndCounting:
             )
             db_session.add(comment)
 
-        db_session.commit()
+        db_session.flush()
 
         # Count all
         total = comment_service.count_comments(map_id=test_map.id, include_resolved=True)
@@ -892,7 +894,7 @@ class TestReplyManagement:
             parent_id=test_comment_on_map.id,
         )
         db_session.add_all([reply1, reply2])
-        db_session.commit()
+        db_session.flush()
 
         # Get replies
         replies = comment_service.get_replies(test_comment_on_map.id)
@@ -913,7 +915,7 @@ class TestReplyManagement:
                 parent_id=test_comment_on_map.id,
             )
             db_session.add(reply)
-        db_session.commit()
+        db_session.flush()
 
         # Get reply count
         count = comment_service.get_reply_count(test_comment_on_map.id)
@@ -930,7 +932,7 @@ class TestReplyManagement:
                 parent_id=test_comment_on_map.id,
             )
             db_session.add(reply)
-        db_session.commit()
+        db_session.flush()
 
         # Get first page
         page1 = comment_service.get_replies(test_comment_on_map.id, limit=5)
@@ -964,7 +966,7 @@ class TestBulkOperations:
                 map_id=test_map.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         # Delete all comments on map
         count = comment_service.delete_comments_by_map(test_map.id)
@@ -984,7 +986,7 @@ class TestBulkOperations:
                 layer_id=test_layer.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         # Delete all comments on layer
         count = comment_service.delete_comments_by_layer(test_layer.id)
@@ -1004,7 +1006,7 @@ class TestBulkOperations:
                 map_id=test_map.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         count = comment_service.get_comment_count_by_map(test_map.id)
         assert count == 6
@@ -1019,7 +1021,7 @@ class TestBulkOperations:
                 layer_id=test_layer.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         count = comment_service.get_comment_count_by_layer(test_layer.id)
         assert count == 5
@@ -1065,7 +1067,7 @@ class TestEdgeCases:
                 parent_id=parent.id,
             )
             db_session.add(reply)
-            db_session.commit()
+            db_session.flush()
             db_session.refresh(reply)
             parent = reply
 
@@ -1087,7 +1089,7 @@ class TestEdgeCases:
                 map_id=test_map.id,
             )
             db_session.add(comment)
-        db_session.commit()
+        db_session.flush()
 
         # Request with offset beyond available
         comments = comment_service.list_comments(map_id=test_map.id, limit=10, offset=10)
@@ -1115,7 +1117,7 @@ class TestEdgeCases:
                 map_id=test_map.id,
             )
             db_session.add(comment)
-            db_session.commit()
+            db_session.flush()
             time.sleep(0.01)
 
         comments = comment_service.list_comments(map_id=test_map.id)

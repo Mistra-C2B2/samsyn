@@ -233,7 +233,7 @@ class TestUserDeletion:
             created_by=user.id,
         )
         db_session.add(user_map)
-        db_session.commit()
+        db_session.flush()
 
         # Delete user
         user_service.delete_user("user_test123")
@@ -264,7 +264,7 @@ class TestUserDeletion:
             created_by=owner.id,
         )
         db_session.add(owner_map)
-        db_session.commit()
+        db_session.flush()
 
         # Delete owner
         user_service.delete_user("user_test123")

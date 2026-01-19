@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68.0.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "samsyn-backend"
@@ -8,28 +8,28 @@ version = "0.1.0"
 description = "SamSyn Marine Spatial Planning Backend"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "sqlalchemy>=2.0.25",
-    "geoalchemy2>=0.14.3",
-    "psycopg2-binary>=2.9.9",
     "alembic>=1.13.1",
+    "email-validator>=2.1.0",
+    "fastapi>=0.109.0",
+    "geoalchemy2>=0.14.3",
+    "geojson>=3.1.0",
+    "httpx>=0.26.0",
+    "psycopg2-binary>=2.9.9",
     "pydantic>=2.5.3",
     "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
     "python-jose[cryptography]>=3.3.0",
-    "httpx>=0.26.0",
     "python-multipart>=0.0.6",
     "shapely>=2.0.2",
-    "geojson>=3.1.0",
+    "sqlalchemy>=2.0.25",
     "svix>=1.0.0",
-    "email-validator>=2.1.0",
+    "uvicorn[standard]>=0.27.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["app*"]
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=7.4.4",
     "pytest-asyncio>=0.23.3",

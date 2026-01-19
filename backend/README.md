@@ -1,207 +1,325 @@
 # SamSyn Backend
 
-FastAPI backend for the SamSyn marine spatial planning application.
+FastAPI-based backend for SamSyn marine spatial planning application.
 
-## Setup
+## Tech Stack
 
-### 1. Start the Database
+- **Framework**: FastAPI 0.122+
+- **Database**: PostgreSQL 16 with PostGIS 3.4
+- **ORM**: SQLAlchemy 2.0 with GeoAlchemy2
+- **Migrations**: Alembic
+- **Authentication**: Clerk
+- **Package Manager**: uv
+- **Testing**: pytest with transaction-based isolation
 
-From the repository root (outside devcontainer or from host):
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- uv package manager
+- PostgreSQL with PostGIS (via Docker)
+
+### Installation
 
 ```bash
-docker-compose up -d db
+# Install dependencies
+cd backend
+uv sync
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# Start database (from repository root)
+docker-compose -f docker-compose.dev.yml up -d db
+
+# Run migrations
+uv run alembic upgrade head
+
+# Start development server
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-This starts a PostgreSQL database with PostGIS extension on port 5432.
+The API will be available at http://localhost:8000
 
-### 2. Install Dependencies
+### Using npm Scripts (from repository root)
 
-Inside the devcontainer:
+```bash
+npm run dev:backend    # Start backend server
+npm run migrate        # Run database migrations
+npm run migrate:new    # Create new migration
+```
+
+## Testing
+
+### Test Database Setup
+
+The backend uses a **separate test database** (`samsyn_test`) to avoid affecting development data.
+
+#### First-Time Setup
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+./setup_test_db.sh
 ```
 
-### 3. Run Migrations
+This script will:
+1. Create the `samsyn_test` database
+2. Enable PostGIS extension
+3. Run all migrations
+
+#### Running Tests
 
 ```bash
-cd backend
-source .venv/bin/activate
-alembic upgrade head
+# Run all tests
+uv run pytest tests/
+
+# Run specific test file
+uv run pytest tests/test_map_service.py
+
+# Run with verbose output
+uv run pytest tests/ -v
+
+# Run specific test
+uv run pytest tests/test_map_service.py::TestMapCRUD::test_create_map -v
 ```
 
-### 4. Start the Backend Server
+#### Test Configuration
+
+Tests use **transaction-based isolation**:
+- Each test runs in its own transaction
+- All changes are automatically rolled back after the test
+- No manual cleanup needed
+- Fast execution (~3 seconds for 253 tests)
+
+**Important**: Tests use `db_session.flush()` instead of `db_session.commit()` to maintain transaction isolation.
+
+#### Resetting Test Database
+
+If you need to start fresh:
 
 ```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Drop and recreate test database
+PGPASSWORD=samsyn psql -h samsyn-db -U samsyn -d postgres -c "DROP DATABASE IF EXISTS samsyn_test;"
+./setup_test_db.sh
 ```
 
-Or from the repository root:
+#### After Schema Changes
+
+Run the setup script to apply new migrations to the test database:
 
 ```bash
-npm run dev:backend
+./setup_test_db.sh
 ```
 
-## Development
+### Test Structure
 
-### Creating a New Migration
-
-After modifying models:
-
-```bash
-cd backend
-source .venv/bin/activate
-alembic revision --autogenerate -m "Description of changes"
-alembic upgrade head
+```
+tests/
+├── conftest.py                      # Pytest configuration and fixtures
+├── test_auth_service.py             # JWT authentication tests
+├── test_user_service.py             # User CRUD tests
+├── test_layer_service.py            # Layer CRUD and filtering tests
+├── test_map_service.py              # Map CRUD and permissions tests
+├── test_feature_service.py          # Feature CRUD and spatial query tests
+├── test_comment_service.py          # Comment CRUD and threading tests
+├── test_webhooks.py                 # Webhook endpoint tests
+└── test_webhooks_integration.py     # Full webhook flow tests
 ```
 
-### Running Tests
+## Project Structure
 
-```bash
-cd backend
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+```
+backend/
+├── alembic/                  # Database migrations
+│   └── versions/            # Migration files
+├── app/
+│   ├── api/                 # API routes
+│   │   └── v1/             # API v1 endpoints
+│   ├── models/             # SQLAlchemy models
+│   ├── schemas/            # Pydantic schemas
+│   ├── services/           # Business logic layer
+│   ├── config.py           # Configuration settings
+│   ├── database.py         # Database connection
+│   └── main.py             # FastAPI application
+├── tests/                   # Test suite
+├── .env                     # Environment variables (not in git)
+├── .env.example            # Environment template
+├── pyproject.toml          # Project dependencies and config
+├── uv.lock                 # Dependency lock file
+└── setup_test_db.sh        # Test database setup script
 ```
 
 ## API Documentation
 
-Once the server is running, visit:
-- OpenAPI docs: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- Health check: http://localhost:8000/health
+When the server is running, interactive API documentation is available at:
 
-## API Endpoints
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
-### Health Check
+## Database
 
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/health` | None | Basic health check | `app/api/health.py:10` |
-| GET | `/health/db` | None | Health check with database test | `app/api/health.py:16` |
+### Running Migrations
 
-### Maps
+```bash
+# Apply all pending migrations
+uv run alembic upgrade head
 
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/maps` | Optional | List all accessible maps | `app/api/v1/maps.py:192` |
-| GET | `/api/v1/maps/{map_id}` | Optional | Get map by ID | `app/api/v1/maps.py:244` |
-| POST | `/api/v1/maps` | Required | Create a new map | `app/api/v1/maps.py:287` |
-| PUT | `/api/v1/maps/{map_id}` | Required | Update map properties | `app/api/v1/maps.py:314` |
-| DELETE | `/api/v1/maps/{map_id}` | Required | Delete a map (owner only) | `app/api/v1/maps.py:361` |
+# Create a new migration
+uv run alembic revision --autogenerate -m "description"
 
-### Map Collaborators
+# Rollback one migration
+uv run alembic downgrade -1
 
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/maps/{map_id}/collaborators` | Optional | List collaborators | `app/api/v1/maps.py:403` |
-| POST | `/api/v1/maps/{map_id}/collaborators` | Required | Add collaborator by email | `app/api/v1/maps.py:437` |
-| PUT | `/api/v1/maps/{map_id}/collaborators/{user_id}` | Required | Update collaborator role | `app/api/v1/maps.py:532` |
-| DELETE | `/api/v1/maps/{map_id}/collaborators/{user_id}` | Required | Remove collaborator | `app/api/v1/maps.py:593` |
+# View migration history
+uv run alembic history
+```
 
-### Map Layers
+### Database Schema
 
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| POST | `/api/v1/maps/{map_id}/layers` | Required | Add layer to map | `app/api/v1/maps.py:653` |
-| PUT | `/api/v1/maps/{map_id}/layers/reorder` | Required | Reorder all layers | `app/api/v1/maps.py:716` |
-| PUT | `/api/v1/maps/{map_id}/layers/{layer_id}` | Required | Update layer display properties | `app/api/v1/maps.py:835` |
-| DELETE | `/api/v1/maps/{map_id}/layers/{layer_id}` | Required | Remove layer from map | `app/api/v1/maps.py:783` |
+Key tables:
+- `users` - User accounts (synced from Clerk)
+- `maps` - User-created maps with collaborators
+- `layers` - Data layers (WMS, GeoTIFF, vector)
+- `layer_features` - GeoJSON features for vector layers
+- `comments` - Comments on maps/layers with threading
+- `map_collaborators` - Map sharing and permissions
+- `map_layers` - Layer associations with maps
 
-### Layers
+### PostGIS Support
 
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/layers` | Optional | List layers with filtering | `app/api/v1/layers.py:117` |
-| GET | `/api/v1/layers/{layer_id}` | None | Get layer by ID | `app/api/v1/layers.py:153` |
-| POST | `/api/v1/layers` | Required | Create a new layer | `app/api/v1/layers.py:186` |
-| PUT | `/api/v1/layers/{layer_id}` | Required | Update layer properties | `app/api/v1/layers.py:210` |
-| DELETE | `/api/v1/layers/{layer_id}` | Required | Delete layer (creator only) | `app/api/v1/layers.py:257` |
-
-### Features
-
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/layers/{layer_id}/features` | Optional | List features with bbox filtering | `app/api/v1/features.py:94` |
-| GET | `/api/v1/layers/{layer_id}/features/{feature_id}` | Optional | Get feature by ID | `app/api/v1/features.py:169` |
-| POST | `/api/v1/layers/{layer_id}/features` | Required | Create a feature | `app/api/v1/features.py:214` |
-| POST | `/api/v1/layers/{layer_id}/features/bulk` | Required | Bulk import from GeoJSON | `app/api/v1/features.py:259` |
-| PUT | `/api/v1/layers/{layer_id}/features/{feature_id}` | Required | Update feature | `app/api/v1/features.py:337` |
-| DELETE | `/api/v1/layers/{layer_id}/features/{feature_id}` | Required | Delete feature | `app/api/v1/features.py:400` |
-
-### Comments
-
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/comments` | Optional | List comments with filters | `app/api/v1/comments.py:94` |
-| GET | `/api/v1/comments/{comment_id}` | Optional | Get comment by ID | `app/api/v1/comments.py:141` |
-| GET | `/api/v1/comments/{comment_id}/thread` | Optional | Get comment with nested replies | `app/api/v1/comments.py:173` |
-| POST | `/api/v1/comments` | Required | Create a comment | `app/api/v1/comments.py:217` |
-| PUT | `/api/v1/comments/{comment_id}` | Required | Update comment (author only) | `app/api/v1/comments.py:257` |
-| PUT | `/api/v1/comments/{comment_id}/resolve` | Required | Toggle resolution status | `app/api/v1/comments.py:372` |
-| DELETE | `/api/v1/comments/{comment_id}` | Required | Delete comment (author only) | `app/api/v1/comments.py:313` |
-
-### Webhooks
-
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| POST | `/api/v1/webhooks/clerk` | Svix Signature | Handle Clerk user events | `app/api/v1/webhooks.py:25` |
-
-### Test Endpoints (Development Only)
-
-| Method | Path | Auth | Description | Location |
-|--------|------|------|-------------|----------|
-| GET | `/api/v1/test/auth/required` | Required | Test required auth | `app/api/v1/test_auth.py:20` |
-| GET | `/api/v1/test/auth/optional` | Optional | Test optional auth | `app/api/v1/test_auth.py:46` |
-| GET | `/api/v1/test/health` | None | Test health check | `app/api/v1/test_auth.py:75` |
-| POST | `/api/v1/test-webhooks/clerk` | None | Test webhook (no signature) | `app/api/v1/test_webhooks.py:21` |
+The database uses PostGIS for spatial operations:
+- Geometry columns (POINT, LINESTRING, POLYGON)
+- Spatial indexing
+- Bounding box queries
+- Spatial relationships
 
 ## Authentication
 
-Authentication uses Clerk JWT tokens via Bearer authentication.
+The backend uses **Clerk** for authentication:
 
-**Auth Types:**
-- **None**: Public endpoint, no authentication required
-- **Optional**: Works with or without authentication (returns more data when authenticated)
-- **Required**: Must provide valid Bearer token, returns 401 otherwise
+1. Users authenticate through Clerk in the frontend
+2. Frontend sends JWT token in `Authorization: Bearer <token>` header
+3. Backend verifies JWT using Clerk's JWKS endpoint
+4. User data is synced via Clerk webhooks
 
-**Header Format:**
+### Required Environment Variables
+
+```bash
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+CLERK_JWKS_URL=https://your-app.clerk.accounts.dev/.well-known/jwks.json
 ```
-Authorization: Bearer <clerk_jwt_token>
+
+## Development
+
+### Code Style
+
+```bash
+# The project uses uv for dependency management
+# All Python code follows PEP 8
+
+# Run linting (if configured)
+uv run ruff check .
+
+# Format code (if configured)
+uv run black .
 ```
 
-See `app/api/deps.py` for authentication dependency implementations.
+### Adding Dependencies
 
-## Permissions
+```bash
+# Add production dependency
+uv add package-name
 
-### Maps
-- **Private**: Only owner and collaborators can access
-- **Collaborators**: Owner, editors, and viewers can access
-- **Public**: Anyone can view
+# Add dev dependency
+uv add --dev package-name
 
-### Collaborator Roles
-- **Owner**: Full control, can delete map and manage collaborators
-- **Editor**: Can modify map and layers
-- **Viewer**: Read-only access
+# Sync dependencies after pulling changes
+uv sync
+```
 
-### Layers
-- Creator can always edit/delete
-- `everyone_can_edit` flag allows any authenticated user to edit
+## Troubleshooting
 
-### Comments
-- Author can update/delete their own comments
-- Threaded replies supported with `parent_id`
+### Database Connection Issues
+
+```bash
+# Check if database is running
+docker ps | grep samsyn-db
+
+# Start database
+docker-compose -f docker-compose.dev.yml up -d db
+
+# Check database logs
+docker logs samsyn-db
+```
+
+### Migration Issues
+
+```bash
+# Check current migration version
+uv run alembic current
+
+# View migration history
+uv run alembic history
+
+# If migrations are out of sync, try:
+uv run alembic stamp head
+uv run alembic upgrade head
+```
+
+### Test Database Issues
+
+```bash
+# If tests fail with database errors, recreate test database:
+PGPASSWORD=samsyn psql -h samsyn-db -U samsyn -d postgres -c "DROP DATABASE IF EXISTS samsyn_test;"
+./setup_test_db.sh
+```
+
+### Port Already in Use
+
+```bash
+# If port 8000 is already in use:
+# 1. Find the process
+lsof -i :8000
+
+# 2. Kill it
+kill -9 <PID>
+
+# Or use a different port
+uv run uvicorn app.main:app --reload --port 8001
+```
 
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure:
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `FRONTEND_URL` - Frontend URL for CORS (default: http://localhost:3000)
-- `CLERK_SECRET_KEY` - Clerk authentication secret (required for auth)
-- `CLERK_WEBHOOK_SECRET` - Clerk webhook secret (required for user sync)
+```bash
+# Database
+DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn
+TEST_DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn_test
+
+# Clerk Authentication
+CLERK_SECRET_KEY=sk_test_...
+CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+CLERK_JWKS_URL=https://your-app.clerk.accounts.dev/.well-known/jwks.json
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:3000,https://clerk.shared.lcl.dev
+
+# TiTiler (for GeoTIFF/COG tile serving)
+TITILER_URL=http://localhost:8001
+```
+
+## Contributing
+
+1. Create a new branch for your feature
+2. Write tests for new functionality
+3. Ensure all tests pass: `uv run pytest tests/`
+4. Create a pull request
+
+## License
+
+[Your License Here]

@@ -39,7 +39,7 @@ def test_user(db_session):
         last_name="Owner",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -55,7 +55,7 @@ def other_user(db_session):
         last_name="User",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -71,7 +71,7 @@ def third_user(db_session):
         last_name="User",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -83,14 +83,15 @@ def test_map(db_session, test_user):
         name="Test Map",
         description="A test map",
         created_by=test_user.id,
-        permission="private",
+        view_permission="private",
+        edit_permission="private",
         center_lat=40.7128,
         center_lng=-74.0060,
         zoom=10.0,
         map_metadata={"key": "value"},
     )
     db_session.add(map_obj)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(map_obj)
     return map_obj
 
@@ -102,13 +103,14 @@ def collaborators_map(db_session, test_user):
         name="Collaborators Map",
         description="Map with collaborators permission",
         created_by=test_user.id,
-        permission="collaborators",
+        view_permission="collaborators",
+        edit_permission="collaborators",
         center_lat=40.7128,
         center_lng=-74.0060,
         zoom=10.0,
     )
     db_session.add(map_obj)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(map_obj)
     return map_obj
 
@@ -120,13 +122,14 @@ def public_map(db_session, test_user):
         name="Public Map",
         description="A public map",
         created_by=test_user.id,
-        permission="public",
+        view_permission="public",
+        edit_permission="public",
         center_lat=0.0,
         center_lng=0.0,
         zoom=2.0,
     )
     db_session.add(map_obj)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(map_obj)
     return map_obj
 
@@ -143,7 +146,7 @@ def test_layer(db_session, test_user):
         style_config={"color": "blue"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -159,7 +162,7 @@ def second_layer(db_session, test_user):
         source_config={"url": "https://example.com/wms"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -191,7 +194,7 @@ class TestMapCRUD:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Other user should see the map
         maps = map_service.list_user_maps(other_user.id)
@@ -217,7 +220,8 @@ class TestMapCRUD:
         map_data = MapCreate(
             name="New Map",
             description="A new test map",
-            permission=MapPermissionEnum.private,
+            view_permission=MapPermissionEnum.private,
+            edit_permission=MapPermissionEnum.private,
             center_lat=51.5074,
             center_lng=-0.1278,
             zoom=12.0,
@@ -230,7 +234,8 @@ class TestMapCRUD:
         assert created.name == "New Map"
         assert created.description == "A new test map"
         assert created.created_by == test_user.id
-        assert created.permission == "private"
+        assert created.view_permission == "private"
+        assert created.edit_permission == "private"
         assert created.center_lat == 51.5074
         assert created.center_lng == -0.1278
         assert created.zoom == 12.0
@@ -252,7 +257,8 @@ class TestMapCRUD:
         assert updated.zoom == 15.0
         # Unchanged fields should remain
         assert updated.center_lat == 40.7128
-        assert updated.permission == "private"
+        assert updated.view_permission == "private"
+        assert updated.edit_permission == "private"
 
     def test_delete_map(self, map_service, test_user, test_map):
         """Test deleting a map"""
@@ -289,7 +295,7 @@ class TestMapPermissions:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Collaborator should see the map
         retrieved = map_service.get_map(collaborators_map.id, other_user.id)
@@ -313,6 +319,10 @@ class TestMapPermissions:
         self, map_service, db_session, test_map, other_user
     ):
         """Test that editor can update map"""
+        # Set edit_permission to "collaborators" so editors can edit
+        test_map.edit_permission = "collaborators"
+        db_session.flush()
+
         # Add other_user as editor
         collaborator = MapCollaborator(
             map_id=test_map.id,
@@ -320,7 +330,7 @@ class TestMapPermissions:
             role="editor",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Editor should be able to update
         update_data = MapUpdate(name="Updated by Editor")
@@ -340,7 +350,7 @@ class TestMapPermissions:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Viewer should not be able to update
         update_data = MapUpdate(name="Should Fail")
@@ -359,7 +369,7 @@ class TestMapPermissions:
             role="editor",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Editor cannot delete
         deleted = map_service.delete_map(test_map.id, other_user.id)
@@ -389,6 +399,10 @@ class TestMapPermissions:
         self, map_service, db_session, test_map, test_user, other_user
     ):
         """Test can_edit_map for different roles"""
+        # Set edit_permission to "collaborators" so editors can edit
+        test_map.edit_permission = "collaborators"
+        db_session.flush()
+
         # Owner can edit
         assert map_service.can_edit_map(test_map.id, test_user.id) is True
 
@@ -402,12 +416,12 @@ class TestMapPermissions:
             role="viewer",
         )
         db_session.add(viewer)
-        db_session.commit()
+        db_session.flush()
         assert map_service.can_edit_map(test_map.id, other_user.id) is False
 
         # Update to editor - now can edit
         viewer.role = "editor"
-        db_session.commit()
+        db_session.flush()
         assert map_service.can_edit_map(test_map.id, other_user.id) is True
 
 
@@ -457,7 +471,7 @@ class TestCollaboratorManagement:
             role="editor",
         )
         db_session.add(editor)
-        db_session.commit()
+        db_session.flush()
 
         # Editor cannot add another editor
         result = map_service.add_collaborator(
@@ -482,7 +496,7 @@ class TestCollaboratorManagement:
             role="editor",
         )
         db_session.add(editor)
-        db_session.commit()
+        db_session.flush()
 
         # Editor can add viewer
         result = map_service.add_collaborator(
@@ -502,7 +516,7 @@ class TestCollaboratorManagement:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Update to editor
         updated = map_service.update_collaborator(
@@ -528,7 +542,7 @@ class TestCollaboratorManagement:
             role="viewer",
         )
         db_session.add_all([editor, viewer])
-        db_session.commit()
+        db_session.flush()
 
         # Editor cannot update viewer's role
         result = map_service.update_collaborator(
@@ -547,7 +561,7 @@ class TestCollaboratorManagement:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Remove collaborator
         removed = map_service.remove_collaborator(
@@ -582,7 +596,7 @@ class TestCollaboratorManagement:
             role="viewer",
         )
         db_session.add_all([editor, viewer])
-        db_session.commit()
+        db_session.flush()
 
         # Editor cannot remove viewer
         removed = map_service.remove_collaborator(
@@ -606,7 +620,7 @@ class TestCollaboratorManagement:
             role="viewer",
         )
         db_session.add_all([editor, viewer])
-        db_session.commit()
+        db_session.flush()
 
         # List collaborators
         collaborators = map_service.list_collaborators(test_map.id, test_user.id)
@@ -680,7 +694,7 @@ class TestLayerManagement:
             opacity=100,
         )
         db_session.add(map_layer)
-        db_session.commit()
+        db_session.flush()
 
         # Remove layer
         removed = map_service.remove_layer_from_map(
@@ -712,7 +726,7 @@ class TestLayerManagement:
             opacity=100,
         )
         db_session.add(map_layer)
-        db_session.commit()
+        db_session.flush()
 
         # Update layer properties
         updates = {"visible": False, "opacity": 50, "order": 5}
@@ -741,7 +755,7 @@ class TestLayerManagement:
             order=1,
         )
         db_session.add_all([layer1, layer2])
-        db_session.commit()
+        db_session.flush()
 
         # Reorder layers
         layer_orders = [
@@ -775,7 +789,7 @@ class TestLayerManagement:
             order=0,
         )
         db_session.add(map_layer)
-        db_session.commit()
+        db_session.flush()
 
         # Cannot remove layer
         result = map_service.remove_layer_from_map(
@@ -799,6 +813,10 @@ class TestLayerManagement:
         self, map_service, db_session, test_map, test_layer, other_user
     ):
         """Test that editor collaborator can manage layers"""
+        # Set edit_permission to "collaborators" so editors can manage layers
+        test_map.edit_permission = "collaborators"
+        db_session.flush()
+
         # Add other_user as editor
         editor = MapCollaborator(
             map_id=test_map.id,
@@ -806,7 +824,7 @@ class TestLayerManagement:
             role="editor",
         )
         db_session.add(editor)
-        db_session.commit()
+        db_session.flush()
 
         # Editor can add layer
         result = map_service.add_layer_to_map(test_map.id, test_layer.id, other_user.id)
@@ -896,7 +914,7 @@ class TestEdgeCases:
             role="editor",
         )
         db_session.add(editor)
-        db_session.commit()
+        db_session.flush()
 
         # Editor role
         role = map_service.get_user_role_in_map(test_map.id, other_user.id)
@@ -909,7 +927,7 @@ class TestEdgeCases:
             role="viewer",
         )
         db_session.add(viewer)
-        db_session.commit()
+        db_session.flush()
 
         # Viewer role
         role = map_service.get_user_role_in_map(test_map.id, third_user.id)
@@ -980,7 +998,7 @@ class TestEdgeCases:
             order=0,
         )
         db_session.add(map_layer)
-        db_session.commit()
+        db_session.flush()
 
         # Reorder with string UUID
         layer_orders = [
@@ -1003,7 +1021,7 @@ class TestEdgeCases:
             role="viewer",
         )
         db_session.add(collaborator)
-        db_session.commit()
+        db_session.flush()
 
         # Delete map
         map_service.delete_map(test_map.id, test_user.id)
@@ -1027,7 +1045,7 @@ class TestEdgeCases:
             order=0,
         )
         db_session.add(map_layer)
-        db_session.commit()
+        db_session.flush()
 
         # Delete map
         map_service.delete_map(test_map.id, test_user.id)
@@ -1060,13 +1078,18 @@ class TestEdgeCases:
 
     def test_update_map_permission(self, map_service, test_map, test_user):
         """Test updating map permission level"""
-        assert test_map.permission == "private"
+        assert test_map.view_permission == "private"
+        assert test_map.edit_permission == "private"
 
-        update_data = MapUpdate(permission=MapPermissionEnum.public)
+        update_data = MapUpdate(
+            view_permission=MapPermissionEnum.public,
+            edit_permission=MapPermissionEnum.public
+        )
         updated = map_service.update_map(test_map.id, update_data, test_user.id)
 
         assert updated is not None
-        assert updated.permission == "public"
+        assert updated.view_permission == "public"
+        assert updated.edit_permission == "public"
 
     def test_can_view_nonexistent_map(self, map_service, test_user):
         """Test can_view_map returns False for nonexistent map"""

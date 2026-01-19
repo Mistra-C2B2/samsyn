@@ -215,7 +215,7 @@ class TestWebhookIntegrationUserDeleted:
             created_by=user.id,
         )
         db_session.add(user_map)
-        db_session.commit()
+        db_session.flush()
         map_id = user_map.id
 
         # Delete user via webhook

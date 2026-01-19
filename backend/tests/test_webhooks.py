@@ -366,7 +366,7 @@ class TestUserDeletedEvent:
             created_by=user.id,
         )
         db_session.add(user_map)
-        db_session.commit()
+        db_session.flush()
 
         # Delete via webhook
         with patch("app.config.settings.CLERK_WEBHOOK_SECRET", mock_webhook_secret):

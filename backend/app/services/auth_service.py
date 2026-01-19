@@ -279,20 +279,24 @@ def get_auth_service() -> ClerkAuthService:
     """
     Get singleton instance of ClerkAuthService.
 
-    The JWKS URL is constructed from the Clerk instance domain.
-    For pk_test_ZGlzY3JldGUtZ29iYmxlci0xNi5jbGVyay5hY2NvdW50cy5kZXYk
-    the decoded instance is: discrete-gobbler-16.clerk.accounts.dev
+    The JWKS URL is configured via the CLERK_JWKS_URL environment variable.
+    This URL points to Clerk's JSON Web Key Set endpoint used for verifying JWTs.
 
     Returns:
         ClerkAuthService instance
-    """
-    # Extract Clerk instance from environment or use default
-    # The publishable key pk_test_ZGlzY3JldGUtZ29iYmxlci0xNi5jbGVyay5hY2NvdW50cy5kZXYk
-    # decodes to: discrete-gobbler-16.clerk.accounts.dev
-    clerk_instance = "discrete-gobbler-16.clerk.accounts.dev"
-    jwks_url = f"https://{clerk_instance}/.well-known/jwks.json"
 
-    return ClerkAuthService(jwks_url=jwks_url)
+    Raises:
+        ValueError: If CLERK_JWKS_URL is not configured
+    """
+    if not settings.CLERK_JWKS_URL:
+        raise ValueError(
+            "CLERK_JWKS_URL environment variable is not set. "
+            "Please add CLERK_JWKS_URL to your .env file.\n"
+            "Format: https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json\n"
+            "You can find your instance domain in the Clerk Dashboard."
+        )
+
+    return ClerkAuthService(jwks_url=settings.CLERK_JWKS_URL)
 
 
 # Export singleton instance

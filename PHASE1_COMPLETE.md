@@ -160,7 +160,7 @@ npm run dev:backend
 
 ### Access Points
 
-- Frontend: http://localhost:3000 (port 5173 with Vite)
+- Frontend: http://localhost:3000 (configured in vite.config.ts)
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 - Database: postgresql://samsyn:samsyn@localhost:5432/samsyn

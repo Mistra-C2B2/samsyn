@@ -32,13 +32,15 @@ dist-ssr
 venv
 *.pyc
 __pycache__/
+*__pycache__*/
 *.egg-info/
 .eggs/
 
 # Environment variables
 .env
 .env.*
-.env.examples
+!.env.example
+!.env.*.example
 
 test-results
 playwright-report

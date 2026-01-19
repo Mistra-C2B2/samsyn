@@ -35,6 +35,8 @@ import { TimeSlider } from "./components/TimeSlider";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
 import { SettingsProvider } from "./contexts/SettingsContext";
+import { SessionProvider, useSession } from "./contexts/SessionContext";
+import { useDebouncedCallback } from "./hooks/useDebounce";
 import { useCommentService } from "./services/commentService";
 import { useLayerService } from "./services/layerService";
 import { useMapService } from "./services/mapService";
@@ -211,6 +213,27 @@ function AppContent() {
 
 	// Get current user from Clerk
 	const { user } = useUser();
+
+	// Get session context for persistence
+	const { sessionState, updateSession } = useSession();
+
+	// Debounced handler for map view changes (pan/zoom) - for session persistence
+	// Note: MapLibre returns [lng, lat] but App stores [lat, lng], so we need to swap
+	// Note: MapView initializes with zoom-1, so we need to add 1 back to get the app's zoom level
+	const handleMapViewChange = useDebouncedCallback(
+		(center: [number, number], zoom: number) => {
+			setCurrentMap((prev) =>
+				prev
+					? {
+							...prev,
+							center: [center[1], center[0]], // Swap from [lng, lat] to [lat, lng]
+							zoom: zoom + 1, // MapView uses zoom-1, so add 1 back
+						}
+					: null,
+			);
+		},
+		2500,
+	);
 
 	// Pre-configured Global Fishing Watch layer (available without backend setup)
 	const DEFAULT_GFW_LAYER: Layer = useMemo(
@@ -405,6 +428,49 @@ function AppContent() {
 		loadMaps();
 	}, [loadMaps]);
 
+	// Restore session after maps are loaded
+	useEffect(() => {
+		// Only run once after maps are loaded
+		if (mapsLoading || maps.length === 0) return;
+
+		const { mapId, mapView, panelStates, basemap: savedBasemap, timeRange } = sessionState;
+
+		// Restore map selection
+		if (mapId) {
+			const savedMap = maps.find((m) => m.id === mapId);
+			if (savedMap) {
+				// Restore the map with saved view state if available
+				if (mapView) {
+					setCurrentMap({
+						...savedMap,
+						center: mapView.center,
+						zoom: mapView.zoom,
+					});
+				} else {
+					setCurrentMap(savedMap);
+				}
+			} else {
+				// Map was deleted - clear from session
+				console.warn("Saved map not found, clearing session");
+				updateSession({ mapId: null, mapView: null });
+			}
+		}
+
+		// Restore panel states
+		setShowLayerManager(panelStates.showLayerManager);
+		setShowMapSelector(panelStates.showMapSelector);
+		setShowComments(panelStates.showComments);
+		setShowLayerCreator(panelStates.showLayerCreator);
+		setShowAdminPanel(panelStates.showAdminPanel);
+
+		// Restore basemap
+		setBasemap(savedBasemap);
+
+		// Restore time range
+		setCurrentTimeRange([timeRange.start, timeRange.end]);
+	}, [mapsLoading, maps.length]); // eslint-disable-line react-hooks/exhaustive-deps
+	// Note: Deliberately omitting sessionState and setter functions from deps to run only once
+
 	// Load comments when map changes
 	useEffect(() => {
 		if (currentMap?.id) {
@@ -412,11 +478,61 @@ function AppContent() {
 		}
 	}, [currentMap?.id, loadComments]);
 
+	// Session persistence - Watch currentMap changes
+	useEffect(() => {
+		if (!currentMap) {
+			updateSession({ mapId: null, mapView: null });
+		} else {
+			updateSession({
+				mapId: currentMap.id,
+				mapView: {
+					center: currentMap.center,
+					zoom: currentMap.zoom,
+				},
+			});
+		}
+	}, [currentMap?.id, currentMap?.center, currentMap?.zoom, updateSession]);
+
+	// Session persistence - Watch panel state changes
+	useEffect(() => {
+		updateSession({
+			panelStates: {
+				showLayerManager,
+				showMapSelector,
+				showComments,
+				showLayerCreator,
+				showAdminPanel,
+			},
+		});
+	}, [
+		showLayerManager,
+		showMapSelector,
+		showComments,
+		showLayerCreator,
+		showAdminPanel,
+		updateSession,
+	]);
+
 	// Temporal state management
 	const [currentTimeRange, setCurrentTimeRange] = useState<[Date, Date]>([
 		new Date("2024-10-01"),
 		new Date("2025-03-31"),
 	]);
+
+	// Session persistence - Watch basemap changes
+	useEffect(() => {
+		updateSession({ basemap });
+	}, [basemap, updateSession]);
+
+	// Session persistence - Watch time range changes
+	useEffect(() => {
+		updateSession({
+			timeRange: {
+				start: currentTimeRange[0],
+				end: currentTimeRange[1],
+			},
+		});
+	}, [currentTimeRange, updateSession]);
 
 	// Check if any temporal layers are visible
 	const hasTemporalLayers = useMemo(() => {
@@ -921,6 +1037,11 @@ function AppContent() {
 				}
 			}
 
+			// Clear session if deleted map was saved
+			if (sessionState.mapId === mapId) {
+				updateSession({ mapId: null, mapView: null });
+			}
+
 			toast.success("Map deleted successfully");
 		} catch (error) {
 			const errorMessage =
@@ -1408,6 +1529,7 @@ function AppContent() {
 							markerColor={currentMarkerColor}
 							terraDrawSnapshot={terraDrawSnapshot}
 							onWMSFeatureInfoRequest={handleWMSFeatureInfoRequest}
+							onMapViewChange={handleMapViewChange}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">
@@ -1757,7 +1879,9 @@ export default function App() {
 		return (
 			<ClerkProvider publishableKey={clerkPubKey}>
 				<SettingsProvider>
-					<AppContent />
+					<SessionProvider>
+						<AppContent />
+					</SessionProvider>
 				</SettingsProvider>
 			</ClerkProvider>
 		);
@@ -1766,7 +1890,9 @@ export default function App() {
 	// If Clerk is not configured, render app without authentication
 	return (
 		<SettingsProvider>
-			<AppContent />
+			<SessionProvider>
+				<AppContent />
+			</SessionProvider>
 		</SettingsProvider>
 	);
 }

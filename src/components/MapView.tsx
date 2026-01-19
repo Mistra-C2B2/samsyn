@@ -201,6 +201,8 @@ interface MapViewProps {
 	onWMSFeatureInfoRequest?: (
 		params: WMSFeatureInfoParams,
 	) => Promise<WMSFeatureInfoResponse | null>;
+	// Callback for map view changes (pan/zoom) - for session persistence
+	onMapViewChange?: (center: [number, number], zoom: number) => void;
 }
 
 export interface DrawingStyles {
@@ -435,6 +437,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			markerColor,
 			terraDrawSnapshot: markerOverlaySnapshot,
 			onWMSFeatureInfoRequest,
+			onMapViewChange,
 		},
 		ref,
 	) => {
@@ -446,6 +449,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const onTerraDrawChangeRef = useRef(onTerraDrawChange);
 		const onFeatureClickRef = useRef(onFeatureClick);
 		const onWMSFeatureInfoRequestRef = useRef(onWMSFeatureInfoRequest);
+		const onMapViewChangeRef = useRef(onMapViewChange);
 		const currentPopupRef = useRef<maplibregl.Popup | null>(null);
 		const initialPropsRef = useRef({ center, zoom, basemap });
 		const [mapLoaded, setMapLoaded] = useState(false);
@@ -483,6 +487,10 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		useEffect(() => {
 			onWMSFeatureInfoRequestRef.current = onWMSFeatureInfoRequest;
 		}, [onWMSFeatureInfoRequest]);
+
+		useEffect(() => {
+			onMapViewChangeRef.current = onMapViewChange;
+		}, [onMapViewChange]);
 
 		useImperativeHandle(ref, () => ({
 			startDrawing: (
@@ -2517,9 +2525,20 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			map.on("mousemove", handleMouseMove);
 			map.on("mouseleave", handleMouseLeave);
 
+			// Add moveend listener for session persistence
+			const handleMoveEnd = () => {
+				if (onMapViewChangeRef.current) {
+					const center = map.getCenter();
+					const zoom = map.getZoom();
+					onMapViewChangeRef.current([center.lng, center.lat], zoom);
+				}
+			};
+			map.on("moveend", handleMoveEnd);
+
 			return () => {
 				map.off("mousemove", handleMouseMove);
 				map.off("mouseleave", handleMouseLeave);
+				map.off("moveend", handleMoveEnd);
 			};
 		}, [mapLoaded]);
 

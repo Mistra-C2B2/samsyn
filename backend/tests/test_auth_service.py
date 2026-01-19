@@ -205,9 +205,11 @@ class TestFactoryFunction:
     def test_factory_configures_jwks_url(self):
         """Test that factory function configures correct JWKS URL"""
         from app.services.auth_service import get_auth_service
+        from app.config import settings
 
         service = get_auth_service()
 
-        # Should use discrete-gobbler-16.clerk.accounts.dev
-        assert "discrete-gobbler-16.clerk.accounts.dev" in service.jwks_url
+        # Should use the configured JWKS URL from settings
+        assert service.jwks_url == settings.CLERK_JWKS_URL
+        assert ".clerk.accounts.dev" in service.jwks_url
         assert ".well-known/jwks.json" in service.jwks_url

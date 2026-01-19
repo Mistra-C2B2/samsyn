@@ -36,7 +36,7 @@ def test_user(db_session):
         last_name="Owner",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -52,7 +52,7 @@ def test_user2(db_session):
         last_name="User",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -74,7 +74,7 @@ def wms_layer(db_session, test_user):
         layer_metadata={"source": "NOAA"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -93,7 +93,7 @@ def geotiff_layer(db_session, test_user):
         source_config={"url": "https://example.com/data.tif"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -112,7 +112,7 @@ def vector_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -131,7 +131,7 @@ def global_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -150,7 +150,7 @@ def everyone_editable_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -601,7 +601,7 @@ class TestLayerEdgeCases:
                 source_config={},
             )
             db_session.add(layer)
-        db_session.commit()
+        db_session.flush()
 
         layers = layer_service.search_layers(test_user.id, "Test", limit=5)
 
@@ -721,7 +721,7 @@ class TestLayerEdgeCases:
             source_config={},
         )
         db_session.add(layer1)
-        db_session.commit()
+        db_session.flush()
 
         layer2 = Layer(
             name="Second Layer",
@@ -730,7 +730,7 @@ class TestLayerEdgeCases:
             source_config={},
         )
         db_session.add(layer2)
-        db_session.commit()
+        db_session.flush()
 
         layers = layer_service.list_layers(test_user.id)
 

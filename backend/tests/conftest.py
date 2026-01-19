@@ -4,6 +4,7 @@ Pytest configuration and shared fixtures.
 Sets up PostgreSQL test database with proper cleanup.
 """
 
+import os
 import pytest
 import pytest_asyncio
 from sqlalchemy import create_engine, text
@@ -14,8 +15,8 @@ from app.database import Base
 from app.config import settings
 
 
-# Test database URL (uses same database as dev, but we'll clean up after each test)
-TEST_DATABASE_URL = settings.DATABASE_URL
+# Test database URL - use separate test database if configured
+TEST_DATABASE_URL = settings.TEST_DATABASE_URL or settings.DATABASE_URL
 
 
 @pytest.fixture(scope="session")

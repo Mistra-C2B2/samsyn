@@ -37,7 +37,7 @@ def test_user(db_session):
         last_name="Owner",
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(user)
     return user
 
@@ -56,7 +56,7 @@ def test_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -75,7 +75,7 @@ def second_layer(db_session, test_user):
         source_config={"type": "geojson"},
     )
     db_session.add(layer)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(layer)
     return layer
 
@@ -137,7 +137,7 @@ def test_feature(db_session, test_layer, sample_point_geojson):
         feature_type="point",
     )
     db_session.add(feature)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(feature)
     return feature
 
@@ -361,7 +361,7 @@ class TestFeatureListAndCount:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # List all features
         features = feature_service.list_features(test_layer.id)
@@ -381,7 +381,7 @@ class TestFeatureListAndCount:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # Test limit
         features = feature_service.list_features(test_layer.id, limit=5)
@@ -422,7 +422,7 @@ class TestFeatureListAndCount:
         )
 
         db_session.add_all(inside_features + [outside_feature])
-        db_session.commit()
+        db_session.flush()
 
         # Query with bbox
         bbox = [-122.5, 37.7, -122.3, 37.8]
@@ -450,7 +450,7 @@ class TestFeatureListAndCount:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         count = feature_service.count_features(test_layer.id)
         assert count == 7
@@ -472,7 +472,7 @@ class TestFeatureListAndCount:
         )
 
         db_session.add_all([inside, outside])
-        db_session.commit()
+        db_session.flush()
 
         bbox = [-122.5, 37.7, -122.3, 37.8]
         count = feature_service.count_features(test_layer.id, bbox=bbox)
@@ -615,7 +615,7 @@ class TestSpatialQueries:
         )
 
         db_session.add_all([inside_point, outside_point, crossing_line])
-        db_session.commit()
+        db_session.flush()
 
         # Query polygon
         query_geom = {
@@ -655,7 +655,7 @@ class TestSpatialQueries:
         )
 
         db_session.add_all([inside_point, outside_point])
-        db_session.commit()
+        db_session.flush()
 
         # Query polygon that contains inside_point
         query_geom = {
@@ -693,7 +693,7 @@ class TestSpatialQueries:
         )
 
         db_session.add_all([large_polygon, small_polygon])
-        db_session.commit()
+        db_session.flush()
 
         # Query with a point
         query_geom = {
@@ -736,7 +736,7 @@ class TestSpatialQueries:
             feature_type="point",
         )
         db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # Query in different area
         query_geom = {
@@ -833,7 +833,7 @@ class TestHelperMethods:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # Delete all features
         count = feature_service.delete_features_by_layer(test_layer.id)
@@ -860,7 +860,7 @@ class TestHelperMethods:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         count = feature_service.get_feature_count_by_layer(test_layer.id)
         assert count == 8
@@ -971,7 +971,7 @@ class TestEdgeCases:
             feature_type="point",
         )
         db_session.add_all([feature1, feature2])
-        db_session.commit()
+        db_session.flush()
 
         # List features for first layer
         features1 = feature_service.list_features(test_layer.id)
@@ -1030,7 +1030,7 @@ class TestEdgeCases:
             feature_type="polygon",
         )
         db_session.add(polygon)
-        db_session.commit()
+        db_session.flush()
 
         # Query with point inside polygon
         query_point = {
@@ -1053,7 +1053,7 @@ class TestEdgeCases:
             feature_type="point",
         )
         db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # Very large bbox that should include the feature
         bbox = [-180, -90, 180, 90]
@@ -1072,7 +1072,7 @@ class TestEdgeCases:
                 feature_type="point",
             )
             db_session.add(feature)
-        db_session.commit()
+        db_session.flush()
 
         # Request with offset beyond available
         features = feature_service.list_features(test_layer.id, limit=10, offset=10)

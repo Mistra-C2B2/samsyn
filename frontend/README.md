@@ -34,11 +34,11 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
 # Backend API URL (usually http://localhost:8000 for development)
 VITE_API_URL=http://localhost:8000
 
-# Global Fishing Watch API Token (get from https://globalfishingwatch.org/our-apis/)
+# Global Fishing Watch API Token (optional)
 VITE_GFW_API_TOKEN=your_gfw_token_here
 ```
 
-> **Note:** See [Authentication Setup](#authentication-setup-clerk) for detailed instructions on getting Clerk API keys.
+> **Note:** See the main [README.md](../README.md#3-set-up-clerk-authentication) for detailed instructions on getting Clerk API keys.
 
 ### 3. Start Development Server
 
@@ -114,7 +114,7 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 # Backend API URL
 VITE_API_URL=http://localhost:8000
 
-# Global Fishing Watch API Token (get from https://globalfishingwatch.org/our-apis/)
+# Global Fishing Watch API Token (optional)
 VITE_GFW_API_TOKEN=your_token_here
 ```
 
@@ -123,99 +123,7 @@ Environment files should be placed in the `frontend/` directory:
 - `.env.local` - Your local development environment (gitignored)
 - `.env.example` - Template with placeholder values (committed)
 
-## Authentication Setup (Clerk)
-
-SamSyn uses [Clerk](https://clerk.com) for authentication. Follow these steps:
-
-### 1. Create Clerk Application
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com/) and sign in
-2. Click **"+ Create application"**
-3. Name it (e.g., "SamSyn Development")
-4. Choose authentication methods (Email, Google, etc.)
-5. Click **Create application**
-
-### 2. Get Your Publishable Key
-
-1. After creating the app, you'll see the API Keys page
-2. Copy the **Publishable Key** (starts with `pk_test_...`)
-3. Add it to `frontend/.env.local`:
-   ```env
-   VITE_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE
-   ```
-
-You can find this key anytime at: **Dashboard → API Keys**
-
-### 3. Configure Session Token (Important!)
-
-The backend needs access to user metadata in JWT tokens:
-
-1. Go to **Sessions** in Clerk Dashboard
-2. Click **"Customize session token"**
-3. Add this JSON:
-   ```json
-   {
-     "public_metadata": "{{user.public_metadata}}"
-   }
-   ```
-4. Click **Save**
-
-**Important:** After customizing, users must sign out and back in to get new tokens.
-
-### 4. Backend Configuration
-
-The backend also needs Clerk credentials. See the main project [README.md](../README.md#authentication-setup-clerk) for complete backend setup instructions.
-
-### 5. Verify Setup
-
-1. Restart the frontend dev server: `npm run dev`
-2. Open http://localhost:3000
-3. Click **Sign In** (top-right)
-4. Create an account or sign in
-5. You should be successfully authenticated
-
-### Troubleshooting
-
-**"Clerk is not configured" error:**
-
-- ✅ Check that `.env.local` exists in `frontend/` directory
-- ✅ Verify `VITE_CLERK_PUBLISHABLE_KEY` is set correctly
-- ✅ Restart the dev server: `npm run dev`
-
-**Can't sign in / Invalid token:**
-
-- ✅ Make sure backend is running with correct Clerk configuration
-- ✅ Check that session token includes `public_metadata` claim
-- ✅ Sign out and sign back in to get a fresh token
-
-**Admin features not working:**
-
-- ✅ See [Admin Users](#admin-users) section below
-
-## Admin Users
-
-Admin users have access to the Admin Panel for managing global layers and WMS servers.
-
-### Setting Up an Admin
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com/) → **Users**
-2. Select the user you want to make admin
-3. Scroll to **Public metadata** section
-4. Click **Edit** and add:
-   ```json
-   {
-     "isAdmin": true
-   }
-   ```
-5. Save changes
-6. User must sign out and sign back in for changes to take effect
-
-### Admin Capabilities
-
-- Access Admin Panel (shield icon in navbar)
-- Create and manage global layers visible to all users
-- Add and manage WMS servers
-- Edit and delete any global layer
+> **Authentication Setup:** See the main [README.md](../README.md#3-set-up-clerk-authentication) for complete Clerk authentication and admin user setup instructions.
 
 ## API Integration
 
@@ -311,7 +219,7 @@ npm run build
 
 ### Authentication issues
 
-See the [Authentication Setup](#authentication-setup-clerk) section above and the main project [README.md](../README.md#troubleshooting-authentication) for detailed troubleshooting.
+See the main project [README.md](../README.md#troubleshooting) for authentication troubleshooting.
 
 ## Development Tips
 

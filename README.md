@@ -2,6 +2,31 @@
 
 Marine spatial planning and stakeholder engagement platform.
 
+## Prerequisites
+
+Before setting up SamSyn, ensure you have the following installed:
+
+**Required:**
+
+- **Node.js** 18 or higher ([download](https://nodejs.org/))
+- **Python** 3.11 or higher ([download](https://www.python.org/))
+- **Docker Desktop** or Docker Engine ([download](https://www.docker.com/))
+- **uv** - Python package manager ([installation](https://github.com/astral-sh/uv))
+- **Clerk account** (free) - For authentication ([sign up](https://clerk.com/))
+
+**Optional:**
+
+- **Global Fishing Watch API token** - For GFW data layers ([get token](https://globalfishingwatch.org/our-apis/))
+
+### Verify Installation
+
+```bash
+node --version    # Should show 18.x or higher
+python --version  # Should show 3.11.x or higher
+docker --version  # Any recent version
+uv --version      # Should show 0.1.x or higher
+```
+
 ## Project Structure
 
 ```
@@ -27,25 +52,15 @@ Marine spatial planning and stakeholder engagement platform.
 
 ```bash
 # Install all dependencies (both frontend and backend)
-npm run install
-
-# OR install individually:
-cd frontend && npm install && cd ..
-cd backend && uv sync && cd ..
+./run.sh install
 ```
-
-> **Note:** Backend uses [uv](https://github.com/astral-sh/uv) for fast, reliable dependency management.
 
 ### 2. Start Docker Services
 
 Start PostgreSQL and TiTiler:
 
 ```bash
-# Development (TiTiler port exposed)
 docker-compose -f docker-compose.dev.yml up -d
-
-# Production (TiTiler internal only)
-docker-compose up -d
 ```
 
 This starts:
@@ -53,44 +68,151 @@ This starts:
 - **PostgreSQL** on port 5432 (database: `samsyn`, user: `samsyn`, password: `samsyn`)
 - **TiTiler** for GeoTIFF tile serving (port 8001 in dev, internal only in production)
 
-### 3. Configure Environment Variables
+> **Note:** Wait 10-15 seconds for PostgreSQL to fully initialize before running migrations (Step 5).
+
+### 3. Set Up Clerk Authentication
+
+Before configuring environment variables, you need to create a Clerk account and get your API keys.
+
+#### 1. Create Clerk Application
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com/) and sign in (or create free account)
+2. Click **"+ Create application"**
+3. Name: `SamSyn Development` (or your preferred name)
+4. Select authentication methods (Email recommended, add others as needed)
+5. Click **Create application**
+
+#### 2. Get API Keys
+
+After creating the application:
+
+1. You'll see the API Keys page (or go to **Dashboard → API Keys**)
+2. Copy **Publishable Key** (starts with `pk_test_...`)
+3. Copy **Secret Key** (click "Show" to reveal, starts with `sk_test_...`)
+4. Add these to both `frontend/.env.local` and `backend/.env`
+
+#### 3. Configure Session Token (Important for admin features)
+
+1. In Clerk Dashboard, go to **Sessions**
+2. Click **"Customize session token"**
+3. Add this JSON:
+   ```json
+   {
+     "public_metadata": "{{user.public_metadata}}"
+   }
+   ```
+4. Click **Save**
+5. Users must sign out and back in after this change
+
+#### 4. Set Up Webhook (For user synchronization)
+
+1. In Clerk Dashboard, go to **Webhooks**
+2. Click **"+ Add Endpoint"**
+3. Endpoint URL: `http://localhost:8000/api/v1/webhooks/clerk` (for local dev)
+4. Select events: `user.created`, `user.updated`, `user.deleted`
+5. Click **Create**
+6. Copy **Signing Secret** (starts with `whsec_...`)
+7. Add to `backend/.env` as `CLERK_WEBHOOK_SECRET`
+
+#### 5. Get JWKS URL
+
+1. In Clerk Dashboard, go to **API Keys**
+2. Find **Frontend API** value (e.g., `clerk.samsyn.dev`)
+3. Construct JWKS URL: `https://<your-frontend-api>/.well-known/jwks.json`
+4. Add to `backend/.env` as `CLERK_JWKS_URL`
+
+#### 6. Set Up Admin Users (Optional)
+
+Admin users have access to the Admin Panel for managing global layers and WMS servers.
+
+**To grant admin access:**
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com/) → **Users**
+2. Select the user you want to make admin
+3. Scroll to **Public metadata** section
+4. Click **Edit** and add:
+   ```json
+   {
+     "isAdmin": true
+   }
+   ```
+5. Save changes
+6. User must sign out and sign back in for changes to take effect
+
+**Admin capabilities:**
+
+- Access Admin Panel (shield icon in navbar)
+- Create and manage global layers visible to all users
+- Add and manage WMS servers
+- Edit and delete any global layer
+
+### 4. Configure Environment Variables
+
+Now that you have your Clerk API keys, configure the environment variables for both frontend and backend.
 
 **Frontend** (`frontend/.env.local`):
 
+```bash
+# From project root
+cd frontend
+cp .env.example .env.local
+```
+
+Edit `frontend/.env.local` with these values:
+
 ```env
+# REQUIRED: Clerk authentication (use keys from Step 3)
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
+
+# REQUIRED: Backend API URL
 VITE_API_URL=http://localhost:8000
+
+# OPTIONAL: Global Fishing Watch API token
+# Only needed if you want to use GFW data layers
+# Get from https://globalfishingwatch.org/our-apis/
+VITE_GFW_API_TOKEN=your_gfw_token_here
 ```
 
 **Backend** (`backend/.env`):
 
+```bash
+# From project root
+cd backend
+cp .env.example .env
+```
+
+Edit `backend/.env` with these values:
+
 ```env
+# Database URLs - Use these defaults for Docker setup
 DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn
 TEST_DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn_test
+
+# Clerk Authentication - Use keys from Step 3
+CLERK_SECRET_KEY=sk_test_your_secret_key
+CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key
+CLERK_WEBHOOK_SECRET=whsec_your_webhook_secret
+CLERK_JWKS_URL=https://your-frontend-api/.well-known/jwks.json
+
+# CORS and service URLs - Use these defaults
 FRONTEND_URL=http://localhost:3000,https://clerk.shared.lcl.dev
-CLERK_SECRET_KEY=sk_test_your_key_here
-CLERK_WEBHOOK_SECRET=whsec_your_secret_here
-CLERK_JWKS_URL=https://your-instance.clerk.accounts.dev/.well-known/jwks.json
 TITILER_URL=http://host.docker.internal:8001
 ```
 
-> **See detailed setup instructions:**
->
-> - [Frontend README](frontend/README.md#authentication-setup-clerk) - Clerk setup for frontend
-> - [Backend README](backend/README.md) - Backend configuration
+> **More details:** See [Frontend README](frontend/README.md#authentication-setup-clerk) and [Backend README](backend/README.md) for additional configuration options.
 
-### 4. Run Database Migrations
+### 5. Run Database Migrations
 
 ```bash
-npm run migrate
+./run.sh migrate
 ```
 
-### 5. Start Development Servers
+### 6. Start Development Servers
 
 **Terminal 1: Frontend**
 
 ```bash
-npm run dev
+./run.sh dev
 ```
 
 Frontend at http://localhost:3000
@@ -98,7 +220,7 @@ Frontend at http://localhost:3000
 **Terminal 2: Backend**
 
 ```bash
-npm run dev:backend
+./run.sh dev-backend
 ```
 
 Backend at http://localhost:8000 (API docs: http://localhost:8000/docs)
@@ -113,29 +235,24 @@ Backend at http://localhost:8000 (API docs: http://localhost:8000/docs)
 
 ### Key Topics
 
-- **Authentication**: See [Frontend README](frontend/README.md#authentication-setup-clerk) for Clerk setup
-- **Admin Users**: See [Frontend README](frontend/README.md#admin-users) for granting admin access
 - **Database Migrations**: See [Database Migrations](#database-migrations) below
 - **API Endpoints**: See [Backend README](backend/README.md) for complete API documentation
 
 ## Development Commands
 
-### Frontend
+All development commands use the `./run.sh` script:
 
 ```bash
-npm run dev         # Start dev server (port 3000)
-npm run build       # Production build
-npm run lint        # Lint with Biome
-npm run format      # Format with Biome
-npm run check       # Lint and format (auto-fix)
-```
-
-### Backend
-
-```bash
-npm run dev:backend # Start backend server (port 8000)
-npm run migrate     # Run database migrations
-npm run migrate:new # Create new migration: npm run migrate:new "description"
+./run.sh install           # Install all dependencies (frontend + backend)
+./run.sh dev               # Start frontend dev server (port 3000)
+./run.sh dev-backend       # Start backend dev server (port 8000)
+./run.sh build             # Build frontend for production
+./run.sh lint              # Lint frontend code
+./run.sh format            # Format frontend code
+./run.sh check             # Lint and format frontend (auto-fix)
+./run.sh migrate           # Run database migrations
+./run.sh migrate-new "msg" # Create new migration with message
+./run.sh help              # Show all available commands
 ```
 
 ## Database Migrations
@@ -143,16 +260,16 @@ npm run migrate:new # Create new migration: npm run migrate:new "description"
 **Create a new migration** (after modifying models):
 
 ```bash
-npm run migrate:new "description of changes"
+./run.sh migrate-new "description of changes"
 ```
 
 **Apply migrations**:
 
 ```bash
-npm run migrate
+./run.sh migrate
 ```
 
-**Manual migration commands**:
+**Manual migration commands** (if needed):
 
 ```bash
 cd backend
@@ -160,135 +277,3 @@ uv run alembic revision --autogenerate -m "description"
 uv run alembic upgrade head
 uv run alembic downgrade -1  # Rollback one migration
 ```
-
-## Docker Services
-
-The project uses two Docker Compose configurations:
-
-| File                     | Purpose     | TiTiler Access                    |
-| ------------------------ | ----------- | --------------------------------- |
-| `docker-compose.dev.yml` | Development | Exposed on port 8001              |
-| `docker-compose.yml`     | Production  | Internal only (via backend proxy) |
-
-Both include:
-
-- **PostgreSQL + PostGIS**: Database on port 5432
-- **TiTiler**: Dynamic tile server for GeoTIFFs
-
-**Development** mode exposes TiTiler on port 8001 for direct access and testing.
-
-**Production** mode keeps TiTiler internal; all requests go through backend proxy at `/api/v1/titiler/*`.
-
-## Tech Stack
-
-### Frontend
-
-- React 18 + TypeScript
-- Vite (build tool)
-- Tailwind CSS + shadcn/ui
-- MapLibre GL JS + Terra Draw
-- Clerk (authentication)
-
-### Backend
-
-- Python 3.11+
-- FastAPI
-- SQLAlchemy + GeoAlchemy2
-- PostgreSQL 16 + PostGIS 3.4
-- Alembic (migrations)
-- TiTiler (GeoTIFF serving)
-
-## Troubleshooting
-
-### Backend won't start
-
-```bash
-# Ensure dependencies are installed
-cd backend && uv sync
-
-# Check database is running
-docker ps | grep samsyn-db
-
-# Verify environment variables
-cat backend/.env
-```
-
-### Database connection fails
-
-```bash
-# Start database
-docker-compose -f docker-compose.dev.yml up -d
-
-# Wait for database to be ready (5-10 seconds)
-
-# Test connection
-docker-compose -f docker-compose.dev.yml exec db psql -U samsyn -d samsyn -c "SELECT 1;"
-```
-
-### Frontend issues
-
-```bash
-# Ensure dependencies are installed
-cd frontend && npm install
-
-# Check environment variables
-cat frontend/.env.local
-
-# Restart dev server
-npm run dev
-```
-
-### Authentication issues
-
-See detailed troubleshooting in:
-
-- [Frontend README - Authentication Troubleshooting](frontend/README.md#troubleshooting)
-- [Backend README](backend/README.md)
-
-### Port conflicts
-
-```bash
-# Frontend (port 3000)
-lsof -ti:3000 | xargs kill -9
-
-# Backend (port 8000)
-lsof -ti:8000 | xargs kill -9
-
-# PostgreSQL (port 5432)
-docker-compose -f docker-compose.dev.yml restart db
-```
-
-## Development Workflow
-
-Typical development session:
-
-```bash
-# Start Docker services (first time or after system restart)
-docker-compose -f docker-compose.dev.yml up -d
-
-# Terminal 1: Frontend
-npm run dev
-
-# Terminal 2: Backend
-npm run dev:backend
-
-# When you modify database models:
-npm run migrate:new "description of changes"
-npm run migrate
-```
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Run linting:
-   ```bash
-   npm run check           # Frontend linting/formatting
-   cd backend && uv run pytest tests/  # Backend tests
-   ```
-4. Commit your changes
-5. Create a pull request
-
-## License
-
-[Your license here]

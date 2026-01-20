@@ -273,6 +273,25 @@ export function AdminPanel({
 			form.metadata.setAuthor(server.serviceProvider);
 		}
 
+		// Extract and set time dimension if present
+		const timeDim = layer.dimensions.find(
+			(d) => d.name.toLowerCase() === "time",
+		);
+		if (timeDim) {
+			form.wms.setTimeDimension({
+				extent: timeDim.extent,
+				default: timeDim.default || undefined,
+			});
+		}
+
+		// Set queryable flag
+		form.wms.setQueryable(layer.queryable);
+
+		// Set available styles
+		if (layer.styles.length > 0) {
+			form.wms.setAvailableStyles(layer.styles);
+		}
+
 		// Set legend from first style if available
 		if (layer.styles.length > 0 && layer.styles[0].legendUrl) {
 			form.legend.setLegendSource("wms");

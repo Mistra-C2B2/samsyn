@@ -367,6 +367,9 @@ export function useWmsForm(options: UseWmsFormOptions = {}) {
 		setLayerFilter,
 		setStyle,
 		setCqlFilter,
+		setTimeDimension,
+		setQueryable,
+		setAvailableStyles,
 
 		// Actions
 		fetchCapabilities,

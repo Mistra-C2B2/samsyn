@@ -34,8 +34,8 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { TimeSlider } from "./components/TimeSlider";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
-import { SettingsProvider } from "./contexts/SettingsContext";
 import { SessionProvider, useSession } from "./contexts/SessionContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import { useDebouncedCallback } from "./hooks/useDebounce";
 import { useCommentService } from "./services/commentService";
 import { useLayerService } from "./services/layerService";
@@ -433,7 +433,13 @@ function AppContent() {
 		// Only run once after maps are loaded
 		if (mapsLoading || maps.length === 0) return;
 
-		const { mapId, mapView, panelStates, basemap: savedBasemap, timeRange } = sessionState;
+		const {
+			mapId,
+			mapView,
+			panelStates,
+			basemap: savedBasemap,
+			timeRange,
+		} = sessionState;
 
 		// Restore map selection
 		if (mapId) {

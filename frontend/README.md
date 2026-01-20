@@ -243,9 +243,7 @@ const response = await api.get("/api/v1/layers");
 
 ### E2E Tests (Playwright)
 
-E2E tests are located in the root `tests/e2e/` directory and test the full stack (frontend + backend).
-
-From the project root:
+E2E tests are located in `tests/e2e/` and test the frontend UI (with backend running).
 
 ```bash
 npm test              # Run all e2e tests (auto-starts dev server)

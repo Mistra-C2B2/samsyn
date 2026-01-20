@@ -1,8 +1,6 @@
-# SamSyn
+# SAMSYN
 
-Marine Spatial Planning application with React frontend and Python FastAPI backend.
-
-Original Figma design: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSyn
+Marine spatial planning and stakeholder engagement platform.
 
 ## Project Structure
 
@@ -18,8 +16,6 @@ Original Figma design: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSy
 │   ├── alembic/           # Database migrations
 │   ├── tests/             # Backend unit tests
 │   └── README.md          # Backend documentation
-├── tests/                  # Integration & E2E tests
-│   └── e2e/               # Playwright tests
 ├── docker-compose.yml     # Production: PostgreSQL + TiTiler
 ├── docker-compose.dev.yml # Development: PostgreSQL + TiTiler (port exposed)
 └── package.json           # Root project scripts
@@ -53,18 +49,21 @@ docker-compose up -d
 ```
 
 This starts:
+
 - **PostgreSQL** on port 5432 (database: `samsyn`, user: `samsyn`, password: `samsyn`)
 - **TiTiler** for GeoTIFF tile serving (port 8001 in dev, internal only in production)
 
 ### 3. Configure Environment Variables
 
 **Frontend** (`frontend/.env.local`):
+
 ```env
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
 VITE_API_URL=http://localhost:8000
 ```
 
 **Backend** (`backend/.env`):
+
 ```env
 DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn
 TEST_DATABASE_URL=postgresql://samsyn:samsyn@samsyn-db:5432/samsyn_test
@@ -76,6 +75,7 @@ TITILER_URL=http://host.docker.internal:8001
 ```
 
 > **See detailed setup instructions:**
+>
 > - [Frontend README](frontend/README.md#authentication-setup-clerk) - Clerk setup for frontend
 > - [Backend README](backend/README.md) - Backend configuration
 
@@ -88,25 +88,31 @@ npm run migrate
 ### 5. Start Development Servers
 
 **Terminal 1: Frontend**
+
 ```bash
 npm run dev
 ```
+
 Frontend at http://localhost:3000
 
 **Terminal 2: Backend**
+
 ```bash
 npm run dev:backend
 ```
+
 Backend at http://localhost:8000 (API docs: http://localhost:8000/docs)
 
 ## Documentation
 
 ### Component Documentation
+
 - **[Frontend README](frontend/README.md)** - Frontend setup, development, and architecture
 - **[Backend README](backend/README.md)** - Backend API, testing, and database
 - **[CLAUDE.md](CLAUDE.md)** - Project instructions for AI assistants
 
 ### Key Topics
+
 - **Authentication**: See [Frontend README](frontend/README.md#authentication-setup-clerk) for Clerk setup
 - **Admin Users**: See [Frontend README](frontend/README.md#admin-users) for granting admin access
 - **Database Migrations**: See [Database Migrations](#database-migrations) below
@@ -115,6 +121,7 @@ Backend at http://localhost:8000 (API docs: http://localhost:8000/docs)
 ## Development Commands
 
 ### Frontend
+
 ```bash
 npm run dev         # Start dev server (port 3000)
 npm run build       # Production build
@@ -124,33 +131,29 @@ npm run check       # Lint and format (auto-fix)
 ```
 
 ### Backend
+
 ```bash
 npm run dev:backend # Start backend server (port 8000)
 npm run migrate     # Run database migrations
 npm run migrate:new # Create new migration: npm run migrate:new "description"
 ```
 
-### Testing
-```bash
-npm test              # Run E2E tests (auto-starts dev server)
-npm run test:headed   # Run with visible browser
-npm run test:ui       # Interactive UI mode
-npm run test:report   # View test report
-```
-
 ## Database Migrations
 
 **Create a new migration** (after modifying models):
+
 ```bash
 npm run migrate:new "description of changes"
 ```
 
 **Apply migrations**:
+
 ```bash
 npm run migrate
 ```
 
 **Manual migration commands**:
+
 ```bash
 cd backend
 uv run alembic revision --autogenerate -m "description"
@@ -162,12 +165,13 @@ uv run alembic downgrade -1  # Rollback one migration
 
 The project uses two Docker Compose configurations:
 
-| File | Purpose | TiTiler Access |
-|------|---------|----------------|
-| `docker-compose.dev.yml` | Development | Exposed on port 8001 |
-| `docker-compose.yml` | Production | Internal only (via backend proxy) |
+| File                     | Purpose     | TiTiler Access                    |
+| ------------------------ | ----------- | --------------------------------- |
+| `docker-compose.dev.yml` | Development | Exposed on port 8001              |
+| `docker-compose.yml`     | Production  | Internal only (via backend proxy) |
 
 Both include:
+
 - **PostgreSQL + PostGIS**: Database on port 5432
 - **TiTiler**: Dynamic tile server for GeoTIFFs
 
@@ -178,6 +182,7 @@ Both include:
 ## Tech Stack
 
 ### Frontend
+
 - React 18 + TypeScript
 - Vite (build tool)
 - Tailwind CSS + shadcn/ui
@@ -185,6 +190,7 @@ Both include:
 - Clerk (authentication)
 
 ### Backend
+
 - Python 3.11+
 - FastAPI
 - SQLAlchemy + GeoAlchemy2
@@ -195,6 +201,7 @@ Both include:
 ## Troubleshooting
 
 ### Backend won't start
+
 ```bash
 # Ensure dependencies are installed
 cd backend && uv sync
@@ -207,6 +214,7 @@ cat backend/.env
 ```
 
 ### Database connection fails
+
 ```bash
 # Start database
 docker-compose -f docker-compose.dev.yml up -d
@@ -218,6 +226,7 @@ docker-compose -f docker-compose.dev.yml exec db psql -U samsyn -d samsyn -c "SE
 ```
 
 ### Frontend issues
+
 ```bash
 # Ensure dependencies are installed
 cd frontend && npm install
@@ -230,11 +239,14 @@ npm run dev
 ```
 
 ### Authentication issues
+
 See detailed troubleshooting in:
+
 - [Frontend README - Authentication Troubleshooting](frontend/README.md#troubleshooting)
 - [Backend README](backend/README.md)
 
 ### Port conflicts
+
 ```bash
 # Frontend (port 3000)
 lsof -ti:3000 | xargs kill -9
@@ -269,10 +281,9 @@ npm run migrate
 
 1. Create a feature branch
 2. Make your changes
-3. Run linting and tests:
+3. Run linting:
    ```bash
    npm run check           # Frontend linting/formatting
-   npm test                # E2E tests
    cd backend && uv run pytest tests/  # Backend tests
    ```
 4. Commit your changes

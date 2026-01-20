@@ -35,24 +35,13 @@ npm run check       # Lint and format with Biome (auto-fix)
 
 ## Testing
 
-### E2E Tests (Playwright)
-
-```bash
-npm test              # Run all e2e tests (auto-starts dev server)
-npm run test:headed   # Run with visible browser
-npm run test:ui       # Interactive UI mode
-npm run test:report   # View HTML report
-```
-
-Tests are in `tests/e2e/`. Page objects are in `tests/e2e/pages/`. Write new tests as `*.spec.ts` files.
-
 ### Console Error Check
 
 After frontend changes, run:
 
 ```bash
-npm run dev                    # Start dev server first
-python tests/test_console.py   # Check for console errors/warnings
+npm run dev                         # Start dev server first
+python frontend/tests/test_console.py   # Check for console errors/warnings
 ```
 
 ## Backend

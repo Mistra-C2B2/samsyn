@@ -2569,7 +2569,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		}, [mapLoaded]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
-		const activeLegend = visibleLayers.find((layer) => layer.legend);
+		const layersWithLegends = visibleLayers.filter((layer) => layer.legend);
 
 		// Collect unique attributions from visible layers
 		const visibleAttributions = Array.from(
@@ -2607,7 +2607,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						</p>
 					</div>
 				)}
-				{activeLegend && <Legend layer={activeLegend} />}
+				{/* {layersWithLegends.length > 0 && (
+				<div className="absolute bottom-6 left-6 flex flex-col gap-3">
+					{layersWithLegends.map((layer, index) => (
+						<Legend key={`legend-${layer.id}-${index}`} layer={layer} />
+					))}
+				</div>
+			)} */}
 				{/* Layer attributions */}
 				{visibleAttributions.length > 0 && (
 					<div className="absolute bottom-2 left-2 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-slate-600 max-w-[200px]">

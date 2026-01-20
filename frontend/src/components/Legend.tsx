@@ -8,7 +8,7 @@ export function Legend({ layer }: LegendProps) {
 	if (!layer.legend) return null;
 
 	return (
-		<div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur-sm rounded-lg border border-slate-200 p-3 shadow-lg max-w-xs">
+		<div className="bg-white/95 backdrop-blur-sm rounded-lg border border-slate-200 p-3 shadow-lg max-w-xs">
 			<h3 className="text-sm text-slate-900 mb-2">{layer.name}</h3>
 
 			{layer.legend.type === "gradient" ? (

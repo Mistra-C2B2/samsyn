@@ -51,6 +51,8 @@ npm run migrate        # Run database migrations
 npm run migrate:new    # Create new migration
 ```
 
+> **Note:** Frontend is located in `/workspace/frontend/`. Frontend development server is started via `npm run dev` from repository root.
+
 ## Testing
 
 ### Test Database Setup

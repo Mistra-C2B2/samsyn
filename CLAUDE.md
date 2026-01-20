@@ -19,19 +19,19 @@ npm run check       # Lint and format with Biome (auto-fix)
 
 ## Architecture
 
-- **State**: All in `src/App.tsx` via useState hooks, flows down through props
+- **State**: All in `frontend/src/App.tsx` via useState hooks, flows down through props
 - **Panels**: Only one side panel open at a time (LayerManager, MapSelector, Comments, LayerCreator, AdminPanel)
 - **Map**: MapLibre GL in `MapView.tsx` with drawing tools
-- **UI**: shadcn/ui components in `src/components/ui/`, path alias `@` → `./src`
+- **UI**: shadcn/ui components in `frontend/src/components/ui/`, path alias `@` → `./frontend/src`
 
 ## Key Files
 
-| File                              | Purpose                                         |
-| --------------------------------- | ----------------------------------------------- |
-| `src/App.tsx`                     | Root component, all state, Layer/UserMap types  |
-| `src/components/MapView.tsx`      | Map rendering, drawing tools                    |
-| `src/components/LayerManager.tsx` | Layer list, visibility, opacity, reordering     |
-| `src/components/LayerCreator.tsx` | Create/edit layers (draw, upload, WMS, GeoJSON) |
+| File                                      | Purpose                                         |
+| ----------------------------------------- | ----------------------------------------------- |
+| `frontend/src/App.tsx`                    | Root component, all state, Layer/UserMap types  |
+| `frontend/src/components/MapView.tsx`     | Map rendering, drawing tools                    |
+| `frontend/src/components/LayerManager.tsx`| Layer list, visibility, opacity, reordering     |
+| `frontend/src/components/LayerCreator.tsx`| Create/edit layers (draw, upload, WMS, GeoJSON) |
 
 ## Testing
 

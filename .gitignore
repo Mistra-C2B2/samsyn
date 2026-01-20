@@ -12,6 +12,7 @@ dist
 build
 dist-ssr
 *.local
+.vite
 
 # Editor directories and files
 .vscode/*
@@ -43,4 +44,4 @@ __pycache__/
 !.env.*.example
 
 test-results
-playwright-report
+playwright-report.claude/

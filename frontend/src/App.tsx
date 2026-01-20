@@ -429,6 +429,7 @@ function AppContent() {
 	}, [loadMaps]);
 
 	// Restore session after maps are loaded
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Deliberately omitting sessionState/updateSession/maps.find to run only once on mount
 	useEffect(() => {
 		// Only run once after maps are loaded
 		if (mapsLoading || maps.length === 0) return;
@@ -474,7 +475,7 @@ function AppContent() {
 
 		// Restore time range
 		setCurrentTimeRange([timeRange.start, timeRange.end]);
-	}, [mapsLoading, maps.length, maps.find, sessionState, updateSession]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [mapsLoading, maps.length]); // eslint-disable-line react-hooks/exhaustive-deps
 	// Note: Deliberately omitting sessionState and setter functions from deps to run only once
 
 	// Load comments when map changes
@@ -485,6 +486,7 @@ function AppContent() {
 	}, [currentMap?.id, loadComments]);
 
 	// Session persistence - Watch currentMap changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: We intentionally track specific properties to avoid infinite loops
 	useEffect(() => {
 		if (!currentMap) {
 			updateSession({ mapId: null, mapView: null });
@@ -497,13 +499,7 @@ function AppContent() {
 				},
 			});
 		}
-	}, [
-		currentMap?.id,
-		currentMap?.center,
-		currentMap?.zoom,
-		updateSession,
-		currentMap,
-	]);
+	}, [currentMap?.id, currentMap?.center, currentMap?.zoom, updateSession]);
 
 	// Session persistence - Watch panel state changes
 	useEffect(() => {

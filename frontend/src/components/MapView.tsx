@@ -452,6 +452,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const onMapViewChangeRef = useRef(onMapViewChange);
 		const currentPopupRef = useRef<maplibregl.Popup | null>(null);
 		const initialPropsRef = useRef({ center, zoom, basemap });
+		const prevViewRef = useRef({ center, zoom });
 		const [mapLoaded, setMapLoaded] = useState(false);
 		const [mouseCoordinates, setMouseCoordinates] = useState<{
 			lng: number;
@@ -1229,6 +1230,24 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		// Handle center/zoom changes when switching maps
 		useEffect(() => {
 			if (!mapRef.current || !mapLoaded) return;
+
+			// Check if center or zoom actually changed significantly to prevent infinite loops
+			// Use a tolerance threshold to ignore tiny floating point differences from panning
+			const POSITION_THRESHOLD = 0.001; // ~111 meters at equator
+			const ZOOM_THRESHOLD = 0.1;
+
+			const centerChanged =
+				Math.abs(prevViewRef.current.center[0] - center[0]) >
+					POSITION_THRESHOLD ||
+				Math.abs(prevViewRef.current.center[1] - center[1]) >
+					POSITION_THRESHOLD;
+			const zoomChanged =
+				Math.abs(prevViewRef.current.zoom - zoom) > ZOOM_THRESHOLD;
+
+			if (!centerChanged && !zoomChanged) return;
+
+			// Update ref before setting map position
+			prevViewRef.current = { center, zoom };
 
 			const map = mapRef.current;
 			map.setCenter([center[1], center[0]]);

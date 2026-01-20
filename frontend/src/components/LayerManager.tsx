@@ -849,8 +849,8 @@ export function LayerManager({
 				<DialogContent className="max-w-md">
 					<DialogHeader>
 						<DialogTitle>{selectedLayerInfo?.name}</DialogTitle>
-						<DialogDescription className="capitalize">
-							{selectedLayerInfo?.type} Layer
+						<DialogDescription>
+							{selectedLayerInfo?.isGlobal ? "Library" : "Community"} Layer
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4 py-4">

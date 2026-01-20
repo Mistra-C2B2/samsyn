@@ -118,7 +118,8 @@ export class MapService {
 		const layers = mapResponse.map_layers
 			.filter((ml) => ml.layer) // Only include layers that have full layer data
 			.map((mapLayer) => {
-				const layerResponse = mapLayer.layer!;
+				const layerResponse = mapLayer.layer;
+				if (!layerResponse) throw new Error("Layer data missing");
 
 				// Determine frontend layer type based on source_type
 				let frontendType: "geojson" | "raster" | "vector" | "heatmap" =

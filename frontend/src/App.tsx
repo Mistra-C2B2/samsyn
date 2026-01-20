@@ -474,7 +474,7 @@ function AppContent() {
 
 		// Restore time range
 		setCurrentTimeRange([timeRange.start, timeRange.end]);
-	}, [mapsLoading, maps.length]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [mapsLoading, maps.length, maps.find, sessionState, updateSession]); // eslint-disable-line react-hooks/exhaustive-deps
 	// Note: Deliberately omitting sessionState and setter functions from deps to run only once
 
 	// Load comments when map changes
@@ -497,7 +497,13 @@ function AppContent() {
 				},
 			});
 		}
-	}, [currentMap?.id, currentMap?.center, currentMap?.zoom, updateSession]);
+	}, [
+		currentMap?.id,
+		currentMap?.center,
+		currentMap?.zoom,
+		updateSession,
+		currentMap,
+	]);
 
 	// Session persistence - Watch panel state changes
 	useEffect(() => {
@@ -1631,7 +1637,9 @@ function AppContent() {
 							if (markerIds.length > 0) {
 								setMarkerFeatureIds((prev) => {
 									const next = new Set(prev);
-									markerIds.forEach((id) => next.add(id));
+									for (const id of markerIds) {
+										next.add(id);
+									}
 									return next;
 								});
 							}

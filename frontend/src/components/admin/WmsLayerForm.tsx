@@ -332,6 +332,7 @@ export function WmsLayerForm({
 							stroke="currentColor"
 							viewBox="0 0 24 24"
 						>
+							<title>Time icon</title>
 							<path
 								strokeLinecap="round"
 								strokeLinejoin="round"

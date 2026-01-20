@@ -63,7 +63,7 @@ export function DrawingModePanel({ onStartDrawing }: DrawingModePanelProps) {
 
 	return (
 		<div className="space-y-3 border-t border-slate-200 pt-4">
-			<label className="text-sm font-medium">Drawing Tools</label>
+			<div className="text-sm font-medium">Drawing Tools</div>
 
 			{/* Points & Lines */}
 			<div className="grid grid-cols-2 gap-2">

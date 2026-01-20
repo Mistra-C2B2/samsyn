@@ -296,7 +296,7 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 			}
 
 			// Add colormap if specified
-			if (geotiffState.colormap && geotiffState.colormap.trim()) {
+			if (geotiffState.colormap?.trim()) {
 				layerData.geotiffColormap = geotiffState.colormap.trim();
 			}
 
@@ -306,7 +306,7 @@ export function useAdminLayerForm(_options: UseAdminLayerFormOptions = {}) {
 			}
 
 			// Add band index if specified
-			if (geotiffState.bidx && geotiffState.bidx.trim()) {
+			if (geotiffState.bidx?.trim()) {
 				layerData.geotiffBidx = geotiffState.bidx.trim();
 			}
 		}

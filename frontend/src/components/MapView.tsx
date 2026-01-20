@@ -21,7 +21,7 @@ import { Legend } from "./Legend";
 
 // TerraDraw is loaded dynamically to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let TerradrawControlClass: any = null;
+let TerradrawControlClass: unknown = null;
 
 // Marker icon SVGs as data URLs for MapLibre
 // These are based on Lucide icons and will be rendered as map symbols
@@ -339,7 +339,7 @@ const formatFeatureInfoHTML = (
 				// Format numeric values
 				if (key === "DEFAULT" && typeof value === "string") {
 					const num = parseFloat(value);
-					if (!isNaN(num)) {
+					if (!Number.isNaN(num)) {
 						displayValue = num.toFixed(2);
 					}
 				}
@@ -444,7 +444,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const mapContainerRef = useRef<HTMLDivElement>(null);
 		const mapRef = useRef<maplibregl.Map | null>(null);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const drawRef = useRef<any>(null);
+		const drawRef = useRef<unknown>(null);
 		const onDrawCompleteRef = useRef(onDrawComplete);
 		const onTerraDrawChangeRef = useRef(onTerraDrawChange);
 		const onFeatureClickRef = useRef(onFeatureClick);
@@ -461,7 +461,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		const mapLoadedRef = useRef(false);
 		const previousLayerIdsRef = useRef<Set<string>>(new Set());
 		// Counter to force layer re-rendering after basemap changes
-		const [styleReloadCounter, setStyleReloadCounter] = useState(0);
+		const [_styleReloadCounter, setStyleReloadCounter] = useState(0);
 		// Track when basemap is changing to prevent layer effect from running during transition
 		const isChangingBasemapRef = useRef(false);
 		// Track previous basemap to detect actual changes vs initial load
@@ -1169,7 +1169,9 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 							if (onDrawCompleteRef.current) {
 								const snapshot = terraDraw.getSnapshot();
 								// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								const feature = snapshot.find((f: any) => f.id === id);
+								const feature = snapshot.find(
+									(f: unknown) => (f as { id: string }).id === id,
+								);
 								if (feature) {
 									onDrawCompleteRef.current(feature);
 									// Don't clear here - keep the drawing visible until the layer is created
@@ -1533,7 +1535,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					// Create color expression
 					// If layer has explicit color set, use it for ALL features (overrides feature properties)
 					// Otherwise, check feature properties, then intensity, then default
-					let colorExpression: any;
+					let colorExpression: string | unknown[];
 
 					if (layer.color) {
 						// Layer-level color is set - use it for ALL features
@@ -2083,7 +2085,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			for (const tdLayerId of terraDrawLayers) {
 				map.moveLayer(tdLayerId);
 			}
-		}, [layers, mapLoaded, styleReloadCounter, basemap]);
+		}, [layers, mapLoaded]);
 
 		// Handle layer selection - pan/zoom to fit layer bounds
 		useEffect(() => {
@@ -2102,7 +2104,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			const processCoordinates = (coords: unknown, geometryType: string) => {
 				if (geometryType === "Point") {
 					const [lng, lat] = coords as [number, number];
-					if (isFinite(lng) && isFinite(lat)) {
+					if (Number.isFinite(lng) && Number.isFinite(lat)) {
 						bounds.extend([lng, lat]);
 						hasValidCoords = true;
 					}
@@ -2111,7 +2113,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					geometryType === "MultiPoint"
 				) {
 					(coords as [number, number][]).forEach(([lng, lat]) => {
-						if (isFinite(lng) && isFinite(lat)) {
+						if (Number.isFinite(lng) && Number.isFinite(lat)) {
 							bounds.extend([lng, lat]);
 							hasValidCoords = true;
 						}
@@ -2122,7 +2124,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				) {
 					(coords as [number, number][][]).forEach((ring) => {
 						ring.forEach(([lng, lat]) => {
-							if (isFinite(lng) && isFinite(lat)) {
+							if (Number.isFinite(lng) && Number.isFinite(lat)) {
 								bounds.extend([lng, lat]);
 								hasValidCoords = true;
 							}
@@ -2132,7 +2134,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 					(coords as [number, number][][][]).forEach((polygon) => {
 						polygon.forEach((ring) => {
 							ring.forEach(([lng, lat]) => {
-								if (isFinite(lng) && isFinite(lat)) {
+								if (Number.isFinite(lng) && Number.isFinite(lat)) {
 									bounds.extend([lng, lat]);
 									hasValidCoords = true;
 								}
@@ -2349,6 +2351,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				lngLat: maplibregl.LngLat,
 			) => {
 				if (!onWMSFeatureInfoRequestRef.current) return;
+				if (!layer.wmsUrl || !layer.wmsLayerName) return;
 
 				// Build GetFeatureInfo request params
 				const bounds = map.getBounds();
@@ -2362,8 +2365,8 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 
 				try {
 					const result = await onWMSFeatureInfoRequestRef.current({
-						wmsUrl: layer.wmsUrl!,
-						layers: layer.wmsLayerName!,
+						wmsUrl: layer.wmsUrl,
+						layers: layer.wmsLayerName,
 						bbox,
 						width,
 						height,
@@ -2428,22 +2431,26 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				const features = map.queryRenderedFeatures(e.point);
 
 				// Group by base layer ID (remove -fill, -marker suffixes)
-				const layerFeatureMap = new Map<string, any[]>();
+				const layerFeatureMap = new Map<
+					string,
+					maplibregl.MapGeoJSONFeature[]
+				>();
 				for (const feature of features) {
 					const layerId = getOriginalLayerId(feature.layer.id);
 					const layer = layers.find((l) => l.id === layerId);
-					if (layer && layer.visible) {
+					if (layer?.visible) {
 						if (!layerFeatureMap.has(layerId)) {
 							layerFeatureMap.set(layerId, []);
 						}
-						layerFeatureMap.get(layerId)!.push(feature);
+						layerFeatureMap.get(layerId)?.push(feature);
 					}
 				}
 
 				// Build sections for vector layers (immediate)
 				const sections: PopupSection[] = [];
 				for (const [layerId, features] of layerFeatureMap.entries()) {
-					const layer = layers.find((l) => l.id === layerId)!;
+					const layer = layers.find((l) => l.id === layerId);
+					if (!layer) continue;
 					const layerIndex = layers.indexOf(layer);
 
 					if (features.length > 0) {
@@ -2504,7 +2511,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 			return () => {
 				map.off("click", handleUnifiedClick);
 			};
-		}, [mapLoaded, layers, drawingMode]);
+		}, [mapLoaded, layers, drawingMode, showPopup]);
 
 		// Track mouse coordinates for display
 		useEffect(() => {

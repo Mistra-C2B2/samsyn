@@ -87,7 +87,7 @@ export function LayerManager({
 	layers,
 	availableLayers,
 	myLayers = [],
-	onRefreshMyLayers,
+	onRefreshMyLayers: _onRefreshMyLayers,
 	onUpdateMyLayerVisibility,
 	mapName,
 	basemap,
@@ -735,7 +735,7 @@ export function LayerManager({
 																size="sm"
 																onClick={(e) => {
 																	e.stopPropagation();
-																	onZoomToLayer(bounds!);
+																	onZoomToLayer(bounds);
 																}}
 																className="flex-shrink-0"
 																title="Zoom to layer extent"
@@ -972,21 +972,18 @@ export function LayerManager({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Remove layer from map?</AlertDialogTitle>
 						<AlertDialogDescription>
-							{layerToDelete && (
-								<>
-									{availableLayers.some((l) => l.id === layerToDelete.id) ? (
-										<>
-											This will remove "{layerToDelete.name}" from this map. The
-											layer will still be available in the Library.
-										</>
-									) : (
-										<>
-											This will remove "{layerToDelete.name}" from this map. You
-											can re-add it from "My Layers" later.
-										</>
-									)}
-								</>
-							)}
+							{layerToDelete &&
+								(availableLayers.some((l) => l.id === layerToDelete.id) ? (
+									<>
+										This will remove "{layerToDelete.name}" from this map. The
+										layer will still be available in the Library.
+									</>
+								) : (
+									<>
+										This will remove "{layerToDelete.name}" from this map. You
+										can re-add it from "My Layers" later.
+									</>
+								))}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3.11 \
   python3-pip \
   python3-venv \
+  postgresql-client \
   libsdl2-dev \
   libsdl2-image-dev \
   libsdl2-mixer-dev \
@@ -107,9 +108,15 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
+# Create symlink for reliable access
+USER root
+RUN ln -s /usr/local/share/npm-global/bin/claude /usr/local/bin/claude
+USER node
+
 # # Install uv and Python tools
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     /home/node/.local/bin/uv tool install black && \
+    /home/node/.local/bin/uv tool install pgcli && \
     /home/node/.local/bin/uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
 
 # Install Playwright in a dedicated venv

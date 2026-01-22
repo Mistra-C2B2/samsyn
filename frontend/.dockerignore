@@ -1,0 +1,15 @@
+node_modules
+build
+.env.local
+.env
+npm-debug.log
+.git
+.gitignore
+README.md
+test-results
+playwright-report
+*.md
+.vscode
+.idea
+coverage
+dist

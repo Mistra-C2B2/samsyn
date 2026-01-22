@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: samsyn-db
+    environment:
+      POSTGRES_USER: samsyn
+      POSTGRES_PASSWORD: samsyn
+      POSTGRES_DB: samsyn
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - samsyn-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samsyn"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    container_name: samsyn-titiler
+    # In production: Do NOT expose ports - only accessible via internal network
+    # In development: Use docker-compose.dev.yml which exposes port 8001
+    networks:
+      - samsyn-network
+    environment:
+      # No CORS needed - only backend accesses TiTiler internally
+      TITILER_API_CORS_ORIGINS: ""
+      # Cache settings for better performance
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "200000000"
+      GDAL_DISABLE_READDIR_ON_OPEN: "EMPTY_DIR"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.TIF,.tiff,.TIFF"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  samsyn-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

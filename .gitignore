@@ -9,8 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+build
 dist-ssr
 *.local
+.vite
 
 # Editor directories and files
 .vscode/*
@@ -23,5 +25,23 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude 
+# Claude
 .claude
+
+# Python
+.venv
+venv
+*.pyc
+__pycache__/
+*__pycache__*/
+*.egg-info/
+.eggs/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+test-results
+playwright-report.claude/

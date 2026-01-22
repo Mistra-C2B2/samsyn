@@ -3,13 +3,9 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 # Phase 2: Authentication endpoints
-from app.api.v1 import test_auth, test_webhooks, webhooks  # noqa: E402
+from app.api.v1 import webhooks  # noqa: E402
 
 api_router.include_router(webhooks.router)
-api_router.include_router(test_auth.router)
-api_router.include_router(
-    test_webhooks.router
-)  # For local testing without signatures  # TODO: Remove after Phase 2 testing
 
 # Phase 3: Maps CRUD
 from app.api.v1 import maps  # noqa: E402

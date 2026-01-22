@@ -33,6 +33,7 @@ stopwords = [
     '''YOUR_KEY_HERE''',
     '''YOUR_JWT_TOKEN''',
     '''your-secret-here''',
+    '''Bearer YOUR_JWT_TOKEN''',
     '''pk_test_''',  # Clerk test keys are safe to commit
     '''sk_test_''',  # Clerk test keys are safe to commit
 ]

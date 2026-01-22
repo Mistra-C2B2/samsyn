@@ -1,0 +1,37 @@
+# Gitleaks configuration for SamSyn
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "SamSyn Gitleaks Configuration"
+
+[extend]
+# useDefault will extend the base configuration with the default gitleaks config:
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+useDefault = true
+
+[allowlist]
+description = "Allowlisted files and patterns"
+
+# Ignore example/template environment files
+paths = [
+    '''.env.example''',
+    '''.env.prod.example''',
+    '''.env.local.example''',
+]
+
+# Ignore test files with dummy credentials
+regexes = [
+    '''test_.*''',
+    '''dummy.*''',
+    '''example.*''',
+]
+
+# Ignore specific patterns that are false positives
+stopwords = [
+    # Common false positives
+    '''EXAMPLE''',
+    '''example''',
+    '''YOUR_KEY_HERE''',
+    '''your-secret-here''',
+    '''pk_test_''',  # Clerk test keys are safe to commit
+    '''sk_test_''',  # Clerk test keys are safe to commit
+]

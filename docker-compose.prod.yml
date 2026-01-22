@@ -1,0 +1,202 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: samsyn-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-samsyn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-samsyn}
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+      POSTGRES_WORK_MEM: ${POSTGRES_WORK_MEM:-16MB}
+      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM:-128MB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - samsyn-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-samsyn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # TiTiler for GeoTIFF serving
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    container_name: samsyn-titiler-prod
+    restart: unless-stopped
+    networks:
+      - samsyn-network
+    environment:
+      # Production: no CORS (accessed via backend only)
+      TITILER_API_CORS_ORIGINS: ""
+      # Cache settings
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "500000000"
+      GDAL_DISABLE_READDIR_ON_OPEN: "EMPTY_DIR"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.TIF,.tiff,.TIFF"
+      # Performance
+      GDAL_CACHEMAX: "512"
+      GDAL_HTTP_MAX_RETRY: "3"
+      GDAL_HTTP_RETRY_DELAY: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: samsyn-backend-prod
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-samsyn}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-samsyn}
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-samsyn}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-samsyn}_test
+      # Clerk Authentication
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
+      # Frontend URL
+      FRONTEND_URL: ${FRONTEND_URL}
+      # Services
+      TITILER_URL: http://titiler:80
+      # Mode
+      DEV_MODE: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      titiler:
+        condition: service_healthy
+    networks:
+      - samsyn-network
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.samsyn-backend.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/redoc`))"
+      - "traefik.http.routers.samsyn-backend.entrypoints=websecure"
+      - "traefik.http.routers.samsyn-backend.tls.certresolver=LEresolver"
+      - "traefik.http.services.samsyn-backend.loadbalancer.server.port=8000"
+      # Rate limiting middleware
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.burst=50"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.period=1m"
+      # Security headers middleware
+      - "traefik.http.middlewares.backend-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.backend-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.backend-security.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.backend-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.backend-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.backend-security.headers.stsPreload=true"
+      - "traefik.http.middlewares.backend-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.backend-security.headers.permissionsPolicy=geolocation=(), microphone=(), camera=()"
+      # Chain middlewares
+      - "traefik.http.routers.samsyn-backend.middlewares=backend-ratelimit,backend-security"
+      - "traefik.docker.network=proxy"
+
+  # Frontend (served by nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_GFW_API_TOKEN: ${VITE_GFW_API_TOKEN}
+    container_name: samsyn-frontend-prod
+    restart: unless-stopped
+    networks:
+      - samsyn-network
+      - proxy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/health",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.samsyn-frontend.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.samsyn-frontend.entrypoints=websecure"
+      - "traefik.http.routers.samsyn-frontend.tls.certresolver=LEresolver"
+      - "traefik.http.services.samsyn-frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.samsyn-frontend.priority=1"
+      # Rate limiting middleware
+      - "traefik.http.middlewares.frontend-ratelimit.ratelimit.average=200"
+      - "traefik.http.middlewares.frontend-ratelimit.ratelimit.burst=100"
+      - "traefik.http.middlewares.frontend-ratelimit.ratelimit.period=1m"
+      # Security headers middleware
+      - "traefik.http.middlewares.frontend-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.frontend-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.frontend-security.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.frontend-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.frontend-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.frontend-security.headers.stsPreload=true"
+      - "traefik.http.middlewares.frontend-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.frontend-security.headers.permissionsPolicy=geolocation=(self), microphone=(), camera=()"
+      - "traefik.http.middlewares.frontend-security.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow,nosnippet,noarchive"
+      # Chain middlewares
+      - "traefik.http.routers.samsyn-frontend.middlewares=frontend-ratelimit,frontend-security"
+      - "traefik.docker.network=proxy"
+
+  # Backup service (runs pg_dump on schedule)
+  backup:
+    image: postgres:16-alpine
+    container_name: samsyn-backup-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-samsyn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-samsyn}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - samsyn-network
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          sleep 1h
+          if [ $$(date +%H) = "02" ]; then
+            /backup.sh
+          fi
+        done
+
+networks:
+  samsyn-network:
+    driver: bridge
+  proxy:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: local

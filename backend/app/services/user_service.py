@@ -9,16 +9,17 @@ Handles all user CRUD operations including:
 - Deleted user placeholder management
 """
 
-from uuid import UUID
 from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from uuid import UUID
 
-from app.models.user import User
-from app.models.map import Map
-from app.models.layer import Layer
-from app.models.comment import Comment
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.models.collaborator import MapCollaborator
+from app.models.comment import Comment
+from app.models.layer import Layer
+from app.models.map import Map
+from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 
 
@@ -201,7 +202,9 @@ class UserService:
 
         return True
 
-    def _find_new_map_owner(self, map_id: UUID, current_owner_id: UUID) -> Optional[UUID]:
+    def _find_new_map_owner(
+        self, map_id: UUID, current_owner_id: UUID
+    ) -> Optional[UUID]:
         """
         Find the best candidate to become the new map owner.
 
@@ -260,6 +263,7 @@ class UserService:
             True if deleted or already gone, False on error
         """
         import httpx
+
         from app.config import settings
 
         if not settings.CLERK_SECRET_KEY:
@@ -353,7 +357,10 @@ class UserService:
 
         for map_id in user_map_ids:
             new_owner_id = self._find_new_map_owner(map_id, user_id)
-            print(f"DEBUG: Map {map_id} - new_owner_id: {new_owner_id}, will use placeholder: {new_owner_id is None}")
+            print(
+                f"DEBUG: Map {map_id} - new_owner_id: {new_owner_id}, "
+                f"will use placeholder: {new_owner_id is None}"
+            )
 
             target_owner_id = new_owner_id if new_owner_id else placeholder_id
 
@@ -399,9 +406,7 @@ class UserService:
 
         return True
 
-    def get_or_create(
-        self, clerk_id: str, user_data: UserCreate
-    ) -> tuple[User, bool]:
+    def get_or_create(self, clerk_id: str, user_data: UserCreate) -> tuple[User, bool]:
         """
         Get existing user or create new one.
 

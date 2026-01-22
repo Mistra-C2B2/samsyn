@@ -8,12 +8,13 @@ WARNING: This is for development/testing only. Remove before production!
 """
 
 from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.user_service import UserService
 from app.schemas.user import UserCreate, UserUpdate
+from app.services.user_service import UserService
 
 router = APIRouter(prefix="/test-webhooks", tags=["test-webhooks"])
 
@@ -71,7 +72,12 @@ async def test_clerk_webhook(
             action = "Created" if created else "Found existing"
             print(f"✅ {action} user: {user.clerk_id} ({user.email})")
 
-            return {"status": "success", "event": event_type, "user_id": str(user.id), "created": created}
+            return {
+                "status": "success",
+                "event": event_type,
+                "user_id": str(user.id),
+                "created": created,
+            }
 
         elif event_type == "user.updated":
             clerk_id = data.get("id")
@@ -97,10 +103,18 @@ async def test_clerk_webhook(
             user = user_service.update_user(clerk_id, user_data)
             if user:
                 print(f"✅ Updated user: {user.clerk_id}")
-                return {"status": "success", "event": event_type, "user_id": str(user.id)}
+                return {
+                    "status": "success",
+                    "event": event_type,
+                    "user_id": str(user.id),
+                }
             else:
                 print(f"⚠️ User not found: {clerk_id}")
-                return {"status": "error", "event": event_type, "message": "User not found"}
+                return {
+                    "status": "error",
+                    "event": event_type,
+                    "message": "User not found",
+                }
 
         elif event_type == "user.deleted":
             clerk_id = data.get("id")
@@ -111,7 +125,11 @@ async def test_clerk_webhook(
 
         else:
             print(f"⚠️ Unknown event type: {event_type}")
-            return {"status": "ignored", "event": event_type, "message": "Unknown event type"}
+            return {
+                "status": "ignored",
+                "event": event_type,
+                "message": "Unknown event type",
+            }
 
     except Exception as e:
         print(f"❌ Error processing webhook: {str(e)}")

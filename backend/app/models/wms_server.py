@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -9,6 +10,7 @@ from app.database import Base
 
 class WmsServer(Base):
     """Saved WMS server configuration for easy layer discovery"""
+
     __tablename__ = "wms_servers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

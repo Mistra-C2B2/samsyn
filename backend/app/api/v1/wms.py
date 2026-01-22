@@ -114,7 +114,9 @@ def _find_elem(root: ET.Element, ns: dict, with_ns_path: str, without_ns_path: s
     return root.find(without_ns_path)
 
 
-def _find_all_elems(root: ET.Element, ns: dict, with_ns_path: str, without_ns_path: str):
+def _find_all_elems(
+    root: ET.Element, ns: dict, with_ns_path: str, without_ns_path: str
+):
     """Helper to find all elements with or without namespace."""
     if ns:
         return root.findall(with_ns_path, ns)
@@ -166,20 +168,24 @@ def parse_wms_capabilities(xml_content: str) -> dict:
         service_title = title_elem.text
 
     # Parse service abstract
-    abstract_elem = _find_elem(root, ns, ".//wms:Service/wms:Abstract", ".//Service/Abstract")
+    abstract_elem = _find_elem(
+        root, ns, ".//wms:Service/wms:Abstract", ".//Service/Abstract"
+    )
     if abstract_elem is not None and abstract_elem.text:
         service_abstract = abstract_elem.text.strip()
 
     # Parse contact information
     org_elem = _find_elem(
-        root, ns,
+        root,
+        ns,
         ".//wms:Service/wms:ContactInformation/wms:ContactPersonPrimary/wms:ContactOrganization",
-        ".//Service/ContactInformation/ContactPersonPrimary/ContactOrganization"
+        ".//Service/ContactInformation/ContactPersonPrimary/ContactOrganization",
     )
     email_elem = _find_elem(
-        root, ns,
+        root,
+        ns,
         ".//wms:Service/wms:ContactInformation/wms:ContactElectronicMailAddress",
-        ".//Service/ContactInformation/ContactElectronicMailAddress"
+        ".//Service/ContactInformation/ContactElectronicMailAddress",
     )
     if org_elem is not None and org_elem.text and org_elem.text.strip():
         service_provider = org_elem.text.strip()
@@ -187,8 +193,14 @@ def parse_wms_capabilities(xml_content: str) -> dict:
         service_contact_email = email_elem.text.strip()
 
     # Parse access constraints
-    constraints_elem = _find_elem(root, ns, ".//wms:Service/wms:AccessConstraints", ".//Service/AccessConstraints")
-    if constraints_elem is not None and constraints_elem.text and constraints_elem.text.strip():
+    constraints_elem = _find_elem(
+        root, ns, ".//wms:Service/wms:AccessConstraints", ".//Service/AccessConstraints"
+    )
+    if (
+        constraints_elem is not None
+        and constraints_elem.text
+        and constraints_elem.text.strip()
+    ):
         service_access_constraints = constraints_elem.text.strip()
 
     # Parse fees
@@ -198,9 +210,10 @@ def parse_wms_capabilities(xml_content: str) -> dict:
 
     # Parse supported GetMap formats
     getmap_format_elems = _find_all_elems(
-        root, ns,
+        root,
+        ns,
         ".//wms:Capability/wms:Request/wms:GetMap/wms:Format",
-        ".//Capability/Request/GetMap/Format"
+        ".//Capability/Request/GetMap/Format",
     )
     for fmt_elem in getmap_format_elems:
         if fmt_elem.text:
@@ -208,16 +221,19 @@ def parse_wms_capabilities(xml_content: str) -> dict:
 
     # Parse supported GetFeatureInfo formats
     gfi_format_elems = _find_all_elems(
-        root, ns,
+        root,
+        ns,
         ".//wms:Capability/wms:Request/wms:GetFeatureInfo/wms:Format",
-        ".//Capability/Request/GetFeatureInfo/Format"
+        ".//Capability/Request/GetFeatureInfo/Format",
     )
     for fmt_elem in gfi_format_elems:
         if fmt_elem.text:
             getfeatureinfo_formats.append(fmt_elem.text.strip())
 
     # Find all Layer elements (skip the root capability layer)
-    layer_elements = _find_all_elems(root, ns, ".//wms:Layer/wms:Layer", ".//Layer/Layer")
+    layer_elements = _find_all_elems(
+        root, ns, ".//wms:Layer/wms:Layer", ".//Layer/Layer"
+    )
     if not layer_elements:
         layer_elements = _find_all_elems(root, ns, ".//wms:Layer", ".//Layer")
 
@@ -258,19 +274,28 @@ def parse_wms_capabilities(xml_content: str) -> dict:
         for style_elem in style_elems:
             style_name_elem = _find_elem(style_elem, ns, "wms:Name", "Name")
             style_title_elem = _find_elem(style_elem, ns, "wms:Title", "Title")
-            legend_url_elem = _find_elem(style_elem, ns, "wms:LegendURL/wms:OnlineResource", "LegendURL/OnlineResource")
+            legend_url_elem = _find_elem(
+                style_elem,
+                ns,
+                "wms:LegendURL/wms:OnlineResource",
+                "LegendURL/OnlineResource",
+            )
 
             if style_name_elem is not None and style_name_elem.text:
                 legend_url = None
                 if legend_url_elem is not None:
-                    legend_url = legend_url_elem.get("{http://www.w3.org/1999/xlink}href")
+                    legend_url = legend_url_elem.get(
+                        "{http://www.w3.org/1999/xlink}href"
+                    )
                     if legend_url is None:
                         legend_url = legend_url_elem.get("href")
 
                 styles.append(
                     WMSStyle(
                         name=style_name_elem.text,
-                        title=style_title_elem.text if style_title_elem is not None else style_name_elem.text,
+                        title=style_title_elem.text
+                        if style_title_elem is not None
+                        else style_name_elem.text,
                         legend_url=legend_url,
                     )
                 )
@@ -313,8 +338,12 @@ def parse_wms_capabilities(xml_content: str) -> dict:
         if name_elem is not None and name_elem.text:
             layer = WMSLayer(
                 name=name_elem.text,
-                title=layer_title_elem.text if layer_title_elem is not None else name_elem.text,
-                abstract=layer_abstract_elem.text if layer_abstract_elem is not None else None,
+                title=layer_title_elem.text
+                if layer_title_elem is not None
+                else name_elem.text,
+                abstract=layer_abstract_elem.text
+                if layer_abstract_elem is not None
+                else None,
                 queryable=layer_elem.get("queryable") == "1",
                 dimensions=dimensions,
                 styles=styles,
@@ -432,10 +461,14 @@ async def get_wms_feature_info(
     height: int = Query(..., description="Map height in pixels"),
     x: int = Query(..., description="X pixel coordinate of query point"),
     y: int = Query(..., description="Y pixel coordinate of query point"),
-    info_format: str = Query("text/html", description="Response format (text/html is most widely supported)"),
+    info_format: str = Query(
+        "text/html", description="Response format (text/html is most widely supported)"
+    ),
     time: Optional[str] = Query(None, description="TIME parameter for temporal layers"),
     version: str = Query("1.3.0", description="WMS version (1.1.1 or 1.3.0)"),
-    cql_filter: Optional[str] = Query(None, description="CQL_FILTER for GeoServer (vendor extension)"),
+    cql_filter: Optional[str] = Query(
+        None, description="CQL_FILTER for GeoServer (vendor extension)"
+    ),
 ):
     """
     Proxy for WMS GetFeatureInfo requests.
@@ -501,7 +534,8 @@ async def get_wms_feature_info(
         }
     else:
         # WMS 1.3.0: CRS parameter, I/J for pixel coordinates
-        # For EPSG:4326 in WMS 1.3.0, BBOX order is: minLat,minLon,maxLat,maxLon (south,west,north,east)
+        # For EPSG:4326 in WMS 1.3.0, BBOX order is:
+        # minLat,minLon,maxLat,maxLon (south,west,north,east)
         bbox_4326 = f"{south},{west},{north},{east}"
         params = {
             "SERVICE": "WMS",
@@ -566,31 +600,33 @@ async def get_wms_feature_info(
             features = []
 
             # Find all header cells
-            headers = re.findall(r'<th[^>]*>([^<]*)</th>', html_content, re.IGNORECASE)
+            headers = re.findall(r"<th[^>]*>([^<]*)</th>", html_content, re.IGNORECASE)
             # Filter out empty headers
             headers = [h.strip() for h in headers if h.strip()]
 
             # Find all data rows (tbody tr)
-            tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_content, re.DOTALL | re.IGNORECASE)
+            tbody_match = re.search(
+                r"<tbody[^>]*>(.*?)</tbody>", html_content, re.DOTALL | re.IGNORECASE
+            )
             if tbody_match and headers:
                 tbody_content = tbody_match.group(1)
                 # Find all rows
-                rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_content, re.DOTALL | re.IGNORECASE)
+                rows = re.findall(
+                    r"<tr[^>]*>(.*?)</tr>", tbody_content, re.DOTALL | re.IGNORECASE
+                )
 
                 for row in rows:
                     # Extract cell values
-                    cells = re.findall(r'<td[^>]*>([^<]*)</td>', row, re.IGNORECASE)
+                    cells = re.findall(r"<td[^>]*>([^<]*)</td>", row, re.IGNORECASE)
                     if cells and len(cells) == len(headers):
                         # Create properties dict from headers and cells
                         properties = {}
                         for header, cell in zip(headers, cells):
                             properties[header.strip()] = cell.strip()
-                        features.append({
-                            "type": "Feature",
-                            "properties": properties
-                        })
+                        features.append({"type": "Feature", "properties": properties})
 
-            # Always return features array (even if empty) so frontend knows parsing succeeded
+            # Always return features array (even if empty)
+            # so frontend knows parsing succeeded
             return {"features": features}
         except Exception:
             return {"type": "html", "content": response.text}
@@ -603,7 +639,9 @@ async def get_wms_feature_info(
 async def discover_wms_layer_properties(
     url: str = Query(..., description="WMS service base URL"),
     layer: str = Query(..., description="Layer name to discover properties for"),
-    bounds: Optional[str] = Query(None, description="Layer bounds (west,south,east,north) for sampling"),
+    bounds: Optional[str] = Query(
+        None, description="Layer bounds (west,south,east,north) for sampling"
+    ),
     version: str = Query("1.3.0", description="WMS version"),
 ):
     """
@@ -702,45 +740,75 @@ async def discover_wms_layer_properties(
                             # Skip internal/geometry fields
                             if key.startswith("_") or key == "geometry":
                                 continue
-                            discovered_properties.append({
-                                "name": key,
-                                "sampleValue": str(value) if value is not None else None,
-                                "type": type(value).__name__ if value is not None else "unknown"
-                            })
+                            discovered_properties.append(
+                                {
+                                    "name": key,
+                                    "sampleValue": str(value)
+                                    if value is not None
+                                    else None,
+                                    "type": type(value).__name__
+                                    if value is not None
+                                    else "unknown",
+                                }
+                            )
                 except Exception:
                     pass
             elif "html" in content_type:
                 # Try to parse HTML table response
                 import re
+
                 html_content = response.text
-                headers = re.findall(r'<th[^>]*>([^<]*)</th>', html_content, re.IGNORECASE)
+                headers = re.findall(
+                    r"<th[^>]*>([^<]*)</th>", html_content, re.IGNORECASE
+                )
                 headers = [h.strip() for h in headers if h.strip()]
 
                 # Get first row of data
-                tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_content, re.DOTALL | re.IGNORECASE)
+                tbody_match = re.search(
+                    r"<tbody[^>]*>(.*?)</tbody>",
+                    html_content,
+                    re.DOTALL | re.IGNORECASE,
+                )
                 if tbody_match and headers:
                     tbody_content = tbody_match.group(1)
-                    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_content, re.DOTALL | re.IGNORECASE)
+                    rows = re.findall(
+                        r"<tr[^>]*>(.*?)</tr>", tbody_content, re.DOTALL | re.IGNORECASE
+                    )
 
                     if rows:
-                        cells = re.findall(r'<td[^>]*>([^<]*)</td>', rows[0], re.IGNORECASE)
+                        cells = re.findall(
+                            r"<td[^>]*>([^<]*)</td>", rows[0], re.IGNORECASE
+                        )
                         for i, header in enumerate(headers):
                             sample_value = cells[i].strip() if i < len(cells) else None
-                            discovered_properties.append({
-                                "name": header,
-                                "sampleValue": sample_value,
-                                "type": "string"
-                            })
+                            discovered_properties.append(
+                                {
+                                    "name": header,
+                                    "sampleValue": sample_value,
+                                    "type": "string",
+                                }
+                            )
 
         except Exception as e:
             # Return empty properties list on error - discovery is best-effort
             return {
                 "properties": [],
                 "error": str(e),
-                "message": "Could not discover properties. The layer may not support GetFeatureInfo or no data exists at the sample location."
+                "message": (
+                    "Could not discover properties. The layer may not "
+                    "support GetFeatureInfo or no data exists at the "
+                    "sample location."
+                ),
             }
 
     return {
         "properties": discovered_properties,
-        "message": f"Discovered {len(discovered_properties)} properties" if discovered_properties else "No properties found at sample location. Try adding the layer and clicking on data."
+        "message": (
+            f"Discovered {len(discovered_properties)} properties"
+            if discovered_properties
+            else (
+                "No properties found at sample location. "
+                "Try adding the layer and clicking on data."
+            )
+        ),
     }

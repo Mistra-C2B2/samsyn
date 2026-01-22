@@ -11,29 +11,30 @@ Modification endpoints (POST/PUT/DELETE) require authentication via Clerk JWT to
 Authorization is enforced based on map permissions (private/collaborators/public).
 """
 
-from uuid import UUID
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, noload
+from uuid import UUID
 
-from app.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
 from app.api.deps import get_current_user, get_current_user_optional
+from app.database import get_db
 from app.models.user import User
 from app.schemas.map import (
-    MapCreate,
-    MapUpdate,
-    MapResponse,
-    MapListResponse,
     MapCollaboratorCreate,
-    MapCollaboratorUpdate,
     MapCollaboratorResponse,
+    MapCollaboratorUpdate,
+    MapCreate,
     MapLayerCreate,
-    MapLayerUpdate,
     MapLayerReorder,
     MapLayerResponse,
+    MapLayerUpdate,
+    MapListResponse,
+    MapResponse,
+    MapUpdate,
 )
-from app.services.map_service import MapService
 from app.services.auth_service import auth_service
+from app.services.map_service import MapService
 
 router = APIRouter(prefix="/maps", tags=["maps"])
 
@@ -86,7 +87,9 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                     "profile_image_url": collab.user.profile_image_url,
                     "created_at": collab.user.created_at,
                     "updated_at": collab.user.updated_at,
-                } if collab.user else None,
+                }
+                if collab.user
+                else None,
             }
             for collab in map_obj.collaborators
         ],
@@ -120,10 +123,14 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                             "properties": feat.properties or {},
                             "created_at": feat.created_at,
                         }
-                        for feat in (ml.layer.features if hasattr(ml.layer, 'features') else [])
+                        for feat in (
+                            ml.layer.features if hasattr(ml.layer, "features") else []
+                        )
                     ],
                     "map_layers": [],  # Don't include recursive map_layers
-                } if ml.layer else None,
+                }
+                if ml.layer
+                else None,
             }
             for ml in sorted(map_obj.map_layers, key=lambda x: x.order)
         ],
@@ -158,7 +165,9 @@ def serialize_collaborator_to_dict(collaborator):
             "profile_image_url": collaborator.user.profile_image_url,
             "created_at": collaborator.user.created_at,
             "updated_at": collaborator.user.updated_at,
-        } if collaborator.user else None,
+        }
+        if collaborator.user
+        else None,
     }
 
 
@@ -216,8 +225,7 @@ async def list_user_maps(
     for map_obj in maps:
         # Calculate user role for this map
         user_role = service.get_user_role_in_map(
-            map_obj.id,
-            current_user.id if current_user else None
+            map_obj.id, current_user.id if current_user else None
         )
 
         map_dict = {
@@ -277,8 +285,7 @@ async def get_map(
 
     # Calculate user role for this map
     user_role = service.get_user_role_in_map(
-        map_id,
-        current_user.id if current_user else None
+        map_id, current_user.id if current_user else None
     )
 
     return MapResponse(**serialize_map_to_dict(map_obj, user_role))
@@ -384,8 +391,6 @@ async def delete_map(
     deleted = service.delete_map(map_id, current_user.id)
 
     if not deleted:
-        # Check if map exists to provide better error message
-        map_obj = db.query(service.db.query(map_id)).first() if hasattr(service.db.query, '__call__') else None
         # Simplified check - if delete failed, either not found or unauthorized
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -423,7 +428,9 @@ async def list_collaborators(
         404: Map not found or user doesn't have view access
     """
     service = MapService(db)
-    collaborators = service.list_collaborators(map_id, current_user.id if current_user else None)
+    collaborators = service.list_collaborators(
+        map_id, current_user.id if current_user else None
+    )
 
     if collaborators is None:
         raise HTTPException(
@@ -431,7 +438,10 @@ async def list_collaborators(
             detail="Map not found or access denied",
         )
 
-    return [MapCollaboratorResponse(**serialize_collaborator_to_dict(c)) for c in collaborators]
+    return [
+        MapCollaboratorResponse(**serialize_collaborator_to_dict(c))
+        for c in collaborators
+    ]
 
 
 @router.post(
@@ -463,7 +473,8 @@ async def add_collaborator(
     Raises:
         404: Map not found or user not found in Clerk
         403: Not authorized to add collaborators
-        400: User is already a collaborator, invalid email, or user not found in database
+        400: User is already a collaborator, invalid email,
+             or user not found in database
     """
     service = MapService(db)
 
@@ -474,17 +485,26 @@ async def add_collaborator(
     if not user_to_add:
         # Step 2: User not in our database - check if they exist in Clerk
         # to provide a more helpful error message
-        email_exists_in_clerk = await auth_service.validate_user_email(collaborator_data.email)
+        email_exists_in_clerk = await auth_service.validate_user_email(
+            collaborator_data.email
+        )
 
         if email_exists_in_clerk:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with email '{collaborator_data.email}' exists in Clerk but has not logged into this application yet. Please ask them to sign in first.",
+                detail=(
+                    f"User with email '{collaborator_data.email}' exists in "
+                    "Clerk but has not logged into this application yet. "
+                    "Please ask them to sign in first."
+                ),
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with email '{collaborator_data.email}' not found. Please ensure the user has signed up.",
+                detail=(
+                    f"User with email '{collaborator_data.email}' not found. "
+                    "Please ensure the user has signed up."
+                ),
             )
 
     # Step 3: Add the collaborator using the user ID
@@ -512,10 +532,7 @@ async def add_collaborator(
                 detail="Not authorized to add collaborators",
             )
 
-        if (
-            collaborator_data.role.value == "editor"
-            and user_role != "owner"
-        ):
+        if collaborator_data.role.value == "editor" and user_role != "owner":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only owner can add editors",
@@ -523,7 +540,10 @@ async def add_collaborator(
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User '{collaborator_data.email}' is already a collaborator or cannot be added to this map",
+            detail=(
+                f"User '{collaborator_data.email}' is already a collaborator "
+                "or cannot be added to this map"
+            ),
         )
 
     return MapCollaboratorResponse(**serialize_collaborator_to_dict(collaborator))
@@ -777,7 +797,9 @@ async def reorder_map_layers(
         .all()
     )
 
-    return [MapLayerResponse(**serialize_map_layer_to_dict(ml)) for ml in updated_layers]
+    return [
+        MapLayerResponse(**serialize_map_layer_to_dict(ml)) for ml in updated_layers
+    ]
 
 
 @router.delete("/{map_id}/layers/{layer_id}", status_code=status.HTTP_200_OK)

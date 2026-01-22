@@ -9,13 +9,19 @@ Handles all feature CRUD operations including:
 - Permission checks inherited from parent layer
 """
 
+from typing import List, Literal, Optional
 from uuid import UUID
-from typing import Optional, List, Literal
+
+from geoalchemy2.functions import (
+    ST_Contains,
+    ST_GeomFromText,
+    ST_Intersects,
+    ST_SetSRID,
+    ST_Within,
+)
+from geoalchemy2.shape import to_shape
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
-from geoalchemy2.functions import ST_Intersects, ST_Contains, ST_Within, ST_SetSRID, ST_GeomFromText
-from geoalchemy2.shape import to_shape, from_shape
-from shapely.geometry import shape
 
 from app.models.feature import LayerFeature
 from app.models.layer import Layer
@@ -57,7 +63,8 @@ class FeatureService:
 
         Args:
             layer_id: Layer UUID
-            bbox: Optional bounding box as [west, south, east, north] (minx, miny, maxx, maxy)
+            bbox: Optional bounding box as [west, south, east, north]
+                (minx, miny, maxx, maxy)
             limit: Maximum number of features to return (default 100)
             offset: Number of features to skip (default 0)
 
@@ -69,12 +76,7 @@ class FeatureService:
         # Apply bounding box filter if provided
         if bbox and len(bbox) == 4:
             bbox_geom = self._create_bbox_geometry(bbox)
-            query = query.filter(
-                ST_Intersects(
-                    LayerFeature.geometry,
-                    bbox_geom
-                )
-            )
+            query = query.filter(ST_Intersects(LayerFeature.geometry, bbox_geom))
 
         # Apply pagination
         query = query.order_by(LayerFeature.created_at.desc())
@@ -104,12 +106,7 @@ class FeatureService:
         # Apply bounding box filter if provided
         if bbox and len(bbox) == 4:
             bbox_geom = self._create_bbox_geometry(bbox)
-            query = query.filter(
-                ST_Intersects(
-                    LayerFeature.geometry,
-                    bbox_geom
-                )
-            )
+            query = query.filter(ST_Intersects(LayerFeature.geometry, bbox_geom))
 
         return query.scalar() or 0
 
@@ -248,7 +245,9 @@ class FeatureService:
         Raises:
             ValueError: If geometry update is invalid
         """
-        feature = self.db.query(LayerFeature).filter(LayerFeature.id == feature_id).first()
+        feature = (
+            self.db.query(LayerFeature).filter(LayerFeature.id == feature_id).first()
+        )
 
         if not feature:
             return None
@@ -290,7 +289,9 @@ class FeatureService:
         Returns:
             True if deleted, False if not found
         """
-        feature = self.db.query(LayerFeature).filter(LayerFeature.id == feature_id).first()
+        feature = (
+            self.db.query(LayerFeature).filter(LayerFeature.id == feature_id).first()
+        )
 
         if not feature:
             return False
@@ -376,7 +377,10 @@ class FeatureService:
         west, south, east, north = bbox
 
         # Create WKT polygon from bbox
-        wkt = f"POLYGON(({west} {south}, {east} {south}, {east} {north}, {west} {north}, {west} {south}))"
+        wkt = (
+            f"POLYGON(({west} {south}, {east} {south}, "
+            f"{east} {north}, {west} {north}, {west} {south}))"
+        )
 
         return ST_SetSRID(ST_GeomFromText(wkt), 4326)
 
@@ -395,6 +399,7 @@ class FeatureService:
             shapely_geom = to_shape(feature.geometry)
             # Convert Shapely to GeoJSON using our utility
             from shapely.geometry import mapping
+
             return mapping(shapely_geom)
         except Exception as e:
             raise ValueError(f"Failed to convert geometry to GeoJSON: {str(e)}")
@@ -410,11 +415,11 @@ class FeatureService:
             Bounding box as [west, south, east, north] or None if no features
         """
         # Use PostGIS ST_Extent to calculate bounds
-        result = self.db.query(
-            func.ST_AsText(func.ST_Extent(LayerFeature.geometry))
-        ).filter(
-            LayerFeature.layer_id == layer_id
-        ).scalar()
+        result = (
+            self.db.query(func.ST_AsText(func.ST_Extent(LayerFeature.geometry)))
+            .filter(LayerFeature.layer_id == layer_id)
+            .scalar()
+        )
 
         if not result:
             return None
@@ -443,13 +448,13 @@ class FeatureService:
         Returns:
             Number of features deleted
         """
-        count = self.db.query(LayerFeature).filter(
-            LayerFeature.layer_id == layer_id
-        ).count()
+        count = (
+            self.db.query(LayerFeature)
+            .filter(LayerFeature.layer_id == layer_id)
+            .count()
+        )
 
-        self.db.query(LayerFeature).filter(
-            LayerFeature.layer_id == layer_id
-        ).delete()
+        self.db.query(LayerFeature).filter(LayerFeature.layer_id == layer_id).delete()
 
         self.db.commit()
 
@@ -465,6 +470,9 @@ class FeatureService:
         Returns:
             Feature count
         """
-        return self.db.query(func.count(LayerFeature.id)).filter(
-            LayerFeature.layer_id == layer_id
-        ).scalar() or 0
+        return (
+            self.db.query(func.count(LayerFeature.id))
+            .filter(LayerFeature.layer_id == layer_id)
+            .scalar()
+            or 0
+        )

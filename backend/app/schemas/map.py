@@ -8,16 +8,18 @@ These schemas handle data validation for:
 - Map-layer associations
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, List, Any
-from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
+from typing import Any, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # Enums
 class MapPermissionEnum(str, Enum):
     """Map permission levels"""
+
     private = "private"
     collaborators = "collaborators"
     public = "public"
@@ -25,6 +27,7 @@ class MapPermissionEnum(str, Enum):
 
 class CollaboratorRoleEnum(str, Enum):
     """Collaborator role types"""
+
     viewer = "viewer"
     editor = "editor"
 
@@ -170,7 +173,9 @@ class MapListResponse(BaseModel):
 class MapCollaboratorCreate(BaseModel):
     """Schema for adding a collaborator to a map"""
 
-    email: str = Field(..., description="Email address of the user to add as collaborator")
+    email: str = Field(
+        ..., description="Email address of the user to add as collaborator"
+    )
     role: CollaboratorRoleEnum = CollaboratorRoleEnum.viewer
 
 
@@ -202,17 +207,16 @@ class MapLayerReorder(BaseModel):
     """Schema for reordering layers in a map"""
 
     layer_orders: List[dict[str, Any]] = Field(
-        ...,
-        description="List of {layer_id: UUID, order: int} objects"
+        ..., description="List of {layer_id: UUID, order: int} objects"
     )
 
-    @field_validator('layer_orders')
+    @field_validator("layer_orders")
     @classmethod
     def validate_layer_orders(cls, v):
         """Validate that each item has layer_id and order"""
         for item in v:
-            if 'layer_id' not in item or 'order' not in item:
+            if "layer_id" not in item or "order" not in item:
                 raise ValueError("Each item must have 'layer_id' and 'order' fields")
-            if not isinstance(item['order'], int) or item['order'] < 0:
+            if not isinstance(item["order"], int) or item["order"] < 0:
                 raise ValueError("Order must be a non-negative integer")
         return v

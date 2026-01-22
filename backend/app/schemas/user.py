@@ -7,10 +7,11 @@ These schemas handle data validation for:
 - User API responses
 """
 
-from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, ConfigDict
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class UserBase(BaseModel):
@@ -60,4 +61,6 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)  # Allows creation from SQLAlchemy models
+    model_config = ConfigDict(
+        from_attributes=True
+    )  # Allows creation from SQLAlchemy models

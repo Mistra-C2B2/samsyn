@@ -7,24 +7,25 @@ Provides endpoints for:
 - Bulk import from GeoJSON FeatureCollections
 
 Read endpoints (GET) are public and allow unauthenticated access.
-Modification endpoints (POST/PUT/DELETE) require authentication and check layer permissions
-(user must own layer or layer must be editable by everyone).
+Modification endpoints (POST/PUT/DELETE) require authentication and check
+layer permissions (user must own layer or layer must be editable by everyone).
 """
 
-from uuid import UUID
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.api.deps import get_current_user, get_current_user_optional
+from app.database import get_db
 from app.models.user import User
 from app.schemas.feature import (
-    FeatureCreate,
-    FeatureUpdate,
-    FeatureResponse,
     BulkFeatureCreate,
     BulkFeatureResponse,
+    FeatureCreate,
+    FeatureResponse,
+    FeatureUpdate,
 )
 from app.services.feature_service import FeatureService
 from app.services.layer_service import LayerService
@@ -99,18 +100,16 @@ async def list_features(
     bbox: Optional[str] = Query(
         None,
         description="Bounding box filter: minLon,minLat,maxLon,maxLat",
-        examples=["-180,-90,180,90"]
+        examples=["-180,-90,180,90"],
     ),
     limit: int = Query(
         100,
         ge=1,
         le=1000,
-        description="Maximum number of features to return (max 1000)"
+        description="Maximum number of features to return (max 1000)",
     ),
     offset: int = Query(
-        0,
-        ge=0,
-        description="Number of features to skip for pagination"
+        0, ge=0, description="Number of features to skip for pagination"
     ),
 ):
     """
@@ -144,14 +143,17 @@ async def list_features(
     bbox_coords = None
     if bbox:
         try:
-            coords = [float(x.strip()) for x in bbox.split(',')]
+            coords = [float(x.strip()) for x in bbox.split(",")]
             if len(coords) != 4:
                 raise ValueError("Bounding box must have 4 coordinates")
             bbox_coords = coords
         except (ValueError, IndexError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid bbox format: {str(e)}. Expected: minLon,minLat,maxLon,maxLat",
+                detail=(
+                    f"Invalid bbox format: {str(e)}. "
+                    "Expected: minLon,minLat,maxLon,maxLat"
+                ),
             )
 
     # Get features
@@ -211,7 +213,11 @@ async def get_feature(
     return convert_feature_to_response(feature, db)
 
 
-@router.post("/{layer_id}/features", response_model=FeatureResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{layer_id}/features",
+    response_model=FeatureResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_feature(
     layer_id: UUID,
     feature_data: FeatureCreate,
@@ -256,7 +262,11 @@ async def create_feature(
     return convert_feature_to_response(feature, db)
 
 
-@router.post("/{layer_id}/features/bulk", response_model=BulkFeatureResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{layer_id}/features/bulk",
+    response_model=BulkFeatureResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def bulk_import_features(
     layer_id: UUID,
     bulk_data: BulkFeatureCreate,

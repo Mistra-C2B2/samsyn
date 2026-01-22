@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
+
 from geoalchemy2 import Geometry
+from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 
@@ -15,7 +16,7 @@ class LayerFeature(Base):
     layer_id = Column(UUID(as_uuid=True), ForeignKey("layers.id"), nullable=False)
 
     # PostGIS geometry column (supports Point, LineString, Polygon, etc.)
-    geometry = Column(Geometry(geometry_type='GEOMETRY', srid=4326), nullable=False)
+    geometry = Column(Geometry(geometry_type="GEOMETRY", srid=4326), nullable=False)
 
     # GeoJSON properties stored as JSONB
     properties = Column(JSONB, default={})

@@ -10,16 +10,17 @@ Handles all comment CRUD operations including:
 - Reply counting and pagination
 """
 
-from uuid import UUID
-from typing import Optional, List
 from datetime import datetime
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from typing import List, Optional
+from uuid import UUID
+
 from fastapi import HTTPException, status
+from sqlalchemy import func, not_
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.comment import Comment
-from app.models.map import Map
 from app.models.layer import Layer
+from app.models.map import Map
 from app.schemas.comment import CommentCreate, CommentUpdate
 
 
@@ -33,9 +34,7 @@ class CommentService:
     # Core CRUD Operations
     # ========================================================================
 
-    def create_comment(
-        self, comment_data: CommentCreate, author_id: UUID
-    ) -> Comment:
+    def create_comment(self, comment_data: CommentCreate, author_id: UUID) -> Comment:
         """
         Create a new comment on a map or layer.
 
@@ -59,40 +58,44 @@ class CommentService:
             if not map_obj:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Map with id {comment_data.map_id} not found"
+                    detail=f"Map with id {comment_data.map_id} not found",
                 )
 
         if comment_data.layer_id:
-            layer = self.db.query(Layer).filter(Layer.id == comment_data.layer_id).first()
+            layer = (
+                self.db.query(Layer).filter(Layer.id == comment_data.layer_id).first()
+            )
             if not layer:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Layer with id {comment_data.layer_id} not found"
+                    detail=f"Layer with id {comment_data.layer_id} not found",
                 )
 
         # Validate parent comment if provided
         if comment_data.parent_id:
-            parent = self.db.query(Comment).filter(
-                Comment.id == comment_data.parent_id
-            ).first()
+            parent = (
+                self.db.query(Comment)
+                .filter(Comment.id == comment_data.parent_id)
+                .first()
+            )
 
             if not parent:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Parent comment with id {comment_data.parent_id} not found"
+                    detail=f"Parent comment with id {comment_data.parent_id} not found",
                 )
 
             # Validate parent is on the same target (map or layer)
             if comment_data.map_id and parent.map_id != comment_data.map_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Parent comment must be on the same map"
+                    detail="Parent comment must be on the same map",
                 )
 
             if comment_data.layer_id and parent.layer_id != comment_data.layer_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Parent comment must be on the same layer"
+                    detail="Parent comment must be on the same layer",
                 )
 
         # Create comment
@@ -170,7 +173,7 @@ class CommentService:
 
         # Filter by resolution status
         if not include_resolved:
-            query = query.filter(Comment.is_resolved == False)
+            query = query.filter(not_(Comment.is_resolved))
 
         # Order by newest first
         query = query.order_by(Comment.created_at.desc())
@@ -213,7 +216,7 @@ class CommentService:
 
         # Filter by resolution status
         if not include_resolved:
-            query = query.filter(Comment.is_resolved == False)
+            query = query.filter(not_(Comment.is_resolved))
 
         return query.scalar() or 0
 
@@ -301,7 +304,7 @@ class CommentService:
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Comment with id {comment_id} not found"
+                detail=f"Comment with id {comment_id} not found",
             )
 
         # Update only provided fields
@@ -363,7 +366,7 @@ class CommentService:
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Comment with id {comment_id} not found"
+                detail=f"Comment with id {comment_id} not found",
             )
 
         comment.is_resolved = is_resolved
@@ -418,7 +421,8 @@ class CommentService:
         return (
             self.db.query(func.count(Comment.id))
             .filter(Comment.parent_id == parent_id)
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
     # ========================================================================
@@ -478,7 +482,8 @@ class CommentService:
         return (
             self.db.query(func.count(Comment.id))
             .filter(Comment.map_id == map_id)
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
     def get_comment_count_by_layer(self, layer_id: str) -> int:
@@ -494,5 +499,6 @@ class CommentService:
         return (
             self.db.query(func.count(Comment.id))
             .filter(Comment.layer_id == layer_id)
-            .scalar() or 0
+            .scalar()
+            or 0
         )

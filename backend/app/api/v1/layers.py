@@ -9,26 +9,31 @@ Endpoints are public for reading, but require authentication for create/update/d
 Update and delete operations enforce permission checks based on layer.editable setting.
 """
 
-from uuid import UUID
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.api.deps import (
+    get_current_user,
+    get_current_user_optional,
+    is_admin_from_payload,
+)
 from app.database import get_db
-from app.api.deps import get_current_user, get_current_user_optional, is_admin_from_payload
-from app.services.auth_service import auth_service
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-# Security scheme for extracting token
-security = HTTPBearer(auto_error=False)
 from app.models.user import User
 from app.schemas.layer import (
     LayerCreate,
-    LayerUpdate,
-    LayerResponse,
     LayerListResponse,
+    LayerResponse,
+    LayerUpdate,
 )
+from app.services.auth_service import auth_service
 from app.services.layer_service import LayerService
+
+# Security scheme for extracting token
+security = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/layers", tags=["layers"])
 
@@ -75,7 +80,7 @@ def serialize_layer_to_dict(layer):
                 "properties": feat.properties or {},
                 "created_at": feat.created_at,
             }
-            for feat in (layer.features if hasattr(layer, 'features') else [])
+            for feat in (layer.features if hasattr(layer, "features") else [])
         ],
         "map_layers": [
             {
@@ -86,7 +91,7 @@ def serialize_layer_to_dict(layer):
                 "opacity": ml.opacity,
                 "created_at": ml.created_at,
             }
-            for ml in (layer.map_layers if hasattr(layer, 'map_layers') else [])
+            for ml in (layer.map_layers if hasattr(layer, "map_layers") else [])
         ],
     }
 
@@ -113,8 +118,8 @@ def serialize_layer_list_to_dict(layer):
         "creation_source": layer.creation_source or "system",
         "created_by": layer.created_by,
         "created_at": layer.created_at,
-        "feature_count": len(layer.features) if hasattr(layer, 'features') else 0,
-        "map_count": len(layer.map_layers) if hasattr(layer, 'map_layers') else 0,
+        "feature_count": len(layer.features) if hasattr(layer, "features") else 0,
+        "map_count": len(layer.map_layers) if hasattr(layer, "map_layers") else 0,
     }
 
 
@@ -127,11 +132,19 @@ def serialize_layer_list_to_dict(layer):
 async def list_layers(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
-    source_type: Optional[str] = Query(None, description="Filter by source type (wms, geotiff, vector)"),
+    source_type: Optional[str] = Query(
+        None, description="Filter by source type (wms, geotiff, vector)"
+    ),
     category: Optional[str] = Query(None, description="Filter by category"),
     is_global: Optional[bool] = Query(None, description="Filter by global status"),
     search: Optional[str] = Query(None, description="Search in name and description"),
-    include_my_layers: Optional[bool] = Query(None, description="If true, return only user's own non-global layers (for 'My Layers' section)"),
+    include_my_layers: Optional[bool] = Query(
+        None,
+        description=(
+            "If true, return only user's own non-global layers "
+            "(for 'My Layers' section)"
+        ),
+    ),
 ):
     """
     List all layers with optional filtering.
@@ -159,7 +172,9 @@ async def list_layers(
         include_my_layers=include_my_layers,
     )
 
-    return [LayerListResponse(**serialize_layer_list_to_dict(layer)) for layer in layers]
+    return [
+        LayerListResponse(**serialize_layer_list_to_dict(layer)) for layer in layers
+    ]
 
 
 @router.get("/{layer_id}", response_model=LayerResponse)

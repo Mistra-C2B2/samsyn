@@ -8,16 +8,17 @@ Provides authentication strategies:
 4. get_current_admin: Returns User if admin or raises 403, for admin-only endpoints
 """
 
-from typing import Annotated, Optional, Tuple, Dict, Any
+from typing import Annotated, Any, Dict, Optional
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
+from app.schemas.user import UserCreate
 from app.services.auth_service import auth_service
 from app.services.user_service import UserService
-from app.schemas.user import UserCreate
 
 # HTTP Bearer token security scheme
 security = HTTPBearer(auto_error=False)
@@ -37,7 +38,9 @@ def is_admin_from_payload(payload: Dict[str, Any]) -> bool:
         True if user has isAdmin=true in publicMetadata
     """
     # Clerk may use either key format
-    public_metadata = payload.get("public_metadata") or payload.get("publicMetadata") or {}
+    public_metadata = (
+        payload.get("public_metadata") or payload.get("publicMetadata") or {}
+    )
     return public_metadata.get("isAdmin") is True
 
 

@@ -10,14 +10,15 @@ Security: Verifies webhook signatures using Svix to ensure requests are from Cle
 """
 
 from typing import Any, Dict
-from fastapi import APIRouter, Request, Response, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from svix.webhooks import Webhook, WebhookVerificationError
 
 from app.config import settings
 from app.database import get_db
-from app.services.user_service import UserService
 from app.schemas.user import UserCreate, UserUpdate
+from app.services.user_service import UserService
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 

@@ -16,8 +16,8 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 
-from app.config import settings
 from app.api.deps import get_current_user_optional
+from app.config import settings
 from app.models.user import User
 
 router = APIRouter(prefix="/titiler", tags=["titiler"])
@@ -81,12 +81,18 @@ def _parse_titiler_error(response: httpx.Response) -> str:
             if "not a valid cog" in detail_lower or "not a cog" in detail_lower:
                 return "File is not a valid Cloud-Optimized GeoTIFF (COG)."
             elif "unable to open" in detail_lower or "cannot open" in detail_lower:
-                return "Unable to open GeoTIFF file. The URL may be invalid or inaccessible."
+                return (
+                    "Unable to open GeoTIFF file. "
+                    "The URL may be invalid or inaccessible."
+                )
             elif "404" in detail_lower or "not found" in detail_lower:
                 return "GeoTIFF URL not found. Please check the URL is correct."
             else:
                 return f"Error processing GeoTIFF: {error_detail}"
-        return "Unable to process GeoTIFF. The URL may be invalid or the file may not be a valid COG."
+        return (
+            "Unable to process GeoTIFF. The URL may be invalid or "
+            "the file may not be a valid COG."
+        )
     elif status_code == 400:
         if error_detail:
             return f"Invalid request: {error_detail}"
@@ -108,9 +114,15 @@ async def get_cog_tile(
     x: int,
     y: int,
     url: str = Query(..., description="URL to the COG file"),
-    colormap: Optional[str] = Query(None, description="Colormap name (e.g., viridis, terrain)"),
-    rescale: Optional[str] = Query(None, description="Min,max values for rescaling (e.g., 0,255)"),
-    bidx: Optional[str] = Query(None, description="Band index or indices (e.g., 1 or 1,2,3)"),
+    colormap: Optional[str] = Query(
+        None, description="Colormap name (e.g., viridis, terrain)"
+    ),
+    rescale: Optional[str] = Query(
+        None, description="Min,max values for rescaling (e.g., 0,255)"
+    ),
+    bidx: Optional[str] = Query(
+        None, description="Band index or indices (e.g., 1 or 1,2,3)"
+    ),
     nodata: Optional[str] = Query(None, description="Nodata value to use"),
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)] = None,
 ):
@@ -141,7 +153,9 @@ async def get_cog_tile(
     _check_titiler_configured()
 
     # Build TiTiler tile URL
-    titiler_url = f"{settings.TITILER_URL.rstrip('/')}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}"
+    titiler_url = (
+        f"{settings.TITILER_URL.rstrip('/')}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}"
+    )
 
     # Build query parameters
     params = {"url": url}
@@ -244,7 +258,9 @@ async def get_cog_info(
 @router.get("/statistics")
 async def get_cog_statistics(
     url: str = Query(..., description="URL to the COG file"),
-    bidx: Optional[str] = Query(None, description="Band index or indices (e.g., 1 or 1,2,3)"),
+    bidx: Optional[str] = Query(
+        None, description="Band index or indices (e.g., 1 or 1,2,3)"
+    ),
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)] = None,
 ):
     """
@@ -285,7 +301,10 @@ async def get_cog_statistics(
         except httpx.TimeoutException:
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="TiTiler statistics request timed out (this can take a while for large files)",
+                detail=(
+                    "TiTiler statistics request timed out "
+                    "(this can take a while for large files)"
+                ),
             )
         except httpx.HTTPStatusError as e:
             raise HTTPException(

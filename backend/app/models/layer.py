@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -19,7 +20,9 @@ class Layer(Base):
     editable = Column(String, default="creator-only")  # creator-only, everyone
     is_global = Column(Boolean, default=False)
     visibility = Column(String, default="private")  # "private" or "public"
-    creation_source = Column(String, default="system")  # "layer_creator", "admin_panel", "system"
+    creation_source = Column(
+        String, default="system"
+    )  # "layer_creator", "admin_panel", "system"
 
     # JSONB fields for flexible configuration
     source_config = Column(JSONB, nullable=False, default={})
@@ -32,13 +35,20 @@ class Layer(Base):
 
     # Relationships
     creator = relationship("User", back_populates="layers")
-    features = relationship("LayerFeature", back_populates="layer", cascade="all, delete-orphan")
-    map_layers = relationship("MapLayer", back_populates="layer", cascade="all, delete-orphan")
-    comments = relationship("Comment", back_populates="layer", cascade="all, delete-orphan")
+    features = relationship(
+        "LayerFeature", back_populates="layer", cascade="all, delete-orphan"
+    )
+    map_layers = relationship(
+        "MapLayer", back_populates="layer", cascade="all, delete-orphan"
+    )
+    comments = relationship(
+        "Comment", back_populates="layer", cascade="all, delete-orphan"
+    )
 
 
 class MapLayer(Base):
     """Junction table for many-to-many relationship between Maps and Layers"""
+
     __tablename__ = "map_layers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

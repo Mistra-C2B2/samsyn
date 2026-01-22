@@ -7,18 +7,23 @@ These schemas handle data validation for:
 - Capabilities cache management
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WmsServerBase(BaseModel):
     """Base WMS server fields shared across schemas"""
 
-    name: str = Field(..., min_length=1, max_length=255, description="Display name for the WMS server")
+    name: str = Field(
+        ..., min_length=1, max_length=255, description="Display name for the WMS server"
+    )
     base_url: str = Field(..., min_length=1, description="WMS service endpoint URL")
-    description: Optional[str] = Field(default=None, description="Optional description of the WMS server")
+    description: Optional[str] = Field(
+        default=None, description="Optional description of the WMS server"
+    )
 
 
 class WmsServerCreate(WmsServerBase):
@@ -108,12 +113,24 @@ class WmsLayerInfo(BaseModel):
 
     name: str = Field(..., description="WMS layer name (used in requests)")
     title: Optional[str] = Field(default=None, description="Human-readable layer title")
-    abstract: Optional[str] = Field(default=None, description="Layer description/abstract")
-    queryable: bool = Field(default=False, description="Whether layer supports GetFeatureInfo")
-    bounds: Optional[list[float]] = Field(default=None, description="Geographic bounds [west, south, east, north]")
-    crs: list[str] = Field(default_factory=list, description="Supported coordinate reference systems")
-    styles: list[dict[str, Any]] = Field(default_factory=list, description="Available styles with name, title, legendUrl")
-    dimensions: list[dict[str, Any]] = Field(default_factory=list, description="Dimensions like TIME, ELEVATION")
+    abstract: Optional[str] = Field(
+        default=None, description="Layer description/abstract"
+    )
+    queryable: bool = Field(
+        default=False, description="Whether layer supports GetFeatureInfo"
+    )
+    bounds: Optional[list[float]] = Field(
+        default=None, description="Geographic bounds [west, south, east, north]"
+    )
+    crs: list[str] = Field(
+        default_factory=list, description="Supported coordinate reference systems"
+    )
+    styles: list[dict[str, Any]] = Field(
+        default_factory=list, description="Available styles with name, title, legendUrl"
+    )
+    dimensions: list[dict[str, Any]] = Field(
+        default_factory=list, description="Dimensions like TIME, ELEVATION"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

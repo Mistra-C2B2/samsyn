@@ -8,10 +8,11 @@ Handles all layer CRUD operations including:
 - Permission validation (creator-only vs everyone editable)
 """
 
+from typing import List, Optional
 from uuid import UUID
-from typing import Optional, List
+
+from sqlalchemy import and_, not_, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
 
 from app.models.layer import Layer
 from app.schemas.layer import LayerCreate, LayerUpdate
@@ -47,12 +48,15 @@ class LayerService:
         Filters can be applied on top of this base set.
 
         Args:
-            user_id: User's internal UUID (optional - if None, only returns global layers)
+            user_id: User's internal UUID (optional - if None, only returns
+                global layers)
             source_type: Filter by source type (wms, geotiff, vector)
             category: Filter by category
-            is_global: Filter by global status (True=only global, False=only non-global, None=all)
+            is_global: Filter by global status (True=only global,
+                False=only non-global, None=all)
             search: Search in name and description (case-insensitive)
-            include_my_layers: If True, return only user's own non-global layers (for "My Layers" section)
+            include_my_layers: If True, return only user's own non-global
+                layers (for "My Layers" section)
 
         Returns:
             List of Layer instances matching criteria
@@ -63,33 +67,29 @@ class LayerService:
             query = self.db.query(Layer).filter(
                 and_(
                     Layer.created_by == user_id,
-                    Layer.is_global == False,
-                    Layer.creation_source == "layer_creator"
+                    not_(Layer.is_global),
+                    Layer.creation_source == "layer_creator",
                 )
             )
-            # Skip other filters for "My Layers" section, go directly to ordering
+            # Skip other filters for "My Layers" section,
+            # go directly to ordering
             query = query.order_by(Layer.created_at.desc())
             return query.all()
 
-        # Build base query - global layers OR user's own layers OR public non-global layers
+        # Build base query - global layers OR user's own layers
+        # OR public non-global layers
         if user_id:
             query = self.db.query(Layer).filter(
                 or_(
-                    Layer.is_global == True,
+                    Layer.is_global,
                     Layer.created_by == user_id,
-                    and_(
-                        Layer.visibility == "public",
-                        Layer.is_global == False
-                    )
+                    and_(Layer.visibility == "public", not_(Layer.is_global)),
                 )
             )
         else:
             # Not authenticated - show global layers + public non-global layers
             query = self.db.query(Layer).filter(
-                or_(
-                    Layer.is_global == True,
-                    Layer.visibility == "public"
-                )
+                or_(Layer.is_global, Layer.visibility == "public")
             )
 
         # Apply filters
@@ -108,7 +108,7 @@ class LayerService:
             query = query.filter(
                 or_(
                     Layer.name.ilike(search_pattern),
-                    Layer.description.ilike(search_pattern)
+                    Layer.description.ilike(search_pattern),
                 )
             )
 
@@ -150,8 +150,14 @@ class LayerService:
             created_by=creator_id,
             editable=layer_data.editable.value,
             is_global=layer_data.is_global,
-            visibility=layer_data.visibility.value if layer_data.visibility else "private",
-            creation_source=layer_data.creation_source.value if layer_data.creation_source else "system",
+            visibility=(
+                layer_data.visibility.value if layer_data.visibility else "private"
+            ),
+            creation_source=(
+                layer_data.creation_source.value
+                if layer_data.creation_source
+                else "system"
+            ),
             source_config=layer_data.source_config or {},
             style_config=layer_data.style_config or {},
             legend_config=layer_data.legend_config or {},
@@ -203,7 +209,8 @@ class LayerService:
                 value = value.value
             elif field == "visibility" and value is not None:
                 value = value.value
-            # Handle metadata alias (Pydantic uses 'metadata' but model uses 'layer_metadata')
+            # Handle metadata alias
+            # (Pydantic uses 'metadata' but model uses 'layer_metadata')
             if field == "metadata":
                 setattr(layer, "layer_metadata", value)
             else:
@@ -245,7 +252,8 @@ class LayerService:
                 value = value.value
             elif field == "visibility" and value is not None:
                 value = value.value
-            # Handle metadata alias (Pydantic uses 'metadata' but model uses 'layer_metadata')
+            # Handle metadata alias
+            # (Pydantic uses 'metadata' but model uses 'layer_metadata')
             if field == "metadata":
                 setattr(layer, "layer_metadata", value)
             else:
@@ -397,7 +405,7 @@ class LayerService:
         """
         return (
             self.db.query(Layer)
-            .filter(Layer.is_global == True)
+            .filter(Layer.is_global)
             .order_by(Layer.created_at.desc())
             .all()
         )
@@ -430,14 +438,11 @@ class LayerService:
             self.db.query(Layer)
             .filter(
                 and_(
-                    or_(
-                        Layer.is_global == True,
-                        Layer.created_by == user_id
-                    ),
+                    or_(Layer.is_global, Layer.created_by == user_id),
                     or_(
                         Layer.name.ilike(search_pattern),
-                        Layer.description.ilike(search_pattern)
-                    )
+                        Layer.description.ilike(search_pattern),
+                    ),
                 )
             )
             .order_by(Layer.created_at.desc())
@@ -465,10 +470,7 @@ class LayerService:
             .filter(
                 and_(
                     Layer.category == category,
-                    or_(
-                        Layer.is_global == True,
-                        Layer.created_by == user_id
-                    )
+                    or_(Layer.is_global, Layer.created_by == user_id),
                 )
             )
             .order_by(Layer.created_at.desc())

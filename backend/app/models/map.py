@@ -1,9 +1,10 @@
+import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-import enum
 
 from app.database import Base
 
@@ -37,6 +38,10 @@ class Map(Base):
 
     # Relationships
     creator = relationship("User", back_populates="maps", foreign_keys=[created_by])
-    collaborators = relationship("MapCollaborator", back_populates="map", cascade="all, delete-orphan")
-    map_layers = relationship("MapLayer", back_populates="map", cascade="all, delete-orphan")
+    collaborators = relationship(
+        "MapCollaborator", back_populates="map", cascade="all, delete-orphan"
+    )
+    map_layers = relationship(
+        "MapLayer", back_populates="map", cascade="all, delete-orphan"
+    )
     comments = relationship("Comment", back_populates="map")

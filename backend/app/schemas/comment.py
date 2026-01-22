@@ -9,10 +9,11 @@ These schemas handle data validation for:
 - Resolution status tracking
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CommentCreate(BaseModel):
@@ -23,12 +24,20 @@ class CommentCreate(BaseModel):
     Comments can optionally be replies to parent comments.
     """
 
-    content: str = Field(..., min_length=1, description="Comment content (cannot be empty)")
-    map_id: Optional[UUID] = Field(default=None, description="ID of the map this comment is on")
-    layer_id: Optional[UUID] = Field(default=None, description="ID of the layer this comment is on")
-    parent_id: Optional[UUID] = Field(default=None, description="ID of parent comment for threading")
+    content: str = Field(
+        ..., min_length=1, description="Comment content (cannot be empty)"
+    )
+    map_id: Optional[UUID] = Field(
+        default=None, description="ID of the map this comment is on"
+    )
+    layer_id: Optional[UUID] = Field(
+        default=None, description="ID of the layer this comment is on"
+    )
+    parent_id: Optional[UUID] = Field(
+        default=None, description="ID of parent comment for threading"
+    )
 
-    @field_validator('content')
+    @field_validator("content")
     @classmethod
     def validate_content_not_empty(cls, v):
         """Validate that content is not just whitespace"""
@@ -36,7 +45,7 @@ class CommentCreate(BaseModel):
             raise ValueError("Comment content cannot be empty or whitespace")
         return v.strip()
 
-    @field_validator('layer_id')
+    @field_validator("layer_id")
     @classmethod
     def validate_target_xor(cls, v, info):
         """
@@ -44,14 +53,17 @@ class CommentCreate(BaseModel):
 
         Comments must be attached to either a map OR a layer, not both, not neither.
         """
-        map_id = info.data.get('map_id')
+        map_id = info.data.get("map_id")
 
         # Check XOR logic: exactly one must be provided
         if map_id is None and v is None:
             raise ValueError("Either map_id or layer_id must be provided")
 
         if map_id is not None and v is not None:
-            raise ValueError("Cannot provide both map_id and layer_id - comment must be on either a map or a layer, not both")
+            raise ValueError(
+                "Cannot provide both map_id and layer_id - comment must be "
+                "on either a map or a layer, not both"
+            )
 
         return v
 
@@ -63,9 +75,11 @@ class CommentUpdate(BaseModel):
     Only content can be updated. All fields are optional to support partial updates.
     """
 
-    content: Optional[str] = Field(default=None, min_length=1, description="Updated comment content")
+    content: Optional[str] = Field(
+        default=None, min_length=1, description="Updated comment content"
+    )
 
-    @field_validator('content')
+    @field_validator("content")
     @classmethod
     def validate_content_not_empty(cls, v):
         """Validate that content is not just whitespace if provided"""
@@ -96,11 +110,10 @@ class CommentResponse(BaseModel):
     # Computed fields (populated by service layer)
     author_name: Optional[str] = Field(
         default=None,
-        description="Display name of comment author (from User relationship)"
+        description="Display name of comment author (from User relationship)",
     )
     reply_count: Optional[int] = Field(
-        default=0,
-        description="Number of direct replies to this comment"
+        default=0, description="Number of direct replies to this comment"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -114,8 +127,7 @@ class CommentWithReplies(CommentResponse):
     """
 
     replies: List[CommentResponse] = Field(
-        default_factory=list,
-        description="List of direct replies to this comment"
+        default_factory=list, description="List of direct replies to this comment"
     )
 
     model_config = ConfigDict(from_attributes=True)

@@ -8,16 +8,18 @@ These schemas handle data validation for:
 - Bulk feature operations and GeoJSON FeatureCollection import
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, List, Any, Dict, Literal, Union
-from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Union
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # Enums
 class GeometryTypeEnum(str, Enum):
     """GeoJSON geometry types"""
+
     Point = "Point"
     LineString = "LineString"
     Polygon = "Polygon"
@@ -39,16 +41,16 @@ class FeatureGeometry(BaseModel):
         List[float],  # Point
         List[List[float]],  # LineString, MultiPoint
         List[List[List[float]]],  # Polygon, MultiLineString
-        List[List[List[List[float]]]]  # MultiPolygon
+        List[List[List[List[float]]]],  # MultiPolygon
     ] = Field(..., description="Coordinates array following GeoJSON specification")
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('coordinates')
+    @field_validator("coordinates")
     @classmethod
     def validate_coordinates(cls, v, info):
         """Validate coordinate structure based on geometry type"""
-        geometry_type = info.data.get('type')
+        geometry_type = info.data.get("type")
 
         if not v:
             raise ValueError("Coordinates cannot be empty")
@@ -56,7 +58,9 @@ class FeatureGeometry(BaseModel):
         # Basic structure validation based on type
         if geometry_type == GeometryTypeEnum.Point:
             if not isinstance(v, list) or len(v) < 2:
-                raise ValueError("Point coordinates must be [lng, lat] or [lng, lat, elevation]")
+                raise ValueError(
+                    "Point coordinates must be [lng, lat] or [lng, lat, elevation]"
+                )
             if len(v) > 3:
                 raise ValueError("Point coordinates cannot have more than 3 elements")
 
@@ -65,24 +69,33 @@ class FeatureGeometry(BaseModel):
                 raise ValueError("LineString must have at least 2 positions")
             for pos in v:
                 if not isinstance(pos, list) or len(pos) < 2:
-                    raise ValueError("Each position must be [lng, lat] or [lng, lat, elevation]")
+                    raise ValueError(
+                        "Each position must be [lng, lat] or [lng, lat, elevation]"
+                    )
 
         elif geometry_type == GeometryTypeEnum.Polygon:
             if not isinstance(v, list) or len(v) < 1:
                 raise ValueError("Polygon must have at least one ring")
             for ring in v:
                 if not isinstance(ring, list) or len(ring) < 4:
-                    raise ValueError("Each ring must have at least 4 positions (closed)")
+                    raise ValueError(
+                        "Each ring must have at least 4 positions (closed)"
+                    )
                 # Validate closure (first and last positions must be identical)
                 if ring[0] != ring[-1]:
-                    raise ValueError("Polygon ring must be closed (first and last positions identical)")
+                    raise ValueError(
+                        "Polygon ring must be closed "
+                        "(first and last positions identical)"
+                    )
 
         elif geometry_type == GeometryTypeEnum.MultiPoint:
             if not isinstance(v, list) or len(v) < 1:
                 raise ValueError("MultiPoint must have at least one position")
             for pos in v:
                 if not isinstance(pos, list) or len(pos) < 2:
-                    raise ValueError("Each position must be [lng, lat] or [lng, lat, elevation]")
+                    raise ValueError(
+                        "Each position must be [lng, lat] or [lng, lat, elevation]"
+                    )
 
         elif geometry_type == GeometryTypeEnum.MultiLineString:
             if not isinstance(v, list) or len(v) < 1:
@@ -99,7 +112,9 @@ class FeatureGeometry(BaseModel):
                     raise ValueError("Each Polygon must have at least one ring")
                 for ring in polygon:
                     if not isinstance(ring, list) or len(ring) < 4:
-                        raise ValueError("Each ring must have at least 4 positions (closed)")
+                        raise ValueError(
+                            "Each ring must have at least 4 positions (closed)"
+                        )
                     if ring[0] != ring[-1]:
                         raise ValueError("Polygon ring must be closed")
 
@@ -114,8 +129,7 @@ class FeatureProperties(BaseModel):
     """
 
     properties: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Feature properties as key-value pairs"
+        default_factory=dict, description="Feature properties as key-value pairs"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -126,8 +140,12 @@ class FeatureBase(BaseModel):
     """Base feature fields shared across schemas"""
 
     geometry: Dict[str, Any] = Field(..., description="GeoJSON geometry object")
-    properties: Dict[str, Any] = Field(default_factory=dict, description="Feature properties")
-    feature_type: Optional[str] = Field(default=None, max_length=100, description="Optional feature type/category")
+    properties: Dict[str, Any] = Field(
+        default_factory=dict, description="Feature properties"
+    )
+    feature_type: Optional[str] = Field(
+        default=None, max_length=100, description="Optional feature type/category"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,17 +157,17 @@ class FeatureCreate(FeatureBase):
     Validates geometry structure and accepts arbitrary properties.
     """
 
-    @field_validator('geometry')
+    @field_validator("geometry")
     @classmethod
     def validate_geometry_structure(cls, v):
         """Validate that geometry has required GeoJSON fields"""
         if not isinstance(v, dict):
             raise ValueError("Geometry must be a dictionary")
 
-        if 'type' not in v:
+        if "type" not in v:
             raise ValueError("Geometry must have a 'type' field")
 
-        if 'coordinates' not in v:
+        if "coordinates" not in v:
             raise ValueError("Geometry must have a 'coordinates' field")
 
         # Validate using FeatureGeometry schema
@@ -168,13 +186,19 @@ class FeatureUpdate(BaseModel):
     All fields are optional to support partial updates.
     """
 
-    geometry: Optional[Dict[str, Any]] = Field(None, description="Updated GeoJSON geometry object")
-    properties: Optional[Dict[str, Any]] = Field(None, description="Updated feature properties")
-    feature_type: Optional[str] = Field(None, max_length=100, description="Updated feature type")
+    geometry: Optional[Dict[str, Any]] = Field(
+        None, description="Updated GeoJSON geometry object"
+    )
+    properties: Optional[Dict[str, Any]] = Field(
+        None, description="Updated feature properties"
+    )
+    feature_type: Optional[str] = Field(
+        None, max_length=100, description="Updated feature type"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('geometry')
+    @field_validator("geometry")
     @classmethod
     def validate_geometry_structure(cls, v):
         """Validate geometry structure if provided"""
@@ -182,7 +206,7 @@ class FeatureUpdate(BaseModel):
             if not isinstance(v, dict):
                 raise ValueError("Geometry must be a dictionary")
 
-            if 'type' not in v or 'coordinates' not in v:
+            if "type" not in v or "coordinates" not in v:
                 raise ValueError("Geometry must have 'type' and 'coordinates' fields")
 
             # Validate using FeatureGeometry schema
@@ -237,19 +261,23 @@ class GeoJSONFeature(BaseModel):
 
     type: Literal["Feature"] = "Feature"
     geometry: Dict[str, Any] = Field(..., description="GeoJSON geometry object")
-    properties: Dict[str, Any] = Field(default_factory=dict, description="Feature properties")
-    id: Optional[Union[str, int, UUID]] = Field(default=None, description="Optional feature ID")
+    properties: Dict[str, Any] = Field(
+        default_factory=dict, description="Feature properties"
+    )
+    id: Optional[Union[str, int, UUID]] = Field(
+        default=None, description="Optional feature ID"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('geometry')
+    @field_validator("geometry")
     @classmethod
     def validate_geometry_structure(cls, v):
         """Validate geometry structure"""
         if not isinstance(v, dict):
             raise ValueError("Geometry must be a dictionary")
 
-        if 'type' not in v or 'coordinates' not in v:
+        if "type" not in v or "coordinates" not in v:
             raise ValueError("Geometry must have 'type' and 'coordinates' fields")
 
         return v
@@ -263,11 +291,13 @@ class FeatureCollection(BaseModel):
     """
 
     type: Literal["FeatureCollection"] = "FeatureCollection"
-    features: List[GeoJSONFeature] = Field(default_factory=list, description="Array of GeoJSON features")
+    features: List[GeoJSONFeature] = Field(
+        default_factory=list, description="Array of GeoJSON features"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('features')
+    @field_validator("features")
     @classmethod
     def validate_features(cls, v):
         """Validate that features list is not empty for bulk operations"""
@@ -284,12 +314,18 @@ class BulkFeatureCreate(BaseModel):
     """
 
     type: Literal["FeatureCollection"] = "FeatureCollection"
-    features: List[Dict[str, Any]] = Field(..., min_length=1, description="Array of GeoJSON features to import")
-    feature_type: Optional[str] = Field(default=None, max_length=100, description="Optional type to apply to all features")
+    features: List[Dict[str, Any]] = Field(
+        ..., min_length=1, description="Array of GeoJSON features to import"
+    )
+    feature_type: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Optional type to apply to all features",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('features')
+    @field_validator("features")
     @classmethod
     def validate_features(cls, v):
         """Validate each feature structure"""
@@ -301,21 +337,26 @@ class BulkFeatureCreate(BaseModel):
                 raise ValueError(f"Feature at index {i} must be a dictionary")
 
             # Validate GeoJSON Feature structure
-            if 'type' not in feature or feature['type'] != 'Feature':
+            if "type" not in feature or feature["type"] != "Feature":
                 raise ValueError(f"Feature at index {i} must have type='Feature'")
 
-            if 'geometry' not in feature:
+            if "geometry" not in feature:
                 raise ValueError(f"Feature at index {i} must have a 'geometry' field")
 
-            if not isinstance(feature['geometry'], dict):
+            if not isinstance(feature["geometry"], dict):
                 raise ValueError(f"Feature at index {i} geometry must be a dictionary")
 
-            if 'type' not in feature['geometry'] or 'coordinates' not in feature['geometry']:
-                raise ValueError(f"Feature at index {i} geometry must have 'type' and 'coordinates'")
+            if (
+                "type" not in feature["geometry"]
+                or "coordinates" not in feature["geometry"]
+            ):
+                raise ValueError(
+                    f"Feature at index {i} geometry must have 'type' and 'coordinates'"
+                )
 
             # Validate geometry using FeatureGeometry schema
             try:
-                FeatureGeometry(**feature['geometry'])
+                FeatureGeometry(**feature["geometry"])
             except Exception as e:
                 raise ValueError(f"Feature at index {i} has invalid geometry: {str(e)}")
 
@@ -330,10 +371,16 @@ class BulkFeatureResponse(BaseModel):
     """
 
     success: bool
-    created_count: int = Field(..., description="Number of features successfully created")
+    created_count: int = Field(
+        ..., description="Number of features successfully created"
+    )
     failed_count: int = Field(default=0, description="Number of features that failed")
-    feature_ids: List[UUID] = Field(default_factory=list, description="List of created feature IDs")
-    errors: List[Dict[str, Any]] = Field(default_factory=list, description="List of error details for failed features")
+    feature_ids: List[UUID] = Field(
+        default_factory=list, description="List of created feature IDs"
+    )
+    errors: List[Dict[str, Any]] = Field(
+        default_factory=list, description="List of error details for failed features"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -348,37 +395,33 @@ class FeatureQueryParams(BaseModel):
 
     bbox: Optional[str] = Field(
         default=None,
-        description="Bounding box filter: 'west,south,east,north' (e.g., '-180,-90,180,90')"
+        description=(
+            "Bounding box filter: 'west,south,east,north' (e.g., '-180,-90,180,90')"
+        ),
     )
     intersects: Optional[str] = Field(
         default=None,
-        description="GeoJSON geometry as string to filter features that intersect"
+        description="GeoJSON geometry as string to filter features that intersect",
     )
     feature_type: Optional[str] = Field(
-        default=None,
-        description="Filter by feature type"
+        default=None, description="Filter by feature type"
     )
     limit: int = Field(
-        default=100,
-        ge=1,
-        le=1000,
-        description="Maximum number of features to return"
+        default=100, ge=1, le=1000, description="Maximum number of features to return"
     )
     offset: int = Field(
-        default=0,
-        ge=0,
-        description="Number of features to skip (for pagination)"
+        default=0, ge=0, description="Number of features to skip (for pagination)"
     )
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator('bbox')
+    @field_validator("bbox")
     @classmethod
     def validate_bbox(cls, v):
         """Validate bounding box format and coordinates"""
         if v is not None:
             try:
-                coords = [float(x.strip()) for x in v.split(',')]
+                coords = [float(x.strip()) for x in v.split(",")]
                 if len(coords) != 4:
                     raise ValueError("Bounding box must have 4 coordinates")
 
@@ -394,30 +437,37 @@ class FeatureQueryParams(BaseModel):
 
                 # Validate logical bounds
                 if west > east:
-                    raise ValueError("West longitude must be less than or equal to east longitude")
+                    raise ValueError(
+                        "West longitude must be less than or equal to east longitude"
+                    )
 
                 if south > north:
-                    raise ValueError("South latitude must be less than or equal to north latitude")
+                    raise ValueError(
+                        "South latitude must be less than or equal to north latitude"
+                    )
 
             except ValueError as e:
                 raise ValueError(f"Invalid bbox format: {str(e)}")
 
         return v
 
-    @field_validator('intersects')
+    @field_validator("intersects")
     @classmethod
     def validate_intersects(cls, v):
         """Validate intersects geometry is valid GeoJSON"""
         if v is not None:
             try:
                 import json
+
                 geometry = json.loads(v)
 
                 if not isinstance(geometry, dict):
                     raise ValueError("Intersects must be a GeoJSON geometry object")
 
-                if 'type' not in geometry or 'coordinates' not in geometry:
-                    raise ValueError("Intersects geometry must have 'type' and 'coordinates'")
+                if "type" not in geometry or "coordinates" not in geometry:
+                    raise ValueError(
+                        "Intersects geometry must have 'type' and 'coordinates'"
+                    )
 
                 # Validate using FeatureGeometry schema
                 FeatureGeometry(**geometry)
@@ -434,7 +484,9 @@ class FeatureQueryParams(BaseModel):
 class BulkFeatureDelete(BaseModel):
     """Schema for bulk deleting features"""
 
-    feature_ids: List[UUID] = Field(..., min_length=1, description="List of feature IDs to delete")
+    feature_ids: List[UUID] = Field(
+        ..., min_length=1, description="List of feature IDs to delete"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -443,8 +495,14 @@ class BulkFeatureDeleteResponse(BaseModel):
     """Schema for bulk delete operation response"""
 
     success: bool
-    deleted_count: int = Field(..., description="Number of features successfully deleted")
-    failed_count: int = Field(default=0, description="Number of features that failed to delete")
-    errors: List[Dict[str, Any]] = Field(default_factory=list, description="List of error details")
+    deleted_count: int = Field(
+        ..., description="Number of features successfully deleted"
+    )
+    failed_count: int = Field(
+        default=0, description="Number of features that failed to delete"
+    )
+    errors: List[Dict[str, Any]] = Field(
+        default_factory=list, description="List of error details"
+    )
 
     model_config = ConfigDict(from_attributes=True)

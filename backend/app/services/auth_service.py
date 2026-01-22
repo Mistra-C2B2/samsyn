@@ -8,12 +8,13 @@ This service:
 - Decodes and returns token payload
 """
 
-import httpx
 import time
-from jose import jwt, JWTError
-from fastapi import HTTPException, status
-from typing import Dict, Any, Optional
 from functools import lru_cache
+from typing import Any, Dict, Optional
+
+import httpx
+from fastapi import HTTPException, status
+from jose import JWTError, jwt
 
 from app.config import settings
 
@@ -172,7 +173,9 @@ class ClerkAuthService:
             try:
                 response = await client.get(
                     clerk_api_url,
-                    params={"email_address": [email]},  # httpx handles proper URL encoding
+                    params={
+                        "email_address": [email]
+                    },  # httpx handles proper URL encoding
                     headers={
                         "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}",
                         "Content-Type": "application/json",

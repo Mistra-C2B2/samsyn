@@ -10,21 +10,22 @@ All WMS servers are shared/public. Authentication is required for write operatio
 Only the creator can update or delete a server.
 """
 
-from uuid import UUID
 from typing import Annotated, List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_admin, get_current_user, get_current_user_optional
 from app.database import get_db
-from app.api.deps import get_current_user, get_current_user_optional, get_current_admin
 from app.models.user import User
 from app.schemas.wms_server import (
-    WmsServerCreate,
-    WmsServerUpdate,
-    WmsServerResponse,
-    WmsServerListResponse,
-    WmsServerLayersResponse,
     WmsLayerInfo,
+    WmsServerCreate,
+    WmsServerLayersResponse,
+    WmsServerListResponse,
+    WmsServerResponse,
+    WmsServerUpdate,
 )
 from app.services.wms_server_service import WmsServerService
 
@@ -111,7 +112,10 @@ async def list_wms_servers(
     service = WmsServerService(db)
     servers = service.list_servers()
 
-    return [WmsServerListResponse(**serialize_server_list_to_dict(server)) for server in servers]
+    return [
+        WmsServerListResponse(**serialize_server_list_to_dict(server))
+        for server in servers
+    ]
 
 
 @router.get("/{server_id}", response_model=WmsServerResponse)

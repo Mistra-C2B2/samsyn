@@ -10,14 +10,15 @@ Handles all map CRUD operations including:
 - User role determination (owner/editor/viewer/none)
 """
 
+from typing import List, Optional
 from uuid import UUID
-from typing import Optional, List
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import IntegrityError
 
-from app.models.map import Map
-from app.models.layer import Layer, MapLayer
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
+
 from app.models.collaborator import MapCollaborator
+from app.models.layer import Layer, MapLayer
+from app.models.map import Map
 from app.schemas.map import MapCreate, MapUpdate
 
 
@@ -68,9 +69,7 @@ class MapService:
 
         if collaborator_map_ids:
             collaborated_maps = (
-                self.db.query(Map)
-                .filter(Map.id.in_(collaborator_map_ids))
-                .all()
+                self.db.query(Map).filter(Map.id.in_(collaborator_map_ids)).all()
             )
         else:
             collaborated_maps = []
@@ -290,7 +289,7 @@ class MapService:
             return True
 
         # Check edit_permission field
-        edit_perm = getattr(map_obj, 'edit_permission', 'private')
+        edit_perm = getattr(map_obj, "edit_permission", "private")
 
         if edit_perm == "public":
             # Anyone who can view can edit
@@ -309,7 +308,11 @@ class MapService:
 
             # For 'private', only owner can edit (already checked above)
             # For 'collaborators', editor collaborators can edit
-            if edit_perm == "collaborators" and collaborator and collaborator.role == "editor":
+            if (
+                edit_perm == "collaborators"
+                and collaborator
+                and collaborator.role == "editor"
+            ):
                 return True
 
         return False
@@ -384,7 +387,8 @@ class MapService:
 
         Args:
             map_id: Map UUID
-            user_id: User UUID requesting the list (must have view access), or None for unauthenticated users
+            user_id: User UUID requesting the list (must have view access),
+                or None for unauthenticated users
 
         Returns:
             List of MapCollaborator instances, or None if unauthorized

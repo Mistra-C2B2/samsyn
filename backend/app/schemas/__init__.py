@@ -5,63 +5,59 @@ This module exports all schemas used for API request validation
 and response serialization.
 """
 
+from app.schemas.comment import (
+    CommentCreate,
+    CommentResponse,
+    CommentUpdate,
+    CommentWithReplies,
+)
+from app.schemas.feature import (
+    BulkFeatureCreate,
+    BulkFeatureDelete,
+    BulkFeatureDeleteResponse,
+    BulkFeatureResponse,
+    FeatureBase,
+    FeatureCollection,
+    FeatureCreate,
+    FeatureGeoJSONResponse,
+    FeatureGeometry,
+    FeatureProperties,
+    FeatureQueryParams,
+    FeatureResponse,
+    FeatureUpdate,
+    GeoJSONFeature,
+    GeometryTypeEnum,
+)
+from app.schemas.layer import (
+    LayerBase,
+    LayerCreate,
+    LayerEditabilityEnum,
+    LayerListResponse,
+    LayerResponse,
+    LayerSourceTypeEnum,
+    LayerUpdate,
+)
+from app.schemas.map import (
+    CollaboratorRoleEnum,
+    MapBase,
+    MapCollaboratorCreate,
+    MapCollaboratorResponse,
+    MapCollaboratorUpdate,
+    MapCreate,
+    MapLayerCreate,
+    MapLayerReorder,
+    MapLayerResponse,
+    MapLayerUpdate,
+    MapListResponse,
+    MapPermissionEnum,
+    MapResponse,
+    MapUpdate,
+)
 from app.schemas.user import (
     UserBase,
     UserCreate,
-    UserUpdate,
     UserResponse,
-)
-
-from app.schemas.map import (
-    MapPermissionEnum,
-    CollaboratorRoleEnum,
-    MapBase,
-    MapCreate,
-    MapUpdate,
-    MapResponse,
-    MapListResponse,
-    MapCollaboratorCreate,
-    MapCollaboratorUpdate,
-    MapCollaboratorResponse,
-    MapLayerCreate,
-    MapLayerUpdate,
-    MapLayerResponse,
-    MapLayerReorder,
-)
-
-from app.schemas.layer import (
-    LayerSourceTypeEnum,
-    LayerEditabilityEnum,
-    LayerBase,
-    LayerCreate,
-    LayerUpdate,
-    LayerResponse,
-    LayerListResponse,
-)
-
-from app.schemas.feature import (
-    GeometryTypeEnum,
-    FeatureGeometry,
-    FeatureProperties,
-    FeatureBase,
-    FeatureCreate,
-    FeatureUpdate,
-    FeatureResponse,
-    FeatureGeoJSONResponse,
-    GeoJSONFeature,
-    FeatureCollection,
-    BulkFeatureCreate,
-    BulkFeatureResponse,
-    FeatureQueryParams,
-    BulkFeatureDelete,
-    BulkFeatureDeleteResponse,
-)
-
-from app.schemas.comment import (
-    CommentCreate,
-    CommentUpdate,
-    CommentResponse,
-    CommentWithReplies,
+    UserUpdate,
 )
 
 __all__ = [

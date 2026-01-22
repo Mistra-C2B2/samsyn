@@ -12,18 +12,19 @@ Modification endpoints (POST/PUT/DELETE) require authentication via Clerk JWT to
 Authorization is enforced based on comment authorship.
 """
 
-from uuid import UUID
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.api.deps import get_current_user, get_current_user_optional
+from app.database import get_db
 from app.models.user import User
 from app.schemas.comment import (
     CommentCreate,
-    CommentUpdate,
     CommentResponse,
+    CommentUpdate,
     CommentWithReplies,
 )
 from app.services.comment_service import CommentService
@@ -77,7 +78,7 @@ def populate_thread_fields(comment, service: CommentService) -> CommentWithRepli
 
     # Recursively populate reply fields
     response.replies = []
-    for reply in getattr(comment, 'replies', []):
+    for reply in getattr(comment, "replies", []):
         reply_response = CommentResponse.model_validate(reply)
         reply_response.author_name = reply.author.username if reply.author else None
         reply_response.reply_count = service.get_reply_count(reply.id)
@@ -95,11 +96,17 @@ def populate_thread_fields(comment, service: CommentService) -> CommentWithRepli
 async def list_comments(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
-    map_id: Optional[str] = Query(None, description="Filter by map ID (UUID or string slug)"),
-    layer_id: Optional[str] = Query(None, description="Filter by layer ID (UUID or string slug)"),
+    map_id: Optional[str] = Query(
+        None, description="Filter by map ID (UUID or string slug)"
+    ),
+    layer_id: Optional[str] = Query(
+        None, description="Filter by layer ID (UUID or string slug)"
+    ),
     parent_id: Optional[UUID] = Query(None, description="Filter by parent comment ID"),
     include_resolved: bool = Query(True, description="Include resolved comments"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum comments to return (max 1000)"),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum comments to return (max 1000)"
+    ),
     offset: int = Query(0, ge=0, description="Number of comments to skip"),
 ):
     """
@@ -175,7 +182,9 @@ async def get_comment_thread(
     comment_id: UUID,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
-    max_depth: int = Query(10, ge=1, le=20, description="Maximum nesting depth (max 20)"),
+    max_depth: int = Query(
+        10, ge=1, le=20, description="Maximum nesting depth (max 20)"
+    ),
 ):
     """
     Get a comment with all nested replies.

@@ -9,18 +9,18 @@ This module provides utility functions for:
 - Working with FeatureCollections
 """
 
-from typing import Dict, Any, List, Optional, Tuple, Union
 import json
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import geojson
-from shapely.geometry import shape, mapping
-from shapely.geometry.base import BaseGeometry
 from geoalchemy2.elements import WKBElement
-from geoalchemy2.shape import to_shape, from_shape
+from geoalchemy2.shape import from_shape, to_shape
+from shapely.geometry import mapping, shape
 
 
 class GeoJSONValidationError(Exception):
     """Raised when GeoJSON validation fails."""
+
     pass
 
 
@@ -56,7 +56,9 @@ def geojson_to_wkt(geojson_geometry: Dict[str, Any]) -> str:
             raise GeoJSONValidationError("GeoJSON geometry must have a 'type' field")
 
         if "coordinates" not in geojson_geometry:
-            raise GeoJSONValidationError("GeoJSON geometry must have a 'coordinates' field")
+            raise GeoJSONValidationError(
+                "GeoJSON geometry must have a 'coordinates' field"
+            )
 
         # Convert GeoJSON to Shapely geometry
         shapely_geom = shape(geojson_geometry)
@@ -70,7 +72,9 @@ def geojson_to_wkt(geojson_geometry: Dict[str, Any]) -> str:
         raise ValueError(f"Failed to convert GeoJSON to WKT: {str(e)}")
 
 
-def geojson_to_postgis(geojson_geometry: Dict[str, Any], srid: int = 4326) -> WKBElement:
+def geojson_to_postgis(
+    geojson_geometry: Dict[str, Any], srid: int = 4326
+) -> WKBElement:
     """
     Convert GeoJSON geometry to PostGIS WKBElement.
 
@@ -181,7 +185,8 @@ def validate_geojson(geojson_obj: Union[Dict[str, Any], str]) -> bool:
         True if valid GeoJSON
 
     Raises:
-        GeoJSONValidationError: If the GeoJSON is invalid with details about what's wrong
+        GeoJSONValidationError: If the GeoJSON is invalid with details
+            about what's wrong
 
     Example:
         >>> geojson_feature = {
@@ -211,20 +216,34 @@ def validate_geojson(geojson_obj: Union[Dict[str, Any], str]) -> bool:
 
         # Validate based on type
         if geojson_type == "FeatureCollection":
-            obj = geojson.FeatureCollection(**geojson_obj)
+            geojson.FeatureCollection(**geojson_obj)
         elif geojson_type == "Feature":
-            obj = geojson.Feature(**geojson_obj)
-        elif geojson_type in ["Point", "LineString", "Polygon", "MultiPoint",
-                               "MultiLineString", "MultiPolygon", "GeometryCollection"]:
+            geojson.Feature(**geojson_obj)
+        elif geojson_type in [
+            "Point",
+            "LineString",
+            "Polygon",
+            "MultiPoint",
+            "MultiLineString",
+            "MultiPolygon",
+            "GeometryCollection",
+        ]:
             # Geometry object
-            if "coordinates" not in geojson_obj and geojson_type != "GeometryCollection":
-                raise GeoJSONValidationError(f"{geojson_type} must have 'coordinates' field")
+            if (
+                "coordinates" not in geojson_obj
+                and geojson_type != "GeometryCollection"
+            ):
+                raise GeoJSONValidationError(
+                    f"{geojson_type} must have 'coordinates' field"
+                )
 
             # Try to create Shapely geometry for validation
             try:
                 shapely_geom = shape(geojson_obj)
                 if not shapely_geom.is_valid:
-                    raise GeoJSONValidationError(f"Invalid geometry: {shapely_geom.is_valid_reason}")
+                    raise GeoJSONValidationError(
+                        f"Invalid geometry: {shapely_geom.is_valid_reason}"
+                    )
             except Exception as e:
                 raise GeoJSONValidationError(f"Invalid geometry structure: {str(e)}")
         else:
@@ -238,7 +257,9 @@ def validate_geojson(geojson_obj: Union[Dict[str, Any], str]) -> bool:
         raise GeoJSONValidationError(f"GeoJSON validation failed: {str(e)}")
 
 
-def extract_bounding_box(geojson_obj: Dict[str, Any]) -> Optional[Tuple[float, float, float, float]]:
+def extract_bounding_box(
+    geojson_obj: Dict[str, Any],
+) -> Optional[Tuple[float, float, float, float]]:
     """
     Extract bounding box from GeoJSON feature or geometry.
 
@@ -306,7 +327,9 @@ def extract_bounding_box(geojson_obj: Dict[str, Any]) -> Optional[Tuple[float, f
         raise ValueError(f"Failed to extract bounding box: {str(e)}")
 
 
-def featurecollection_to_features(feature_collection: Dict[str, Any]) -> List[Dict[str, Any]]:
+def featurecollection_to_features(
+    feature_collection: Dict[str, Any],
+) -> List[Dict[str, Any]]:
     """
     Extract list of features from a GeoJSON FeatureCollection.
 
@@ -335,7 +358,9 @@ def featurecollection_to_features(feature_collection: Dict[str, Any]) -> List[Di
         raise ValueError("FeatureCollection must be a dictionary")
 
     if feature_collection.get("type") != "FeatureCollection":
-        raise ValueError(f"Expected FeatureCollection, got {feature_collection.get('type')}")
+        raise ValueError(
+            f"Expected FeatureCollection, got {feature_collection.get('type')}"
+        )
 
     if "features" not in feature_collection:
         raise ValueError("FeatureCollection must have 'features' field")
@@ -350,7 +375,7 @@ def featurecollection_to_features(feature_collection: Dict[str, Any]) -> List[Di
 
 def features_to_featurecollection(
     features: List[Dict[str, Any]],
-    bbox: Optional[Tuple[float, float, float, float]] = None
+    bbox: Optional[Tuple[float, float, float, float]] = None,
 ) -> Dict[str, Any]:
     """
     Create a GeoJSON FeatureCollection from a list of features.
@@ -367,8 +392,16 @@ def features_to_featurecollection(
 
     Example:
         >>> features = [
-        ...     {"type": "Feature", "geometry": {"type": "Point", "coordinates": [102.0, 0.5]}, "properties": {}},
-        ...     {"type": "Feature", "geometry": {"type": "Point", "coordinates": [103.0, 1.5]}, "properties": {}}
+        ...     {
+        ...         "type": "Feature",
+        ...         "geometry": {"type": "Point", "coordinates": [102.0, 0.5]},
+        ...         "properties": {}
+        ...     },
+        ...     {
+        ...         "type": "Feature",
+        ...         "geometry": {"type": "Point", "coordinates": [103.0, 1.5]},
+        ...         "properties": {}
+        ...     }
         ... ]
         >>> fc = features_to_featurecollection(features)
         >>> fc["type"]
@@ -379,21 +412,23 @@ def features_to_featurecollection(
 
     feature_collection: Dict[str, Any] = {
         "type": "FeatureCollection",
-        "features": features
+        "features": features,
     }
 
     # Add bounding box if provided
     if bbox is not None:
         if not isinstance(bbox, (tuple, list)) or len(bbox) != 4:
-            raise ValueError("Bounding box must be a tuple of 4 values (min_lon, min_lat, max_lon, max_lat)")
+            raise ValueError(
+                "Bounding box must be a tuple of 4 values "
+                "(min_lon, min_lat, max_lon, max_lat)"
+            )
         feature_collection["bbox"] = list(bbox)
 
     return feature_collection
 
 
 def feature_to_postgis(
-    feature: Dict[str, Any],
-    srid: int = 4326
+    feature: Dict[str, Any], srid: int = 4326
 ) -> Tuple[WKBElement, Dict[str, Any]]:
     """
     Convert a GeoJSON Feature to PostGIS geometry and properties.
@@ -439,7 +474,7 @@ def feature_to_postgis(
 def postgis_to_feature(
     postgis_geometry: WKBElement,
     properties: Optional[Dict[str, Any]] = None,
-    feature_id: Optional[Union[str, int]] = None
+    feature_id: Optional[Union[str, int]] = None,
 ) -> Dict[str, Any]:
     """
     Convert PostGIS geometry and properties to a GeoJSON Feature.
@@ -467,7 +502,7 @@ def postgis_to_feature(
     feature: Dict[str, Any] = {
         "type": "Feature",
         "geometry": geometry,
-        "properties": properties or {}
+        "properties": properties or {},
     }
 
     if feature_id is not None:
@@ -502,9 +537,13 @@ def get_geometry_type(geojson_geometry: Dict[str, Any]) -> str:
         raise ValueError("Geometry must have a 'type' field")
 
     valid_types = [
-        "Point", "LineString", "Polygon",
-        "MultiPoint", "MultiLineString", "MultiPolygon",
-        "GeometryCollection"
+        "Point",
+        "LineString",
+        "Polygon",
+        "MultiPoint",
+        "MultiLineString",
+        "MultiPolygon",
+        "GeometryCollection",
     ]
 
     if geom_type not in valid_types:

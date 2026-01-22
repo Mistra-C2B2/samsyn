@@ -8,16 +8,16 @@ Handles all WMS server CRUD operations including:
 - Capabilities refresh
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+from uuid import UUID
 
 import httpx
 from sqlalchemy.orm import Session
 
+from app.api.v1.wms import parse_wms_capabilities
 from app.models.wms_server import WmsServer
 from app.schemas.wms_server import WmsServerCreate, WmsServerUpdate
-from app.api.v1.wms import parse_wms_capabilities
 
 
 class WmsServerService:
@@ -39,11 +39,7 @@ class WmsServerService:
         Returns:
             List of WmsServer instances ordered by creation date (newest first)
         """
-        return (
-            self.db.query(WmsServer)
-            .order_by(WmsServer.created_at.desc())
-            .all()
-        )
+        return self.db.query(WmsServer).order_by(WmsServer.created_at.desc()).all()
 
     def get_server(self, server_id: UUID) -> Optional[WmsServer]:
         """

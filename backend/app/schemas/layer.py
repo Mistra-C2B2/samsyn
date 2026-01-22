@@ -8,16 +8,18 @@ These schemas handle data validation for:
 - Layer library management
 """
 
-from uuid import UUID
 from datetime import datetime
-from typing import Optional, List, Any, Literal, Dict
-from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Enums
 class LayerSourceTypeEnum(str, Enum):
     """Layer source types"""
+
     wms = "wms"
     geotiff = "geotiff"
     vector = "vector"
@@ -25,18 +27,21 @@ class LayerSourceTypeEnum(str, Enum):
 
 class LayerEditabilityEnum(str, Enum):
     """Layer editability levels"""
+
     creator_only = "creator-only"
     everyone = "everyone"
 
 
 class LayerVisibilityEnum(str, Enum):
     """Layer visibility levels in library"""
+
     private = "private"
     public = "public"
 
 
 class CreationSourceEnum(str, Enum):
     """Layer creation source - identifies how the layer was created"""
+
     layer_creator = "layer_creator"  # User created via "Create Layer" button
     admin_panel = "admin_panel"  # Created via Admin Panel
     system = "system"  # System/programmatic layers (GFW copies, etc.)
@@ -53,10 +58,18 @@ class WMSSourceConfig(BaseModel):
     url: str = Field(..., description="WMS service endpoint URL")
     layers: str = Field(..., description="Comma-separated list of WMS layer names")
     version: str = Field(default="1.3.0", description="WMS version")
-    format: str = Field(default="image/png", description="Image format (image/png, image/jpeg, etc.)")
-    transparent: bool = Field(default=True, description="Request transparent background")
-    temporal: Optional[bool] = Field(default=None, description="Whether layer supports temporal queries")
-    dimensions: Optional[Dict[str, str]] = Field(default=None, description="Additional WMS dimensions (e.g., TIME, ELEVATION)")
+    format: str = Field(
+        default="image/png", description="Image format (image/png, image/jpeg, etc.)"
+    )
+    transparent: bool = Field(
+        default=True, description="Request transparent background"
+    )
+    temporal: Optional[bool] = Field(
+        default=None, description="Whether layer supports temporal queries"
+    )
+    dimensions: Optional[Dict[str, str]] = Field(
+        default=None, description="Additional WMS dimensions (e.g., TIME, ELEVATION)"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -68,15 +81,39 @@ class GeoTIFFSourceConfig(BaseModel):
     Supports both direct delivery and tiled delivery methods.
     """
 
-    delivery: Literal["direct", "tiles"] = Field(..., description="Delivery method: direct file or tile server")
-    url: Optional[str] = Field(default=None, description="Direct GeoTIFF URL (for direct delivery)")
-    cog_url: Optional[str] = Field(default=None, alias="cogUrl", description="Cloud-Optimized GeoTIFF URL")
-    cog_url_template: Optional[str] = Field(default=None, alias="cogUrlTemplate", description="Template URL with placeholders for dynamic COG loading")
-    tile_server: Optional[str] = Field(default=None, alias="tileServer", description="Tile server URL (for tiles delivery)")
-    bounds: Optional[List[float]] = Field(default=None, description="Geographic bounds [west, south, east, north]")
-    temporal: Optional[bool] = Field(default=None, description="Whether layer has temporal data")
-    tile_params: Optional[Dict[str, Any]] = Field(default=None, alias="tileParams", description="Additional tile server parameters")
-    processing: Optional[Dict[str, Any]] = Field(default=None, description="Processing parameters (e.g., color ramps, scaling)")
+    delivery: Literal["direct", "tiles"] = Field(
+        ..., description="Delivery method: direct file or tile server"
+    )
+    url: Optional[str] = Field(
+        default=None, description="Direct GeoTIFF URL (for direct delivery)"
+    )
+    cog_url: Optional[str] = Field(
+        default=None, alias="cogUrl", description="Cloud-Optimized GeoTIFF URL"
+    )
+    cog_url_template: Optional[str] = Field(
+        default=None,
+        alias="cogUrlTemplate",
+        description="Template URL with placeholders for dynamic COG loading",
+    )
+    tile_server: Optional[str] = Field(
+        default=None,
+        alias="tileServer",
+        description="Tile server URL (for tiles delivery)",
+    )
+    bounds: Optional[List[float]] = Field(
+        default=None, description="Geographic bounds [west, south, east, north]"
+    )
+    temporal: Optional[bool] = Field(
+        default=None, description="Whether layer has temporal data"
+    )
+    tile_params: Optional[Dict[str, Any]] = Field(
+        default=None,
+        alias="tileParams",
+        description="Additional tile server parameters",
+    )
+    processing: Optional[Dict[str, Any]] = Field(
+        default=None, description="Processing parameters (e.g., color ramps, scaling)"
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -88,13 +125,20 @@ class VectorSourceConfig(BaseModel):
     For layers with point, line, or polygon geometries stored as features.
     """
 
-    geometry_type: Literal["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"] = Field(
-        ...,
-        alias="geometryType",
-        description="GeoJSON geometry type"
+    geometry_type: Literal[
+        "Point",
+        "LineString",
+        "Polygon",
+        "MultiPoint",
+        "MultiLineString",
+        "MultiPolygon",
+    ] = Field(..., alias="geometryType", description="GeoJSON geometry type")
+    feature_count: int = Field(
+        default=0, alias="featureCount", description="Number of features in layer"
     )
-    feature_count: int = Field(default=0, alias="featureCount", description="Number of features in layer")
-    bounds: Optional[List[float]] = Field(default=None, description="Geographic bounds [west, south, east, north]")
+    bounds: Optional[List[float]] = Field(
+        default=None, description="Geographic bounds [west, south, east, north]"
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -106,8 +150,12 @@ class LayerBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Layer name")
     source_type: LayerSourceTypeEnum = Field(..., description="Type of layer source")
     description: Optional[str] = Field(default=None, description="Layer description")
-    category: Optional[str] = Field(default=None, max_length=100, description="Layer category for organization")
-    editable: LayerEditabilityEnum = Field(default=LayerEditabilityEnum.creator_only, description="Who can edit this layer")
+    category: Optional[str] = Field(
+        default=None, max_length=100, description="Layer category for organization"
+    )
+    editable: LayerEditabilityEnum = Field(
+        default=LayerEditabilityEnum.creator_only, description="Who can edit this layer"
+    )
 
 
 class LayerCreate(LayerBase):
@@ -117,13 +165,35 @@ class LayerCreate(LayerBase):
     Includes source configuration, styling, legend, and metadata.
     """
 
-    is_global: bool = Field(default=False, description="Whether layer is available globally in layer library")
-    visibility: LayerVisibilityEnum = Field(default=LayerVisibilityEnum.private, description="Layer visibility in library (private=creator only, public=everyone)")
-    creation_source: CreationSourceEnum = Field(default=CreationSourceEnum.system, description="How the layer was created (layer_creator, admin_panel, system)")
-    source_config: Dict[str, Any] = Field(..., description="Source-specific configuration (WMS, GeoTIFF, or Vector)")
-    style_config: Dict[str, Any] = Field(default_factory=dict, description="Mapbox style specification")
-    legend_config: Dict[str, Any] = Field(default_factory=dict, description="Legend configuration (gradient or categories)")
-    metadata: Dict[str, Any] = Field(default_factory=dict, alias="layer_metadata", description="Additional layer metadata (DOI, author, etc.)")
+    is_global: bool = Field(
+        default=False,
+        description="Whether layer is available globally in layer library",
+    )
+    visibility: LayerVisibilityEnum = Field(
+        default=LayerVisibilityEnum.private,
+        description=(
+            "Layer visibility in library (private=creator only, public=everyone)"
+        ),
+    )
+    creation_source: CreationSourceEnum = Field(
+        default=CreationSourceEnum.system,
+        description="How the layer was created (layer_creator, admin_panel, system)",
+    )
+    source_config: Dict[str, Any] = Field(
+        ..., description="Source-specific configuration (WMS, GeoTIFF, or Vector)"
+    )
+    style_config: Dict[str, Any] = Field(
+        default_factory=dict, description="Mapbox style specification"
+    )
+    legend_config: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Legend configuration (gradient or categories)",
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        alias="layer_metadata",
+        description="Additional layer metadata (DOI, author, etc.)",
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -240,9 +310,18 @@ class LayerListResponse(BaseModel):
 class LayerFeatureCreate(BaseModel):
     """Schema for adding a feature to a vector layer"""
 
-    geometry_type: Literal["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"]
+    geometry_type: Literal[
+        "Point",
+        "LineString",
+        "Polygon",
+        "MultiPoint",
+        "MultiLineString",
+        "MultiPolygon",
+    ]
     geometry: Dict[str, Any] = Field(..., description="GeoJSON geometry object")
-    properties: Dict[str, Any] = Field(default_factory=dict, description="Feature properties")
+    properties: Dict[str, Any] = Field(
+        default_factory=dict, description="Feature properties"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -260,7 +339,9 @@ class LayerFeatureUpdate(BaseModel):
 class LayerBulkDelete(BaseModel):
     """Schema for bulk deleting layers"""
 
-    layer_ids: List[UUID] = Field(..., min_length=1, description="List of layer IDs to delete")
+    layer_ids: List[UUID] = Field(
+        ..., min_length=1, description="List of layer IDs to delete"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -268,7 +349,11 @@ class LayerBulkDelete(BaseModel):
 class LayerBulkUpdate(BaseModel):
     """Schema for bulk updating layer properties"""
 
-    layer_ids: List[UUID] = Field(..., min_length=1, description="List of layer IDs to update")
-    updates: Dict[str, Any] = Field(..., description="Fields to update on all selected layers")
+    layer_ids: List[UUID] = Field(
+        ..., min_length=1, description="List of layer IDs to update"
+    )
+    updates: Dict[str, Any] = Field(
+        ..., description="Fields to update on all selected layers"
+    )
 
     model_config = ConfigDict(from_attributes=True)

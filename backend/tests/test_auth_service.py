@@ -4,9 +4,9 @@ Unit tests for Clerk authentication service.
 Tests JWT verification, JWKS caching, and error handling.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
-from jose import jwt
 from fastapi import HTTPException
 
 from app.services.auth_service import ClerkAuthService
@@ -15,7 +15,9 @@ from app.services.auth_service import ClerkAuthService
 @pytest.fixture
 def auth_service():
     """Create auth service instance for testing"""
-    return ClerkAuthService(jwks_url="https://test.clerk.accounts.dev/.well-known/jwks.json")
+    return ClerkAuthService(
+        jwks_url="https://test.clerk.accounts.dev/.well-known/jwks.json"
+    )
 
 
 @pytest.fixture
@@ -98,7 +100,9 @@ class TestJWKSFetching:
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             # Raise httpx.HTTPError instead of generic Exception
-            mock_client.__aenter__.return_value.get.side_effect = httpx.HTTPError("Network error")
+            mock_client.__aenter__.return_value.get.side_effect = httpx.HTTPError(
+                "Network error"
+            )
             mock_client_class.return_value = mock_client
 
             with pytest.raises(HTTPException) as exc_info:
@@ -112,7 +116,9 @@ class TestJWTVerification:
     """Test JWT token verification"""
 
     @pytest.mark.asyncio
-    async def test_verify_valid_token(self, auth_service, mock_jwks, valid_token_payload):
+    async def test_verify_valid_token(
+        self, auth_service, mock_jwks, valid_token_payload
+    ):
         """Test verification of valid JWT token"""
         # Mock JWKS fetch
         with patch.object(auth_service, "get_jwks", return_value=mock_jwks):
@@ -147,7 +153,9 @@ class TestJWTVerification:
         with patch.object(auth_service, "get_jwks", return_value=mock_jwks):
             with patch("app.services.auth_service.jwt") as mock_jwt:
                 # Mock token with non-existent kid
-                mock_jwt.get_unverified_header.return_value = {"kid": "non_existent_key"}
+                mock_jwt.get_unverified_header.return_value = {
+                    "kid": "non_existent_key"
+                }
 
                 with pytest.raises(HTTPException) as exc_info:
                     await auth_service.verify_token("token_with_bad_kid")
@@ -204,8 +212,8 @@ class TestFactoryFunction:
 
     def test_factory_configures_jwks_url(self):
         """Test that factory function configures correct JWKS URL"""
-        from app.services.auth_service import get_auth_service
         from app.config import settings
+        from app.services.auth_service import get_auth_service
 
         service = get_auth_service()
 

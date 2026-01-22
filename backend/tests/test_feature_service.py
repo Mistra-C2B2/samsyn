@@ -1,19 +1,20 @@
 """
 Unit tests for feature service.
 
-Tests feature CRUD operations, bulk imports, spatial queries, and bounding box operations.
-Uses PostgreSQL test database with PostGIS extension and transaction rollback for isolation.
+Tests feature CRUD operations, bulk imports, spatial queries, and bounding
+box operations. Uses PostgreSQL test database with PostGIS extension and
+transaction rollback for isolation.
 """
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from app.models.feature import LayerFeature
 from app.models.layer import Layer
 from app.models.user import User
-from app.services.feature_service import FeatureService
 from app.schemas.layer import LayerFeatureCreate, LayerFeatureUpdate
-
+from app.services.feature_service import FeatureService
 
 # ============================================================================
 # Fixtures
@@ -85,7 +86,7 @@ def sample_point_geojson():
     """Sample Point GeoJSON geometry"""
     return {
         "type": "Point",
-        "coordinates": [-122.4194, 37.7749]  # San Francisco
+        "coordinates": [-122.4194, 37.7749],  # San Francisco
     }
 
 
@@ -97,8 +98,8 @@ def sample_linestring_geojson():
         "coordinates": [
             [-122.4194, 37.7749],
             [-122.4089, 37.7833],
-            [-122.4156, 37.7908]
-        ]
+            [-122.4156, 37.7908],
+        ],
     }
 
 
@@ -107,13 +108,15 @@ def sample_polygon_geojson():
     """Sample Polygon GeoJSON geometry"""
     return {
         "type": "Polygon",
-        "coordinates": [[
-            [-122.5, 37.7],
-            [-122.3, 37.7],
-            [-122.3, 37.8],
-            [-122.5, 37.8],
-            [-122.5, 37.7]
-        ]]
+        "coordinates": [
+            [
+                [-122.5, 37.7],
+                [-122.3, 37.7],
+                [-122.3, 37.8],
+                [-122.5, 37.8],
+                [-122.5, 37.7],
+            ]
+        ],
     }
 
 
@@ -123,7 +126,7 @@ def sample_feature_data(sample_point_geojson):
     return LayerFeatureCreate(
         geometry_type="Point",
         geometry=sample_point_geojson,
-        properties={"name": "Test Point", "value": 42}
+        properties={"name": "Test Point", "value": 42},
     )
 
 
@@ -132,7 +135,7 @@ def test_feature(db_session, test_layer, sample_point_geojson):
     """Create a test feature in the database"""
     feature = LayerFeature(
         layer_id=test_layer.id,
-        geometry=f"SRID=4326;POINT(-122.4194 37.7749)",
+        geometry="SRID=4326;POINT(-122.4194 37.7749)",
         properties={"name": "Test Feature", "value": 100},
         feature_type="point",
     )
@@ -161,12 +164,14 @@ class TestFeatureCRUD:
         assert created.geometry is not None
         assert created.created_at is not None
 
-    def test_create_feature_point(self, feature_service, test_layer, sample_point_geojson):
+    def test_create_feature_point(
+        self, feature_service, test_layer, sample_point_geojson
+    ):
         """Test creating a Point feature"""
         feature_data = LayerFeatureCreate(
             geometry_type="Point",
             geometry=sample_point_geojson,
-            properties={"type": "marker"}
+            properties={"type": "marker"},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -175,12 +180,14 @@ class TestFeatureCRUD:
         assert created.feature_type == "point"
         assert created.properties["type"] == "marker"
 
-    def test_create_feature_linestring(self, feature_service, test_layer, sample_linestring_geojson):
+    def test_create_feature_linestring(
+        self, feature_service, test_layer, sample_linestring_geojson
+    ):
         """Test creating a LineString feature"""
         feature_data = LayerFeatureCreate(
             geometry_type="LineString",
             geometry=sample_linestring_geojson,
-            properties={"name": "Test Route", "distance": 2.5}
+            properties={"name": "Test Route", "distance": 2.5},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -189,12 +196,14 @@ class TestFeatureCRUD:
         assert created.feature_type == "linestring"
         assert created.properties["name"] == "Test Route"
 
-    def test_create_feature_polygon(self, feature_service, test_layer, sample_polygon_geojson):
+    def test_create_feature_polygon(
+        self, feature_service, test_layer, sample_polygon_geojson
+    ):
         """Test creating a Polygon feature"""
         feature_data = LayerFeatureCreate(
             geometry_type="Polygon",
             geometry=sample_polygon_geojson,
-            properties={"name": "Test Area", "area_km2": 150}
+            properties={"name": "Test Area", "area_km2": 150},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -207,16 +216,16 @@ class TestFeatureCRUD:
         """Test creating feature with invalid geometry"""
         invalid_geojson = {
             "type": "Point",
-            "coordinates": "invalid"  # Should be array
+            "coordinates": "invalid",  # Should be array
         }
 
         feature_data = LayerFeatureCreate(
-            geometry_type="Point",
-            geometry=invalid_geojson,
-            properties={}
+            geometry_type="Point", geometry=invalid_geojson, properties={}
         )
 
-        with pytest.raises(ValueError, match="Invalid GeoJSON geometry|Failed to convert geometry"):
+        with pytest.raises(
+            ValueError, match="Invalid GeoJSON geometry|Failed to convert geometry"
+        ):
             feature_service.create_feature(test_layer.id, feature_data)
 
     def test_create_feature_invalid_layer(self, feature_service, sample_feature_data):
@@ -226,12 +235,12 @@ class TestFeatureCRUD:
         with pytest.raises(ValueError, match="Layer with id .* not found"):
             feature_service.create_feature(fake_layer_id, sample_feature_data)
 
-    def test_create_feature_empty_properties(self, feature_service, test_layer, sample_point_geojson):
+    def test_create_feature_empty_properties(
+        self, feature_service, test_layer, sample_point_geojson
+    ):
         """Test creating feature with empty properties"""
         feature_data = LayerFeatureCreate(
-            geometry_type="Point",
-            geometry=sample_point_geojson,
-            properties={}
+            geometry_type="Point", geometry=sample_point_geojson, properties={}
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -254,11 +263,12 @@ class TestFeatureCRUD:
         retrieved = feature_service.get_feature(fake_id)
         assert retrieved is None
 
-    def test_update_feature(self, feature_service, test_feature, sample_linestring_geojson):
+    def test_update_feature(
+        self, feature_service, test_feature, sample_linestring_geojson
+    ):
         """Test updating feature geometry and properties"""
         update_data = LayerFeatureUpdate(
-            geometry=sample_linestring_geojson,
-            properties={"new_field": "test"}
+            geometry=sample_linestring_geojson, properties={"new_field": "test"}
         )
 
         updated = feature_service.update_feature(test_feature.id, update_data)
@@ -271,11 +281,11 @@ class TestFeatureCRUD:
         assert updated.properties is not None
         assert isinstance(updated.properties, dict)
 
-    def test_update_feature_geometry_only(self, feature_service, test_feature, sample_polygon_geojson):
+    def test_update_feature_geometry_only(
+        self, feature_service, test_feature, sample_polygon_geojson
+    ):
         """Test updating only geometry"""
-        update_data = LayerFeatureUpdate(
-            geometry=sample_polygon_geojson
-        )
+        update_data = LayerFeatureUpdate(geometry=sample_polygon_geojson)
 
         updated = feature_service.update_feature(test_feature.id, update_data)
 
@@ -288,9 +298,7 @@ class TestFeatureCRUD:
         """Test updating only properties"""
         original_geometry_type = test_feature.feature_type
 
-        update_data = LayerFeatureUpdate(
-            properties={"status": "updated"}
-        )
+        update_data = LayerFeatureUpdate(properties={"status": "updated"})
 
         updated = feature_service.update_feature(test_feature.id, update_data)
 
@@ -305,12 +313,10 @@ class TestFeatureCRUD:
         """Test updating feature with invalid geometry"""
         invalid_geojson = {
             "type": "InvalidType",  # Invalid geometry type
-            "coordinates": [0, 0]
+            "coordinates": [0, 0],
         }
 
-        update_data = LayerFeatureUpdate(
-            geometry=invalid_geojson
-        )
+        update_data = LayerFeatureUpdate(geometry=invalid_geojson)
 
         with pytest.raises((ValueError, Exception)):
             feature_service.update_feature(test_feature.id, update_data)
@@ -318,9 +324,7 @@ class TestFeatureCRUD:
     def test_update_nonexistent_feature(self, feature_service):
         """Test updating a feature that doesn't exist"""
         fake_id = uuid4()
-        update_data = LayerFeatureUpdate(
-            properties={"test": "value"}
-        )
+        update_data = LayerFeatureUpdate(properties={"test": "value"})
 
         updated = feature_service.update_feature(fake_id, update_data)
         assert updated is None
@@ -350,7 +354,9 @@ class TestFeatureCRUD:
 class TestFeatureListAndCount:
     """Test feature listing and counting operations"""
 
-    def test_list_features(self, feature_service, db_session, test_layer, sample_point_geojson):
+    def test_list_features(
+        self, feature_service, db_session, test_layer, sample_point_geojson
+    ):
         """Test listing features with pagination"""
         # Create multiple features
         for i in range(5):
@@ -370,7 +376,9 @@ class TestFeatureListAndCount:
         # Should be ordered by created_at desc (newest first)
         assert features[0].properties["index"] == 4
 
-    def test_list_features_with_pagination(self, feature_service, db_session, test_layer):
+    def test_list_features_with_pagination(
+        self, feature_service, db_session, test_layer
+    ):
         """Test pagination parameters"""
         # Create 10 features
         for i in range(10):
@@ -497,15 +505,18 @@ class TestBulkOperations:
         features_data = [
             {
                 "geometry": {"type": "Point", "coordinates": [-122.41, 37.77]},
-                "properties": {"name": "Point 1", "value": 10}
+                "properties": {"name": "Point 1", "value": 10},
             },
             {
                 "geometry": {"type": "Point", "coordinates": [-122.42, 37.78]},
-                "properties": {"name": "Point 2", "value": 20}
+                "properties": {"name": "Point 2", "value": 20},
             },
             {
-                "geometry": {"type": "LineString", "coordinates": [[-122.4, 37.7], [-122.5, 37.8]]},
-                "properties": {"name": "Line 1"}
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[-122.4, 37.7], [-122.5, 37.8]],
+                },
+                "properties": {"name": "Line 1"},
             },
         ]
 
@@ -523,7 +534,7 @@ class TestBulkOperations:
         features_data = [
             {
                 "geometry": {"type": "Point", "coordinates": [-122.41, 37.77]},
-                "properties": {}
+                "properties": {},
             },
             {
                 "geometry": {"type": "Point", "coordinates": [-122.42, 37.78]},
@@ -541,11 +552,11 @@ class TestBulkOperations:
         features_data = [
             {
                 "geometry": {"type": "Point", "coordinates": [-122.41, 37.77]},
-                "properties": {"valid": True}
+                "properties": {"valid": True},
             },
             {
                 "geometry": {"type": "Point", "coordinates": "invalid"},
-                "properties": {"valid": False}
+                "properties": {"valid": False},
             },
         ]
 
@@ -555,9 +566,7 @@ class TestBulkOperations:
     def test_create_features_bulk_missing_geometry(self, feature_service, test_layer):
         """Test bulk import with missing geometry field"""
         features_data = [
-            {
-                "properties": {"name": "No Geometry"}
-            },
+            {"properties": {"name": "No Geometry"}},
         ]
 
         with pytest.raises(ValueError, match="must have a 'geometry' field"):
@@ -569,7 +578,7 @@ class TestBulkOperations:
         features_data = [
             {
                 "geometry": {"type": "Point", "coordinates": [-122.41, 37.77]},
-                "properties": {}
+                "properties": {},
             },
         ]
 
@@ -620,16 +629,20 @@ class TestSpatialQueries:
         # Query polygon
         query_geom = {
             "type": "Polygon",
-            "coordinates": [[
-                [-122.5, 37.7],
-                [-122.3, 37.7],
-                [-122.3, 37.8],
-                [-122.5, 37.8],
-                [-122.5, 37.7]
-            ]]
+            "coordinates": [
+                [
+                    [-122.5, 37.7],
+                    [-122.3, 37.7],
+                    [-122.3, 37.8],
+                    [-122.5, 37.8],
+                    [-122.5, 37.7],
+                ]
+            ],
         }
 
-        results = feature_service.spatial_query(test_layer.id, query_geom, operation="intersects")
+        results = feature_service.spatial_query(
+            test_layer.id, query_geom, operation="intersects"
+        )
 
         assert len(results) == 2
         locations = {f.properties["location"] for f in results}
@@ -660,16 +673,20 @@ class TestSpatialQueries:
         # Query polygon that contains inside_point
         query_geom = {
             "type": "Polygon",
-            "coordinates": [[
-                [-122.5, 37.7],
-                [-122.3, 37.7],
-                [-122.3, 37.8],
-                [-122.5, 37.8],
-                [-122.5, 37.7]
-            ]]
+            "coordinates": [
+                [
+                    [-122.5, 37.7],
+                    [-122.3, 37.7],
+                    [-122.3, 37.8],
+                    [-122.5, 37.8],
+                    [-122.5, 37.7],
+                ]
+            ],
         }
 
-        results = feature_service.spatial_query(test_layer.id, query_geom, operation="contains")
+        results = feature_service.spatial_query(
+            test_layer.id, query_geom, operation="contains"
+        )
 
         assert len(results) == 1
         assert results[0].properties["location"] == "inside"
@@ -687,7 +704,10 @@ class TestSpatialQueries:
         # Create a small polygon that doesn't contain query point
         small_polygon = LayerFeature(
             layer_id=test_layer.id,
-            geometry="SRID=4326;POLYGON((-122.2 37.9, -122.1 37.9, -122.1 38, -122.2 38, -122.2 37.9))",
+            geometry=(
+                "SRID=4326;POLYGON("
+                "(-122.2 37.9, -122.1 37.9, -122.1 38, -122.2 38, -122.2 37.9))"
+            ),
             properties={"size": "small"},
             feature_type="polygon",
         )
@@ -696,35 +716,32 @@ class TestSpatialQueries:
         db_session.flush()
 
         # Query with a point
-        query_geom = {
-            "type": "Point",
-            "coordinates": [-122.4, 37.75]
-        }
+        query_geom = {"type": "Point", "coordinates": [-122.4, 37.75]}
 
-        results = feature_service.spatial_query(test_layer.id, query_geom, operation="within")
+        results = feature_service.spatial_query(
+            test_layer.id, query_geom, operation="within"
+        )
 
         assert len(results) == 1
         assert results[0].properties["size"] == "large"
 
     def test_spatial_query_invalid_geometry(self, feature_service, test_layer):
         """Test spatial query with invalid geometry"""
-        invalid_geom = {
-            "type": "Point",
-            "coordinates": "invalid"
-        }
+        invalid_geom = {"type": "Point", "coordinates": "invalid"}
 
         with pytest.raises(ValueError):
-            feature_service.spatial_query(test_layer.id, invalid_geom, operation="intersects")
+            feature_service.spatial_query(
+                test_layer.id, invalid_geom, operation="intersects"
+            )
 
     def test_spatial_query_invalid_operation(self, feature_service, test_layer):
         """Test spatial query with invalid operation"""
-        query_geom = {
-            "type": "Point",
-            "coordinates": [-122.4, 37.75]
-        }
+        query_geom = {"type": "Point", "coordinates": [-122.4, 37.75]}
 
         with pytest.raises(ValueError, match="Unsupported spatial operation"):
-            feature_service.spatial_query(test_layer.id, query_geom, operation="invalid")
+            feature_service.spatial_query(
+                test_layer.id, query_geom, operation="invalid"
+            )
 
     def test_spatial_query_empty_results(self, feature_service, db_session, test_layer):
         """Test spatial query that returns no results"""
@@ -741,16 +758,20 @@ class TestSpatialQueries:
         # Query in different area
         query_geom = {
             "type": "Polygon",
-            "coordinates": [[
-                [-122.5, 37.7],
-                [-122.3, 37.7],
-                [-122.3, 37.8],
-                [-122.5, 37.8],
-                [-122.5, 37.7]
-            ]]
+            "coordinates": [
+                [
+                    [-122.5, 37.7],
+                    [-122.3, 37.7],
+                    [-122.3, 37.8],
+                    [-122.5, 37.8],
+                    [-122.5, 37.7],
+                ]
+            ],
         }
 
-        results = feature_service.spatial_query(test_layer.id, query_geom, operation="intersects")
+        results = feature_service.spatial_query(
+            test_layer.id, query_geom, operation="intersects"
+        )
         assert len(results) == 0
 
 
@@ -768,17 +789,17 @@ class TestHelperMethods:
         feature_data1 = LayerFeatureCreate(
             geometry_type="Point",
             geometry={"type": "Point", "coordinates": [-122.5, 37.7]},
-            properties={}
+            properties={},
         )
         feature_data2 = LayerFeatureCreate(
             geometry_type="Point",
             geometry={"type": "Point", "coordinates": [-122.3, 37.8]},
-            properties={}
+            properties={},
         )
         feature_data3 = LayerFeatureCreate(
             geometry_type="Point",
             geometry={"type": "Point", "coordinates": [-122.4, 37.75]},
-            properties={}
+            properties={},
         )
 
         feature_service.create_feature(test_layer.id, feature_data1)
@@ -883,17 +904,13 @@ class TestEdgeCases:
         """Test creating MultiPoint geometry"""
         multipoint_geojson = {
             "type": "MultiPoint",
-            "coordinates": [
-                [-122.41, 37.77],
-                [-122.42, 37.78],
-                [-122.43, 37.79]
-            ]
+            "coordinates": [[-122.41, 37.77], [-122.42, 37.78], [-122.43, 37.79]],
         }
 
         feature_data = LayerFeatureCreate(
             geometry_type="MultiPoint",
             geometry=multipoint_geojson,
-            properties={"type": "cluster"}
+            properties={"type": "cluster"},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -907,14 +924,14 @@ class TestEdgeCases:
             "type": "MultiLineString",
             "coordinates": [
                 [[-122.4, 37.7], [-122.5, 37.8]],
-                [[-122.3, 37.75], [-122.35, 37.78]]
-            ]
+                [[-122.3, 37.75], [-122.35, 37.78]],
+            ],
         }
 
         feature_data = LayerFeatureCreate(
             geometry_type="MultiLineString",
             geometry=multiline_geojson,
-            properties={"type": "route_network"}
+            properties={"type": "route_network"},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -927,27 +944,31 @@ class TestEdgeCases:
         multipolygon_geojson = {
             "type": "MultiPolygon",
             "coordinates": [
-                [[
-                    [-122.5, 37.7],
-                    [-122.4, 37.7],
-                    [-122.4, 37.75],
-                    [-122.5, 37.75],
-                    [-122.5, 37.7]
-                ]],
-                [[
-                    [-122.3, 37.76],
-                    [-122.2, 37.76],
-                    [-122.2, 37.8],
-                    [-122.3, 37.8],
-                    [-122.3, 37.76]
-                ]]
-            ]
+                [
+                    [
+                        [-122.5, 37.7],
+                        [-122.4, 37.7],
+                        [-122.4, 37.75],
+                        [-122.5, 37.75],
+                        [-122.5, 37.7],
+                    ]
+                ],
+                [
+                    [
+                        [-122.3, 37.76],
+                        [-122.2, 37.76],
+                        [-122.2, 37.8],
+                        [-122.3, 37.8],
+                        [-122.3, 37.76],
+                    ]
+                ],
+            ],
         }
 
         feature_data = LayerFeatureCreate(
             geometry_type="MultiPolygon",
             geometry=multipolygon_geojson,
-            properties={"type": "islands"}
+            properties={"type": "islands"},
         )
 
         created = feature_service.create_feature(test_layer.id, feature_data)
@@ -955,7 +976,9 @@ class TestEdgeCases:
         assert created is not None
         assert created.feature_type == "multipolygon"
 
-    def test_list_features_different_layers(self, feature_service, db_session, test_layer, second_layer):
+    def test_list_features_different_layers(
+        self, feature_service, db_session, test_layer, second_layer
+    ):
         """Test that list_features correctly filters by layer"""
         # Create features in different layers
         feature1 = LayerFeature(
@@ -987,9 +1010,7 @@ class TestEdgeCases:
         """Test that updating feature doesn't change layer_id"""
         original_layer_id = test_feature.layer_id
 
-        update_data = LayerFeatureUpdate(
-            properties={"test": "value"}
-        )
+        update_data = LayerFeatureUpdate(properties={"test": "value"})
 
         updated = feature_service.update_feature(test_feature.id, update_data)
 
@@ -1001,15 +1022,15 @@ class TestEdgeCases:
         features_data = [
             {
                 "geometry": {"type": "Point", "coordinates": [-122.41, 37.77]},
-                "properties": {"order": 0}
+                "properties": {"order": 0},
             },
             {
                 "geometry": {"type": "Point", "coordinates": [-122.42, 37.78]},
-                "properties": {"order": 1}
+                "properties": {"order": 1},
             },
             {
                 "geometry": {"type": "Point", "coordinates": [-122.43, 37.79]},
-                "properties": {"order": 2}
+                "properties": {"order": 2},
             },
         ]
 
@@ -1025,7 +1046,10 @@ class TestEdgeCases:
         # Create a polygon
         polygon = LayerFeature(
             layer_id=test_layer.id,
-            geometry="SRID=4326;POLYGON((-122.5 37.7, -122.3 37.7, -122.3 37.8, -122.5 37.8, -122.5 37.7))",
+            geometry=(
+                "SRID=4326;POLYGON("
+                "(-122.5 37.7, -122.3 37.7, -122.3 37.8, -122.5 37.8, -122.5 37.7))"
+            ),
             properties={"type": "area"},
             feature_type="polygon",
         )
@@ -1033,12 +1057,11 @@ class TestEdgeCases:
         db_session.flush()
 
         # Query with point inside polygon
-        query_point = {
-            "type": "Point",
-            "coordinates": [-122.4, 37.75]
-        }
+        query_point = {"type": "Point", "coordinates": [-122.4, 37.75]}
 
-        results = feature_service.spatial_query(test_layer.id, query_point, operation="intersects")
+        results = feature_service.spatial_query(
+            test_layer.id, query_point, operation="intersects"
+        )
 
         assert len(results) == 1
         assert results[0].properties["type"] == "area"
@@ -1061,7 +1084,9 @@ class TestEdgeCases:
 
         assert len(features) == 1
 
-    def test_pagination_beyond_available_features(self, feature_service, db_session, test_layer):
+    def test_pagination_beyond_available_features(
+        self, feature_service, db_session, test_layer
+    ):
         """Test pagination with offset beyond available features"""
         # Create only 3 features
         for i in range(3):

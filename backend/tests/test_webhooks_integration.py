@@ -8,11 +8,11 @@ Uses the test endpoint (no signature verification) for local testing.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database import get_db
-from app.services.user_service import UserService
-from app.models.user import User
+from app.main import app
 from app.models.map import Map
+from app.models.user import User
+from app.services.user_service import UserService
 
 
 @pytest.fixture
@@ -106,7 +106,9 @@ class TestWebhookIntegrationUserCreated:
         assert response2.json()["created"] is False  # Not created, found existing
 
         # Verify only one user exists
-        users = db_session.query(User).filter_by(clerk_id="user_integration_test_002").all()
+        users = (
+            db_session.query(User).filter_by(clerk_id="user_integration_test_002").all()
+        )
         assert len(users) == 1
 
 
@@ -171,7 +173,7 @@ class TestWebhookIntegrationUserDeleted:
             email="todelete@example.com",
             username="todelete",
         )
-        user = user_service.create_user(user_data)
+        user_service.create_user(user_data)
 
         # Delete via webhook
         payload = {
@@ -196,7 +198,9 @@ class TestWebhookIntegrationUserDeleted:
         assert placeholder is not None
         assert placeholder.clerk_id == "system_deleted_user"
 
-    def test_delete_user_with_ownership_transfer(self, client, db_session, user_service):
+    def test_delete_user_with_ownership_transfer(
+        self, client, db_session, user_service
+    ):
         """Test that user deletion transfers ownership to placeholder"""
         # Create a user
         from app.schemas.user import UserCreate
@@ -216,7 +220,6 @@ class TestWebhookIntegrationUserDeleted:
         )
         db_session.add(user_map)
         db_session.flush()
-        map_id = user_map.id
 
         # Delete user via webhook
         payload = {
@@ -306,9 +309,7 @@ class TestWebhookIntegrationEndToEnd:
             "type": "user.created",
             "data": {
                 "id": "user_multi_001",
-                "email_addresses": [
-                    {"id": "e1", "email_address": "user1@example.com"}
-                ],
+                "email_addresses": [{"id": "e1", "email_address": "user1@example.com"}],
                 "primary_email_address_id": "e1",
                 "username": "user1",
             },
@@ -319,9 +320,7 @@ class TestWebhookIntegrationEndToEnd:
             "type": "user.created",
             "data": {
                 "id": "user_multi_002",
-                "email_addresses": [
-                    {"id": "e2", "email_address": "user2@example.com"}
-                ],
+                "email_addresses": [{"id": "e2", "email_address": "user2@example.com"}],
                 "primary_email_address_id": "e2",
                 "username": "user2",
             },

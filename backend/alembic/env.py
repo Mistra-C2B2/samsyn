@@ -1,9 +1,8 @@
-from logging.config import fileConfig
 import sys
+from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -13,16 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # Import app configuration and models
 from app.config import settings
 from app.database import Base
-from app.models import (
-    User,
-    Map,
-    Layer,
-    MapLayer,
-    MapCollaborator,
-    LayerFeature,
-    Comment,
-    WmsServer,
-)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -53,15 +42,40 @@ def include_object(object, name, type_, reflected, compare_to):
             return False
         # TIGER geocoder tables (comprehensive list)
         tiger_tables = {
-            "featnames", "geocode_settings", "geocode_settings_default",
-            "direction_lookup", "secondary_unit_lookup", "state_lookup",
-            "street_type_lookup", "place_lookup", "county_lookup",
-            "countysub_lookup", "zip_lookup_all", "zip_lookup_base",
-            "zip_lookup", "county", "state", "place", "zip_state",
-            "zip_state_loc", "cousub", "edges", "addrfeat", "addr",
-            "zcta5", "tabblock20", "tabblock", "faces", "loader_platform",
-            "loader_variables", "loader_lookuptables", "tract", "bg",
-            "pagc_gaz", "pagc_lex", "pagc_rules"
+            "featnames",
+            "geocode_settings",
+            "geocode_settings_default",
+            "direction_lookup",
+            "secondary_unit_lookup",
+            "state_lookup",
+            "street_type_lookup",
+            "place_lookup",
+            "county_lookup",
+            "countysub_lookup",
+            "zip_lookup_all",
+            "zip_lookup_base",
+            "zip_lookup",
+            "county",
+            "state",
+            "place",
+            "zip_state",
+            "zip_state_loc",
+            "cousub",
+            "edges",
+            "addrfeat",
+            "addr",
+            "zcta5",
+            "tabblock20",
+            "tabblock",
+            "faces",
+            "loader_platform",
+            "loader_variables",
+            "loader_lookuptables",
+            "tract",
+            "bg",
+            "pagc_gaz",
+            "pagc_lex",
+            "pagc_rules",
         }
         if name in tiger_tables:
             return False

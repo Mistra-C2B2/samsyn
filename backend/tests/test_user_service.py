@@ -8,12 +8,9 @@ Uses PostgreSQL test database with transaction rollback for isolation.
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models.user import User
 from app.models.map import Map
-from app.models.layer import Layer
-from app.models.comment import Comment
-from app.services.user_service import UserService
 from app.schemas.user import UserCreate, UserUpdate
+from app.services.user_service import UserService
 
 
 @pytest.fixture
@@ -221,7 +218,9 @@ class TestUserDeletion:
         deleted = user_service.delete_user("non_existent_user")
         assert deleted is False
 
-    def test_delete_user_reassigns_ownership(self, user_service, sample_user_data, db_session):
+    def test_delete_user_reassigns_ownership(
+        self, user_service, sample_user_data, db_session
+    ):
         """Test that deleting user reassigns ownership to placeholder"""
         # Create user
         user = user_service.create_user(sample_user_data)
@@ -245,7 +244,9 @@ class TestUserDeletion:
         db_session.refresh(user_map)
         assert user_map.created_by == placeholder.id
 
-    def test_delete_user_preserves_collaborator_data(self, user_service, sample_user_data, db_session):
+    def test_delete_user_preserves_collaborator_data(
+        self, user_service, sample_user_data, db_session
+    ):
         """Test that deleting user preserves data for collaborators"""
         # Create owner and collaborator
         owner = user_service.create_user(sample_user_data)
@@ -255,7 +256,7 @@ class TestUserDeletion:
             email="collab@example.com",
             username="collaborator",
         )
-        collaborator = user_service.create_user(collaborator_data)
+        user_service.create_user(collaborator_data)
 
         # Create map owned by first user
         owner_map = Map(

@@ -5,14 +5,19 @@ Tests layer CRUD operations, permission checks, filtering, and search.
 Uses PostgreSQL test database with transaction rollback for isolation.
 """
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from app.models.layer import Layer
 from app.models.user import User
+from app.schemas.layer import (
+    LayerCreate,
+    LayerEditabilityEnum,
+    LayerSourceTypeEnum,
+    LayerUpdate,
+)
 from app.services.layer_service import LayerService
-from app.schemas.layer import LayerCreate, LayerUpdate, LayerSourceTypeEnum, LayerEditabilityEnum
-
 
 # ============================================================================
 # Fixtures
@@ -318,7 +323,9 @@ class TestLayerPermissions:
         self, layer_service, test_user2, everyone_editable_layer
     ):
         """Test that anyone can edit layer with editable=everyone"""
-        can_edit = layer_service.can_edit_layer(everyone_editable_layer.id, test_user2.id)
+        can_edit = layer_service.can_edit_layer(
+            everyone_editable_layer.id, test_user2.id
+        )
         assert can_edit is True
 
         # Try to update
@@ -349,9 +356,7 @@ class TestLayerPermissions:
         deleted = layer_service.delete_layer(wms_layer.id, test_user2.id)
         assert deleted is False
 
-    def test_update_layer_unauthorized(
-        self, layer_service, test_user2, wms_layer
-    ):
+    def test_update_layer_unauthorized(self, layer_service, test_user2, wms_layer):
         """Test updating layer without permission returns None"""
         update_data = LayerUpdate(name="Unauthorized Update")
         updated = layer_service.update_layer(wms_layer.id, update_data, test_user2.id)
@@ -390,9 +395,7 @@ class TestLayerFiltering:
         assert geotiff_layer.id in layer_ids
         assert global_layer.id in layer_ids
 
-    def test_list_layers_includes_global(
-        self, layer_service, test_user2, global_layer
-    ):
+    def test_list_layers_includes_global(self, layer_service, test_user2, global_layer):
         """Test that global layers are visible to all users"""
         layers = layer_service.list_layers(test_user2.id)
 
@@ -473,9 +476,7 @@ class TestLayerFiltering:
         assert geotiff_layer.id in layer_ids
         assert global_layer.id not in layer_ids
 
-    def test_search_by_name(
-        self, layer_service, test_user, wms_layer, geotiff_layer
-    ):
+    def test_search_by_name(self, layer_service, test_user, wms_layer, geotiff_layer):
         """Test searching layers by name"""
         layers = layer_service.list_layers(test_user.id, search="WMS")
 
@@ -491,9 +492,7 @@ class TestLayerFiltering:
         assert len(layers) == 1
         assert layers[0].id == vector_layer.id
 
-    def test_search_case_insensitive(
-        self, layer_service, test_user, wms_layer
-    ):
+    def test_search_case_insensitive(self, layer_service, test_user, wms_layer):
         """Test that search is case-insensitive"""
         layers_upper = layer_service.list_layers(test_user.id, search="MARINE")
         layers_lower = layer_service.list_layers(test_user.id, search="marine")
@@ -568,9 +567,7 @@ class TestLayerEdgeCases:
         layer_ids = {layer.id for layer in layers}
         assert global_layer.id in layer_ids
 
-    def test_search_layers(
-        self, layer_service, test_user, wms_layer, geotiff_layer
-    ):
+    def test_search_layers(self, layer_service, test_user, wms_layer, geotiff_layer):
         """Test search_layers helper method"""
         layers = layer_service.search_layers(test_user.id, "Marine")
 
@@ -586,9 +583,7 @@ class TestLayerEdgeCases:
         layers = layer_service.search_layers(test_user.id, "   ")
         assert len(layers) == 0
 
-    def test_search_layers_limit(
-        self, layer_service, db_session, test_user
-    ):
+    def test_search_layers_limit(self, layer_service, db_session, test_user):
         """Test search_layers respects limit parameter"""
         # Create multiple layers
         for i in range(10):
@@ -607,25 +602,19 @@ class TestLayerEdgeCases:
 
         assert len(layers) <= 5
 
-    def test_get_layers_by_category(
-        self, layer_service, test_user, wms_layer
-    ):
+    def test_get_layers_by_category(self, layer_service, test_user, wms_layer):
         """Test getting layers by category"""
         layers = layer_service.get_layers_by_category(test_user.id, "marine")
 
         assert len(layers) == 1
         assert layers[0].id == wms_layer.id
 
-    def test_get_layers_by_category_empty(
-        self, layer_service, test_user
-    ):
+    def test_get_layers_by_category_empty(self, layer_service, test_user):
         """Test getting layers by nonexistent category"""
         layers = layer_service.get_layers_by_category(test_user.id, "nonexistent")
         assert len(layers) == 0
 
-    def test_update_layer_source_type(
-        self, layer_service, test_user, wms_layer
-    ):
+    def test_update_layer_source_type(self, layer_service, test_user, wms_layer):
         """Test updating layer source type"""
         update_data = LayerUpdate(source_type=LayerSourceTypeEnum.vector)
         updated = layer_service.update_layer(wms_layer.id, update_data, test_user.id)
@@ -645,9 +634,7 @@ class TestLayerEdgeCases:
         assert updated is not None
         assert updated.editable == "everyone"
 
-    def test_update_layer_make_global(
-        self, layer_service, test_user, wms_layer
-    ):
+    def test_update_layer_make_global(self, layer_service, test_user, wms_layer):
         """Test making a layer global"""
         assert wms_layer.is_global is False
 
@@ -675,7 +662,10 @@ class TestLayerEdgeCases:
         created = layer_service.create_layer(layer_data, test_user.id)
 
         assert created is not None
-        assert created.source_config == {"type": "geojson", "url": "https://example.com/data.json"}
+        assert created.source_config == {
+            "type": "geojson",
+            "url": "https://example.com/data.json",
+        }
         assert created.style_config == {"color": "red", "opacity": 0.5}
         assert created.legend_config == {"type": "categories", "items": []}
         assert created.layer_metadata == {"author": "Test", "license": "MIT"}
@@ -709,9 +699,7 @@ class TestLayerEdgeCases:
         updated = layer_service.update_layer(fake_id, update_data, test_user.id)
         assert updated is None
 
-    def test_layer_ordering(
-        self, layer_service, db_session, test_user
-    ):
+    def test_layer_ordering(self, layer_service, db_session, test_user):
         """Test that layers are ordered by creation date (newest first)"""
         # Create layers in sequence
         layer1 = Layer(

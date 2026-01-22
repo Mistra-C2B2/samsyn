@@ -5,17 +5,17 @@ Tests comment CRUD operations, threading, resolution status, and filtering.
 Uses PostgreSQL test database with transaction rollback for isolation.
 """
 
-import pytest
-from uuid import uuid4
 from datetime import datetime
+from uuid import uuid4
+
+import pytest
 
 from app.models.comment import Comment
-from app.models.user import User
-from app.models.map import Map
 from app.models.layer import Layer
-from app.services.comment_service import CommentService
+from app.models.map import Map
+from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentUpdate
-
+from app.services.comment_service import CommentService
 
 # ============================================================================
 # Fixtures
@@ -208,7 +208,9 @@ class TestCommentCreation:
         assert created.parent_id is None
         assert created.is_resolved is False
 
-    def test_create_reply_to_comment(self, comment_service, test_comment_on_map, second_user):
+    def test_create_reply_to_comment(
+        self, comment_service, test_comment_on_map, second_user
+    ):
         """Test creating a reply to a comment"""
         reply_data = CommentCreate(
             content="This is a reply to the comment",
@@ -253,18 +255,26 @@ class TestCommentCreation:
         # Clean up
         comment_service.delete_comment(created.id)
 
-    def test_reject_comment_with_both_targets(self, comment_service, test_map, test_layer, test_user):
-        """Test that creating a comment with both map_id and layer_id fails validation"""
+    def test_reject_comment_with_both_targets(
+        self, comment_service, test_map, test_layer, test_user
+    ):
+        """Test that creating a comment with both map_id and
+        layer_id fails validation"""
         # This should fail at Pydantic validation level
         from pydantic import ValidationError
-        with pytest.raises(ValidationError, match="Cannot provide both map_id and layer_id"):
+
+        with pytest.raises(
+            ValidationError, match="Cannot provide both map_id and layer_id"
+        ):
             CommentCreate(
                 content="Comment with both targets",
                 map_id=test_map.id,
                 layer_id=test_layer.id,
             )
 
-    def test_reject_comment_with_invalid_parent_id(self, comment_service, test_map, test_user):
+    def test_reject_comment_with_invalid_parent_id(
+        self, comment_service, test_map, test_user
+    ):
         """Test that creating a comment with invalid parent_id raises error"""
         fake_parent_id = uuid4()
 
@@ -275,13 +285,16 @@ class TestCommentCreation:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.create_comment(comment_data, test_user.id)
 
         assert exc_info.value.status_code == 404
         assert "Parent comment" in str(exc_info.value.detail)
 
-    def test_reject_reply_on_different_target_map(self, comment_service, test_comment_on_map, second_map, test_user):
+    def test_reject_reply_on_different_target_map(
+        self, comment_service, test_comment_on_map, second_map, test_user
+    ):
         """Test that reply on different map than parent raises error"""
         reply_data = CommentCreate(
             content="Reply on different map",
@@ -290,13 +303,16 @@ class TestCommentCreation:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.create_comment(reply_data, test_user.id)
 
         assert exc_info.value.status_code == 400
         assert "same map" in str(exc_info.value.detail)
 
-    def test_reject_reply_on_different_target_layer(self, comment_service, test_comment_on_layer, second_layer, test_user):
+    def test_reject_reply_on_different_target_layer(
+        self, comment_service, test_comment_on_layer, second_layer, test_user
+    ):
         """Test that reply on different layer than parent raises error"""
         reply_data = CommentCreate(
             content="Reply on different layer",
@@ -305,6 +321,7 @@ class TestCommentCreation:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.create_comment(reply_data, test_user.id)
 
@@ -337,6 +354,7 @@ class TestCommentCreation:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.create_comment(comment_data, test_user.id)
 
@@ -353,6 +371,7 @@ class TestCommentCreation:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.create_comment(comment_data, test_user.id)
 
@@ -384,7 +403,9 @@ class TestCommentRetrieval:
         retrieved = comment_service.get_comment(fake_id)
         assert retrieved is None
 
-    def test_list_all_comments(self, comment_service, db_session, test_map, test_layer, test_user):
+    def test_list_all_comments(
+        self, comment_service, db_session, test_map, test_layer, test_user
+    ):
         """Test listing all comments without filters"""
         # Create multiple comments
         comment1 = Comment(
@@ -414,7 +435,9 @@ class TestCommentRetrieval:
         assert "Comment 2 on layer" in contents
         assert "Comment 3 on map" in contents
 
-    def test_list_comments_by_map_id(self, comment_service, db_session, test_map, test_layer, test_user):
+    def test_list_comments_by_map_id(
+        self, comment_service, db_session, test_map, test_layer, test_user
+    ):
         """Test filtering comments by map_id"""
         # Create comments on different targets
         comment_on_map = Comment(
@@ -437,7 +460,9 @@ class TestCommentRetrieval:
         assert all(c.map_id == test_map.id for c in comments)
         assert any(c.content == "Comment on target map" for c in comments)
 
-    def test_list_comments_by_layer_id(self, comment_service, db_session, test_map, test_layer, test_user):
+    def test_list_comments_by_layer_id(
+        self, comment_service, db_session, test_map, test_layer, test_user
+    ):
         """Test filtering comments by layer_id"""
         # Create comments on different targets
         comment_on_map = Comment(
@@ -460,7 +485,9 @@ class TestCommentRetrieval:
         assert all(c.layer_id == test_layer.id for c in comments)
         assert any(c.content == "Comment on target layer" for c in comments)
 
-    def test_list_replies_to_comment(self, comment_service, db_session, test_comment_on_map, test_user, second_user):
+    def test_list_replies_to_comment(
+        self, comment_service, db_session, test_comment_on_map, test_user, second_user
+    ):
         """Test filtering comments by parent_id to get replies"""
         # Create replies to the parent comment
         reply1 = Comment(
@@ -493,7 +520,9 @@ class TestCommentRetrieval:
         assert "Second reply" in reply_contents
         assert "Not a reply" not in reply_contents
 
-    def test_get_comment_thread_with_nested_replies(self, comment_service, db_session, test_comment_on_map, test_user, second_user):
+    def test_get_comment_thread_with_nested_replies(
+        self, comment_service, db_session, test_comment_on_map, test_user, second_user
+    ):
         """Test getting a comment with all nested replies"""
         # Create a thread: root -> reply1 -> nested_reply
         reply1 = Comment(
@@ -558,10 +587,13 @@ class TestCommentUpdate:
     def test_reject_empty_content(self, comment_service, test_comment_on_map):
         """Test that updating with empty content fails validation"""
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError, match="cannot be empty"):
             CommentUpdate(content="   ")
 
-    def test_verify_updated_at_timestamp_changes(self, comment_service, test_comment_on_map):
+    def test_verify_updated_at_timestamp_changes(
+        self, comment_service, test_comment_on_map
+    ):
         """Test that updated_at timestamp changes on update"""
         import time
 
@@ -602,6 +634,7 @@ class TestCommentUpdate:
         )
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.update_comment(fake_id, update_data)
 
@@ -628,7 +661,9 @@ class TestCommentDeletion:
         retrieved = comment_service.get_comment(comment_id)
         assert retrieved is None
 
-    def test_delete_comment_with_replies_behavior(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_delete_comment_with_replies_behavior(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test behavior when deleting a comment that has replies"""
         # Create replies
         reply1 = Comment(
@@ -655,27 +690,32 @@ class TestCommentDeletion:
         # Note: The database FK constraint is NO ACTION by default
         # This means the delete may fail with an IntegrityError if there are replies
         # Or if using ON DELETE CASCADE, replies would be deleted too
-        # Let's test that we can successfully delete (replies should remain as orphans or be cascade deleted)
+        # Let's test that we can successfully delete (replies should remain
+        # as orphans or be cascade deleted)
 
         # Try to delete - behavior depends on database constraint
         from sqlalchemy.exc import IntegrityError
+
         try:
             deleted = comment_service.delete_comment(test_comment_on_map.id)
             assert deleted is True
 
-            # If delete succeeded, check if replies were cascade deleted or became orphans
+            # If delete succeeded, check if replies were cascade deleted
+            # or became orphans
             db_session.expire_all()
-            reply1_after = comment_service.get_comment(reply1_id)
-            reply2_after = comment_service.get_comment(reply2_id)
+            comment_service.get_comment(reply1_id)
+            comment_service.get_comment(reply2_id)
 
-            # Either replies are deleted (CASCADE) or they still exist (NO ACTION allowed it)
+            # Either replies are deleted (CASCADE) or they still exist
+            # (NO ACTION allowed it)
             # The current DB constraint is NO ACTION but SQLAlchemy may handle it
             # Just verify the parent is gone
             parent_after = comment_service.get_comment(test_comment_on_map.id)
             assert parent_after is None
 
         except IntegrityError:
-            # If NO ACTION prevents deletion due to foreign key constraint, that's also valid
+            # If NO ACTION prevents deletion due to foreign key constraint,
+            # that's also valid
             # This would happen if the database strictly enforces the constraint
             pass
 
@@ -717,7 +757,9 @@ class TestResolutionStatus:
 
         assert unresolved.is_resolved is False
 
-    def test_filter_by_resolution_status(self, comment_service, db_session, test_map, test_user):
+    def test_filter_by_resolution_status(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test filtering comments by resolution status"""
         # Create resolved and unresolved comments
         resolved_comment = Comment(
@@ -736,11 +778,15 @@ class TestResolutionStatus:
         db_session.flush()
 
         # List including resolved
-        all_comments = comment_service.list_comments(map_id=test_map.id, include_resolved=True)
+        all_comments = comment_service.list_comments(
+            map_id=test_map.id, include_resolved=True
+        )
         assert len(all_comments) >= 2
 
         # List excluding resolved
-        unresolved_only = comment_service.list_comments(map_id=test_map.id, include_resolved=False)
+        unresolved_only = comment_service.list_comments(
+            map_id=test_map.id, include_resolved=False
+        )
         assert all(not c.is_resolved for c in unresolved_only)
         assert any(c.content == "Unresolved comment" for c in unresolved_only)
 
@@ -749,6 +795,7 @@ class TestResolutionStatus:
         fake_id = uuid4()
 
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             comment_service.resolve_comment(fake_id, True)
 
@@ -763,7 +810,9 @@ class TestResolutionStatus:
 class TestPaginationAndCounting:
     """Test pagination and counting operations"""
 
-    def test_paginate_comment_list(self, comment_service, db_session, test_map, test_user):
+    def test_paginate_comment_list(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test pagination with limit and offset"""
         # Create 10 comments
         for i in range(10):
@@ -788,7 +837,9 @@ class TestPaginationAndCounting:
         page2_ids = {c.id for c in page2}
         assert page1_ids.isdisjoint(page2_ids)
 
-    def test_count_comments_with_filters(self, comment_service, db_session, test_map, test_layer, test_user):
+    def test_count_comments_with_filters(
+        self, comment_service, db_session, test_map, test_layer, test_user
+    ):
         """Test counting comments with various filters"""
         # Create comments on different targets
         for i in range(3):
@@ -821,7 +872,9 @@ class TestPaginationAndCounting:
         total_count = comment_service.count_comments()
         assert total_count >= 5
 
-    def test_count_replies(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_count_replies(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test counting replies to a comment"""
         # Create replies
         for i in range(4):
@@ -838,7 +891,9 @@ class TestPaginationAndCounting:
         reply_count = comment_service.count_comments(parent_id=test_comment_on_map.id)
         assert reply_count == 4
 
-    def test_count_with_resolution_filter(self, comment_service, db_session, test_map, test_user):
+    def test_count_with_resolution_filter(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test counting with resolution status filter"""
         # Create resolved and unresolved comments
         for i in range(3):
@@ -862,11 +917,15 @@ class TestPaginationAndCounting:
         db_session.flush()
 
         # Count all
-        total = comment_service.count_comments(map_id=test_map.id, include_resolved=True)
+        total = comment_service.count_comments(
+            map_id=test_map.id, include_resolved=True
+        )
         assert total == 5
 
         # Count unresolved only
-        unresolved = comment_service.count_comments(map_id=test_map.id, include_resolved=False)
+        unresolved = comment_service.count_comments(
+            map_id=test_map.id, include_resolved=False
+        )
         assert unresolved == 2
 
 
@@ -878,7 +937,9 @@ class TestPaginationAndCounting:
 class TestReplyManagement:
     """Test reply-specific operations"""
 
-    def test_get_replies(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_get_replies(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test getting direct replies to a comment"""
         # Create replies
         reply1 = Comment(
@@ -904,7 +965,9 @@ class TestReplyManagement:
         assert "First reply" in reply_contents
         assert "Second reply" in reply_contents
 
-    def test_get_reply_count(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_get_reply_count(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test getting count of direct replies"""
         # Create replies
         for i in range(5):
@@ -921,7 +984,9 @@ class TestReplyManagement:
         count = comment_service.get_reply_count(test_comment_on_map.id)
         assert count == 5
 
-    def test_get_replies_with_pagination(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_get_replies_with_pagination(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test pagination when getting replies"""
         # Create 10 replies
         for i in range(10):
@@ -956,7 +1021,9 @@ class TestReplyManagement:
 class TestBulkOperations:
     """Test bulk comment operations"""
 
-    def test_delete_comments_by_map(self, comment_service, db_session, test_map, test_user):
+    def test_delete_comments_by_map(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test deleting all comments on a map"""
         # Create comments on the map
         for i in range(3):
@@ -976,7 +1043,9 @@ class TestBulkOperations:
         remaining = comment_service.list_comments(map_id=test_map.id)
         assert len(remaining) == 0
 
-    def test_delete_comments_by_layer(self, comment_service, db_session, test_layer, test_user):
+    def test_delete_comments_by_layer(
+        self, comment_service, db_session, test_layer, test_user
+    ):
         """Test deleting all comments on a layer"""
         # Create comments on the layer
         for i in range(4):
@@ -996,7 +1065,9 @@ class TestBulkOperations:
         remaining = comment_service.list_comments(layer_id=test_layer.id)
         assert len(remaining) == 0
 
-    def test_get_comment_count_by_map(self, comment_service, db_session, test_map, test_user):
+    def test_get_comment_count_by_map(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test getting total comment count for a map"""
         # Create comments
         for i in range(6):
@@ -1011,7 +1082,9 @@ class TestBulkOperations:
         count = comment_service.get_comment_count_by_map(test_map.id)
         assert count == 6
 
-    def test_get_comment_count_by_layer(self, comment_service, db_session, test_layer, test_user):
+    def test_get_comment_count_by_layer(
+        self, comment_service, db_session, test_layer, test_user
+    ):
         """Test getting total comment count for a layer"""
         # Create comments
         for i in range(5):
@@ -1050,18 +1123,22 @@ class TestEdgeCases:
         replies = comment_service.get_replies(test_comment_on_map.id)
         assert len(replies) == 0
 
-    def test_get_reply_count_with_no_replies(self, comment_service, test_comment_on_map):
+    def test_get_reply_count_with_no_replies(
+        self, comment_service, test_comment_on_map
+    ):
         """Test getting reply count when comment has no replies"""
         count = comment_service.get_reply_count(test_comment_on_map.id)
         assert count == 0
 
-    def test_comment_thread_max_depth(self, comment_service, db_session, test_comment_on_map, test_user):
+    def test_comment_thread_max_depth(
+        self, comment_service, db_session, test_comment_on_map, test_user
+    ):
         """Test that comment thread respects max_depth parameter"""
         # Create a deep thread
         parent = test_comment_on_map
         for i in range(5):
             reply = Comment(
-                content=f"Depth {i+1}",
+                content=f"Depth {i + 1}",
                 author_id=test_user.id,
                 map_id=test_comment_on_map.map_id,
                 parent_id=parent.id,
@@ -1079,7 +1156,9 @@ class TestEdgeCases:
         assert len(thread.replies[0].replies) == 1
         # Should not load beyond max_depth
 
-    def test_pagination_beyond_available_comments(self, comment_service, test_map, db_session, test_user):
+    def test_pagination_beyond_available_comments(
+        self, comment_service, test_map, db_session, test_user
+    ):
         """Test pagination with offset beyond available comments"""
         # Create only 3 comments
         for i in range(3):
@@ -1092,7 +1171,9 @@ class TestEdgeCases:
         db_session.flush()
 
         # Request with offset beyond available
-        comments = comment_service.list_comments(map_id=test_map.id, limit=10, offset=10)
+        comments = comment_service.list_comments(
+            map_id=test_map.id, limit=10, offset=10
+        )
         assert len(comments) == 0
 
     def test_delete_comments_by_map_empty(self, comment_service, test_map):
@@ -1105,7 +1186,9 @@ class TestEdgeCases:
         count = comment_service.delete_comments_by_layer(test_layer.id)
         assert count == 0
 
-    def test_comments_ordered_by_created_at(self, comment_service, db_session, test_map, test_user):
+    def test_comments_ordered_by_created_at(
+        self, comment_service, db_session, test_map, test_user
+    ):
         """Test that comments are ordered by created_at descending (newest first)"""
         import time
 

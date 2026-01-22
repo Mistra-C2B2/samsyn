@@ -6,16 +6,16 @@ and layer management. Uses PostgreSQL test database with transaction
 rollback for isolation.
 """
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
+from app.models.collaborator import MapCollaborator
+from app.models.layer import Layer, MapLayer
 from app.models.map import Map
 from app.models.user import User
-from app.models.layer import Layer, MapLayer
-from app.models.collaborator import MapCollaborator
+from app.schemas.map import MapCreate, MapPermissionEnum, MapUpdate
 from app.services.map_service import MapService
-from app.schemas.map import MapCreate, MapUpdate, MapPermissionEnum
-
 
 # ============================================================================
 # Fixtures
@@ -358,9 +358,7 @@ class TestMapPermissions:
 
         assert updated is None
 
-    def test_delete_map_owner_only(
-        self, map_service, db_session, test_map, other_user
-    ):
+    def test_delete_map_owner_only(self, map_service, db_session, test_map, other_user):
         """Test that only owner can delete map"""
         # Add other_user as editor
         collaborator = MapCollaborator(
@@ -380,7 +378,13 @@ class TestMapPermissions:
         assert retrieved is not None
 
     def test_can_view_map_permission_checks(
-        self, map_service, test_map, public_map, collaborators_map, test_user, other_user
+        self,
+        map_service,
+        test_map,
+        public_map,
+        collaborators_map,
+        test_user,
+        other_user,
     ):
         """Test can_view_map for different permission levels"""
         # Owner can view private map
@@ -631,9 +635,7 @@ class TestCollaboratorManagement:
         assert other_user.id in user_ids
         assert third_user.id in user_ids
 
-    def test_list_collaborators_unauthorized(
-        self, map_service, test_map, other_user
-    ):
+    def test_list_collaborators_unauthorized(self, map_service, test_map, other_user):
         """Test that unauthorized user cannot list collaborators"""
         collaborators = map_service.list_collaborators(test_map.id, other_user.id)
         assert collaborators is None
@@ -670,9 +672,7 @@ class TestLayerManagement:
     ):
         """Test that adding same layer twice fails"""
         # Add first time
-        first = map_service.add_layer_to_map(
-            test_map.id, test_layer.id, test_user.id
-        )
+        first = map_service.add_layer_to_map(test_map.id, test_layer.id, test_user.id)
         assert first is not None
 
         # Try to add again - should fail
@@ -944,9 +944,7 @@ class TestEdgeCases:
         role = map_service.get_user_role_in_map(fake_map_id, test_user.id)
         assert role is None
 
-    def test_cannot_add_owner_as_collaborator(
-        self, map_service, test_map, test_user
-    ):
+    def test_cannot_add_owner_as_collaborator(self, map_service, test_map, test_user):
         """Test that map owner cannot be added as collaborator"""
         result = map_service.add_collaborator(
             test_map.id, test_user.id, "viewer", test_user.id
@@ -972,7 +970,9 @@ class TestEdgeCases:
         )
         assert result is None
 
-    def test_remove_layer_not_in_map(self, map_service, test_map, test_layer, test_user):
+    def test_remove_layer_not_in_map(
+        self, map_service, test_map, test_layer, test_user
+    ):
         """Test removing layer that's not in map"""
         # Layer is not added to map
         result = map_service.remove_layer_from_map(
@@ -980,7 +980,9 @@ class TestEdgeCases:
         )
         assert result is False
 
-    def test_update_layer_not_in_map(self, map_service, test_map, test_layer, test_user):
+    def test_update_layer_not_in_map(
+        self, map_service, test_map, test_layer, test_user
+    ):
         """Test updating layer that's not in map"""
         result = map_service.update_map_layer(
             test_map.id, test_layer.id, {"opacity": 50}, test_user.id
@@ -1052,9 +1054,7 @@ class TestEdgeCases:
 
         # Verify map-layer association is gone
         result = (
-            db_session.query(MapLayer)
-            .filter(MapLayer.map_id == test_map.id)
-            .first()
+            db_session.query(MapLayer).filter(MapLayer.map_id == test_map.id).first()
         )
         assert result is None
 
@@ -1083,7 +1083,7 @@ class TestEdgeCases:
 
         update_data = MapUpdate(
             view_permission=MapPermissionEnum.public,
-            edit_permission=MapPermissionEnum.public
+            edit_permission=MapPermissionEnum.public,
         )
         updated = map_service.update_map(test_map.id, update_data, test_user.id)
 

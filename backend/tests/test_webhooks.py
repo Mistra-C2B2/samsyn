@@ -5,14 +5,15 @@ Tests webhook event handling, signature verification, and user synchronization.
 Uses PostgreSQL test database with transaction rollback for isolation.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database import get_db
-from app.services.user_service import UserService
+from app.main import app
 from app.models.user import User
+from app.services.user_service import UserService
 
 
 @pytest.fixture
@@ -108,7 +109,9 @@ class TestWebhookSignatureVerification:
             assert response.status_code == 500
             assert "not configured" in response.json()["detail"]
 
-    def test_webhook_fails_invalid_signature(self, client, user_created_payload, mock_webhook_secret):
+    def test_webhook_fails_invalid_signature(
+        self, client, user_created_payload, mock_webhook_secret
+    ):
         """Test webhook fails with invalid signature"""
         from svix.webhooks import WebhookVerificationError
 
@@ -116,7 +119,9 @@ class TestWebhookSignatureVerification:
             # Mock the entire Webhook class
             with patch("app.api.v1.webhooks.Webhook") as mock_webhook_class:
                 mock_webhook_instance = Mock()
-                mock_webhook_instance.verify.side_effect = WebhookVerificationError("Invalid signature")
+                mock_webhook_instance.verify.side_effect = WebhookVerificationError(
+                    "Invalid signature"
+                )
                 mock_webhook_class.return_value = mock_webhook_instance
 
                 response = client.post(
@@ -135,7 +140,9 @@ class TestWebhookSignatureVerification:
 class TestUserCreatedEvent:
     """Test user.created webhook event"""
 
-    def test_user_created_success(self, client, user_created_payload, mock_webhook_secret, db_session):
+    def test_user_created_success(
+        self, client, user_created_payload, mock_webhook_secret, db_session
+    ):
         """Test successful user creation from webhook"""
         with patch("app.config.settings.CLERK_WEBHOOK_SECRET", mock_webhook_secret):
             # Mock the entire Webhook class
@@ -165,7 +172,9 @@ class TestUserCreatedEvent:
                 assert user.username == "testuser"
                 assert user.first_name == "Test"
 
-    def test_user_created_duplicate_webhook(self, client, user_created_payload, mock_webhook_secret, db_session):
+    def test_user_created_duplicate_webhook(
+        self, client, user_created_payload, mock_webhook_secret, db_session
+    ):
         """Test duplicate webhook delivery is handled gracefully"""
         with patch("app.config.settings.CLERK_WEBHOOK_SECRET", mock_webhook_secret):
             # Mock the entire Webhook class
@@ -199,7 +208,7 @@ class TestUserCreatedEvent:
                 assert response2.status_code == 200
 
                 # Verify only one user exists
-                user_service = UserService(db_session)
+                UserService(db_session)
                 users = db_session.query(User).filter_by(clerk_id="user_test123").all()
                 assert len(users) == 1  # Only one user, not two
 
@@ -239,7 +248,14 @@ class TestUserCreatedEvent:
 class TestUserUpdatedEvent:
     """Test user.updated webhook event"""
 
-    def test_user_updated_success(self, client, user_created_payload, user_updated_payload, mock_webhook_secret, db_session):
+    def test_user_updated_success(
+        self,
+        client,
+        user_created_payload,
+        user_updated_payload,
+        mock_webhook_secret,
+        db_session,
+    ):
         """Test successful user update from webhook"""
         # First create the user
         user_service = UserService(db_session)
@@ -280,7 +296,9 @@ class TestUserUpdatedEvent:
                 assert user.username == "updateduser"
                 assert user.first_name == "Updated"
 
-    def test_user_updated_nonexistent_user(self, client, user_updated_payload, mock_webhook_secret):
+    def test_user_updated_nonexistent_user(
+        self, client, user_updated_payload, mock_webhook_secret
+    ):
         """Test updating non-existent user"""
         with patch("app.config.settings.CLERK_WEBHOOK_SECRET", mock_webhook_secret):
             # Mock the entire Webhook class
@@ -306,7 +324,9 @@ class TestUserUpdatedEvent:
 class TestUserDeletedEvent:
     """Test user.deleted webhook event"""
 
-    def test_user_deleted_success(self, client, user_deleted_payload, mock_webhook_secret, db_session):
+    def test_user_deleted_success(
+        self, client, user_deleted_payload, mock_webhook_secret, db_session
+    ):
         """Test successful user deletion from webhook"""
         # Create user first
         user_service = UserService(db_session)
@@ -344,15 +364,19 @@ class TestUserDeletedEvent:
                 assert user is None
 
                 # Verify placeholder was created
-                placeholder = user_service.get_by_clerk_id(UserService.DELETED_USER_CLERK_ID)
+                placeholder = user_service.get_by_clerk_id(
+                    UserService.DELETED_USER_CLERK_ID
+                )
                 assert placeholder is not None
 
-    def test_user_deleted_with_ownership_transfer(self, client, user_deleted_payload, mock_webhook_secret, db_session):
+    def test_user_deleted_with_ownership_transfer(
+        self, client, user_deleted_payload, mock_webhook_secret, db_session
+    ):
         """Test user deletion transfers ownership to placeholder"""
         # Create user and some content
         user_service = UserService(db_session)
-        from app.schemas.user import UserCreate
         from app.models.map import Map
+        from app.schemas.user import UserCreate
 
         user_data = UserCreate(
             clerk_id="user_test123",
@@ -389,7 +413,9 @@ class TestUserDeletedEvent:
                 assert response.status_code == 200
 
                 # Verify map ownership was transferred
-                placeholder = user_service.get_by_clerk_id(UserService.DELETED_USER_CLERK_ID)
+                placeholder = user_service.get_by_clerk_id(
+                    UserService.DELETED_USER_CLERK_ID
+                )
                 db_session.refresh(user_map)
                 assert user_map.created_by == placeholder.id
 

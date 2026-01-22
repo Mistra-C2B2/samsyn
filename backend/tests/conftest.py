@@ -4,16 +4,12 @@ Pytest configuration and shared fixtures.
 Sets up PostgreSQL test database with proper cleanup.
 """
 
-import os
 import pytest
-import pytest_asyncio
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base
 from app.config import settings
-
 
 # Test database URL - use separate test database if configured
 TEST_DATABASE_URL = settings.TEST_DATABASE_URL or settings.DATABASE_URL
@@ -28,6 +24,33 @@ def engine():
     )
     yield engine
     engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clean_test_database(engine):
+    """
+    Clean the test database once before all tests run.
+
+    This ensures a clean slate by removing any leftover data from previous runs.
+    Individual tests use transaction rollback for isolation within the session.
+    """
+    session_factory = sessionmaker(bind=engine)
+    session = session_factory()
+
+    try:
+        # Delete all data from tables (in correct order to avoid FK violations)
+        session.execute(text("TRUNCATE TABLE map_layers CASCADE"))
+        session.execute(text("TRUNCATE TABLE map_collaborators CASCADE"))
+        session.execute(text("TRUNCATE TABLE layer_features CASCADE"))
+        session.execute(text("TRUNCATE TABLE comments CASCADE"))
+        session.execute(text("TRUNCATE TABLE maps CASCADE"))
+        session.execute(text("TRUNCATE TABLE layers CASCADE"))
+        session.execute(text("TRUNCATE TABLE users CASCADE"))
+        session.commit()
+    finally:
+        session.close()
+
+    yield
 
 
 @pytest.fixture(scope="function")
@@ -45,8 +68,8 @@ def db_session(engine):
     transaction = connection.begin()
 
     # Create session bound to the connection
-    Session = sessionmaker(bind=connection)
-    session = Session()
+    session_factory = sessionmaker(bind=connection)
+    session = session_factory()
 
     yield session
 
@@ -79,4 +102,4 @@ def clean_db(db_session):
 
 
 # Configure pytest-asyncio
-pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ("pytest_asyncio",)

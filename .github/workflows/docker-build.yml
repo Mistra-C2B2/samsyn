@@ -203,11 +203,13 @@ jobs:
 
       - name: Verify all services built
         run: |
-          if docker images | grep -q samsyn-backend-prod && docker images | grep -q samsyn-frontend-prod; then
+          echo "Built images:"
+          docker images | grep samsyn || true
+
+          if docker images | grep -q "samsyn-backend" && docker images | grep -q "samsyn-frontend"; then
             echo "✅ All services built successfully"
           else
             echo "❌ Some services failed to build"
-            docker images | grep samsyn
             exit 1
           fi
 

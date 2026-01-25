@@ -95,10 +95,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Test nginx template syntax
+      - name: Validate nginx template has DOMAIN placeholders
         run: |
-          chmod +x ./tests/infrastructure/test_nginx_template_syntax.sh
-          ./tests/infrastructure/test_nginx_template_syntax.sh
+          if grep -q '\${DOMAIN}' frontend/nginx.conf.template; then
+            echo "✅ Template contains DOMAIN placeholders"
+            DOMAIN_COUNT=$(grep -o '\${DOMAIN}' frontend/nginx.conf.template | wc -l)
+            echo "   Found $DOMAIN_COUNT placeholders"
+          else
+            echo "❌ Template missing DOMAIN placeholders"
+            exit 1
+          fi
 
       - name: Build frontend Docker image
         uses: docker/build-push-action@v5

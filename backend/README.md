@@ -32,7 +32,7 @@ cp .env.example .env
 # Edit .env with your configuration
 
 # Start database (from repository root)
-docker-compose -f docker-compose.dev.yml up -d db
+docker compose -f docker-compose.dev.yml up -d db
 
 # Run migrations
 uv run alembic upgrade head
@@ -251,7 +251,7 @@ uv sync
 docker ps | grep samsyn-db
 
 # Start database
-docker-compose -f docker-compose.dev.yml up -d db
+docker compose -f docker-compose.dev.yml up -d db
 
 # Check database logs
 docker logs samsyn-db

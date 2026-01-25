@@ -285,8 +285,8 @@ nano .env.prod
 # Set DOMAIN=samsyn.yourdomain.com
 
 # Build and start services
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### 4. Verify Traefik Discovery
@@ -379,7 +379,7 @@ docker inspect samsyn-backend-prod | grep -A 10 Labels
 
 **Solutions:**
 - Ensure `traefik` network exists: `docker network create traefik`
-- Restart SamSyn services: `docker-compose -f docker-compose.prod.yml restart`
+- Restart SamSyn services: `docker compose -f docker-compose.prod.yml restart`
 - Check Traefik is watching Docker: `docker inspect traefik | grep docker.sock`
 
 ### SSL Certificate Not Issued
@@ -415,7 +415,7 @@ curl http://samsyn.yourdomain.com/.well-known/acme-challenge/test
 curl https://samsyn.yourdomain.com/api/health
 
 # Check backend logs
-docker-compose -f docker-compose.prod.yml logs backend
+docker compose -f docker-compose.prod.yml logs backend
 
 # Verify routing in Traefik
 docker logs traefik | grep samsyn-backend
@@ -425,8 +425,8 @@ docker logs traefik | grep samsyn-backend
 - Verify `VITE_API_URL` in `.env.prod` is correct
 - Rebuild frontend if environment variable changed:
   ```bash
-  docker-compose -f docker-compose.prod.yml build frontend
-  docker-compose -f docker-compose.prod.yml up -d frontend
+  docker compose -f docker-compose.prod.yml build frontend
+  docker compose -f docker-compose.prod.yml up -d frontend
   ```
 - Check Traefik routing priority (backend should match before frontend)
 

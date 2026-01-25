@@ -26,11 +26,13 @@ RUN npm run build
 # Stage 2: Production
 FROM nginx:1.25-alpine
 
-# Install wget for health checks
-RUN apk add --no-cache wget
+# Install wget for health checks and gettext for envsubst
+RUN apk add --no-cache wget gettext
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy nginx config template and entrypoint script
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Copy built assets from builder
 COPY --from=builder /app/build /usr/share/nginx/html
@@ -42,5 +44,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 80
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Use custom entrypoint to substitute env vars
+ENTRYPOINT ["/entrypoint.sh"]

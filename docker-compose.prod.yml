@@ -107,7 +107,7 @@ services:
       - "traefik.http.middlewares.backend-security.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.backend-security.headers.stsPreload=true"
       - "traefik.http.middlewares.backend-security.headers.referrerPolicy=strict-origin-when-cross-origin"
-      - "traefik.http.middlewares.backend-security.headers.permissionsPolicy=geolocation=(), microphone=(), camera=()"
+      - "traefik.http.middlewares.backend-security.headers.customResponseHeaders.Permissions-Policy=geolocation=(), microphone=(), camera=()"
       # Chain middlewares
       - "traefik.http.routers.samsyn-backend.middlewares=backend-ratelimit,backend-security"
       - "traefik.docker.network=proxy"
@@ -122,6 +122,9 @@ services:
         VITE_API_URL: ${VITE_API_URL}
     container_name: samsyn-frontend-prod
     restart: unless-stopped
+    environment:
+      # Domain for dynamic nginx CSP configuration
+      DOMAIN: ${DOMAIN}
     networks:
       - samsyn-network
       - proxy
@@ -158,7 +161,7 @@ services:
       - "traefik.http.middlewares.frontend-security.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.frontend-security.headers.stsPreload=true"
       - "traefik.http.middlewares.frontend-security.headers.referrerPolicy=strict-origin-when-cross-origin"
-      - "traefik.http.middlewares.frontend-security.headers.permissionsPolicy=geolocation=(self), microphone=(), camera=()"
+      - "traefik.http.middlewares.frontend-security.headers.customResponseHeaders.Permissions-Policy=geolocation=(self), microphone=(), camera=()"
       - "traefik.http.middlewares.frontend-security.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow,nosnippet,noarchive"
       # Chain middlewares
       - "traefik.http.routers.samsyn-frontend.middlewares=frontend-ratelimit,frontend-security"

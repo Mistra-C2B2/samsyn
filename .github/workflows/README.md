@@ -84,8 +84,8 @@ docker build -t samsyn-frontend:test \
   --build-arg VITE_API_URL=http://localhost:8000 \
   ./frontend
 
-# Build all with docker-compose
-docker-compose -f docker-compose.prod.yml build
+# Build all with docker compose
+docker compose -f docker-compose.prod.yml build
 ```
 
 ### Verify Production Deployment

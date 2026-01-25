@@ -60,7 +60,7 @@ uv --version      # Should show 0.1.x or higher
 Start PostgreSQL and TiTiler:
 
 ```bash
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 This starts:

@@ -58,12 +58,12 @@ cp .env.prod.example .env.prod
 nano .env.prod  # Edit with your production values
 
 # 3. Build and deploy
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 
 # 4. Verify deployment
 curl https://samsyn.yourdomain.com/health
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ## Detailed Deployment Steps
@@ -202,7 +202,7 @@ chmod 700 scripts/backup.sh
 Build all Docker images:
 
 ```bash
-docker-compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml build
 ```
 
 This will take 10-15 minutes for the first build. The build process:
@@ -215,7 +215,7 @@ This will take 10-15 minutes for the first build. The build process:
 Start all services in detached mode:
 
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Services will start in order:
@@ -231,7 +231,7 @@ Services will start in order:
 Check all containers are running:
 
 ```bash
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 ```
 
 Expected output:
@@ -249,14 +249,14 @@ Check logs for errors:
 
 ```bash
 # All services
-docker-compose -f docker-compose.prod.yml logs
+docker compose -f docker-compose.prod.yml logs
 
 # Specific service
-docker-compose -f docker-compose.prod.yml logs backend
-docker-compose -f docker-compose.prod.yml logs frontend
+docker compose -f docker-compose.prod.yml logs backend
+docker compose -f docker-compose.prod.yml logs frontend
 
 # Follow logs in real-time
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Step 8: Verify Traefik Integration
@@ -336,7 +336,7 @@ openssl s_client -connect samsyn.yourdomain.com:443 -servername samsyn.yourdomai
 Verify migrations ran successfully:
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec backend alembic current
+docker compose -f docker-compose.prod.yml exec backend alembic current
 ```
 
 Should display the current migration revision (HEAD).
@@ -347,7 +347,7 @@ Test the backup script:
 
 ```bash
 # Trigger manual backup
-docker-compose -f docker-compose.prod.yml exec backup /backup.sh
+docker compose -f docker-compose.prod.yml exec backup /backup.sh
 
 # Verify backup file was created
 ls -lh backups/
@@ -414,18 +414,18 @@ Record important information:
 
 ```bash
 # View all logs
-docker-compose -f docker-compose.prod.yml logs
+docker compose -f docker-compose.prod.yml logs
 
 # View logs for specific service
-docker-compose -f docker-compose.prod.yml logs backend
-docker-compose -f docker-compose.prod.yml logs frontend
-docker-compose -f docker-compose.prod.yml logs db
+docker compose -f docker-compose.prod.yml logs backend
+docker compose -f docker-compose.prod.yml logs frontend
+docker compose -f docker-compose.prod.yml logs db
 
 # Follow logs in real-time
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 
 # View last 100 lines
-docker-compose -f docker-compose.prod.yml logs --tail=100
+docker compose -f docker-compose.prod.yml logs --tail=100
 ```
 
 ### Updating the Application
@@ -440,7 +440,7 @@ ssh user@production-server
 cd /opt/samsyn
 
 # 2. Create backup before update (recommended)
-docker-compose -f docker-compose.prod.yml exec backup /backup.sh
+docker compose -f docker-compose.prod.yml exec backup /backup.sh
 
 # 3. Pull latest code from repository
 git pull origin main
@@ -450,14 +450,14 @@ git log -5 --oneline
 git diff HEAD~1 HEAD
 
 # 5. Rebuild Docker images with new code
-docker-compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml build
 
 # 6. Deploy updated services (zero-downtime restart)
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # 7. Monitor deployment
-docker-compose -f docker-compose.prod.yml ps
-docker-compose -f docker-compose.prod.yml logs -f backend frontend
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f backend frontend
 ```
 
 #### What Happens During Update
@@ -479,22 +479,22 @@ Update only specific services to save time:
 
 ```bash
 # Update only backend
-docker-compose -f docker-compose.prod.yml build backend
-docker-compose -f docker-compose.prod.yml up -d backend
+docker compose -f docker-compose.prod.yml build backend
+docker compose -f docker-compose.prod.yml up -d backend
 
 # Update only frontend
-docker-compose -f docker-compose.prod.yml build frontend
-docker-compose -f docker-compose.prod.yml up -d frontend
+docker compose -f docker-compose.prod.yml build frontend
+docker compose -f docker-compose.prod.yml up -d frontend
 
 # Verify specific service
-docker-compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f backend
 ```
 
 #### Post-Update Verification
 
 ```bash
 # 1. Check all services are healthy
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Expected output: All services show "Up (healthy)"
 
@@ -511,8 +511,8 @@ curl https://yourdomain.com/api/health
 # - Create a map, add layers, test interactions
 
 # 4. Monitor logs for errors
-docker-compose -f docker-compose.prod.yml logs --tail=100 backend
-docker-compose -f docker-compose.prod.yml logs --tail=100 frontend
+docker compose -f docker-compose.prod.yml logs --tail=100 backend
+docker compose -f docker-compose.prod.yml logs --tail=100 frontend
 
 # 5. Check resource usage
 docker stats
@@ -524,8 +524,8 @@ docker stats
 
 ```bash
 # Check logs for error messages
-docker-compose -f docker-compose.prod.yml logs backend
-docker-compose -f docker-compose.prod.yml logs frontend
+docker compose -f docker-compose.prod.yml logs backend
+docker compose -f docker-compose.prod.yml logs frontend
 
 # Common issues:
 # - Build errors: Check syntax in modified files
@@ -538,52 +538,52 @@ docker-compose -f docker-compose.prod.yml logs frontend
 
 ```bash
 # Check migration status
-docker-compose -f docker-compose.prod.yml exec backend alembic current
+docker compose -f docker-compose.prod.yml exec backend alembic current
 
 # View migration history
-docker-compose -f docker-compose.prod.yml exec backend alembic history
+docker compose -f docker-compose.prod.yml exec backend alembic history
 
 # Apply migrations manually if needed
-docker-compose -f docker-compose.prod.yml exec backend alembic upgrade head
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 ```
 
 **If application behaves incorrectly:**
 
 ```bash
 # Check environment variables are correct
-docker-compose -f docker-compose.prod.yml exec backend env | grep -E 'DATABASE_URL|CLERK|FRONTEND_URL'
-docker-compose -f docker-compose.prod.yml exec frontend env | grep VITE
+docker compose -f docker-compose.prod.yml exec backend env | grep -E 'DATABASE_URL|CLERK|FRONTEND_URL'
+docker compose -f docker-compose.prod.yml exec frontend env | grep VITE
 
 # Verify database connectivity
-docker-compose -f docker-compose.prod.yml exec backend python -c "from sqlalchemy import create_engine; import os; engine = create_engine(os.getenv('DATABASE_URL')); print('Connected:', engine.connect())"
+docker compose -f docker-compose.prod.yml exec backend python -c "from sqlalchemy import create_engine; import os; engine = create_engine(os.getenv('DATABASE_URL')); print('Connected:', engine.connect())"
 
 # Force rebuild without cache (last resort)
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Restarting Services
 
 ```bash
 # Restart all services
-docker-compose -f docker-compose.prod.yml restart
+docker compose -f docker-compose.prod.yml restart
 
 # Restart specific service
-docker-compose -f docker-compose.prod.yml restart backend
-docker-compose -f docker-compose.prod.yml restart frontend
+docker compose -f docker-compose.prod.yml restart backend
+docker compose -f docker-compose.prod.yml restart frontend
 ```
 
 ### Stopping Services
 
 ```bash
 # Stop all services (keeps data)
-docker-compose -f docker-compose.prod.yml stop
+docker compose -f docker-compose.prod.yml stop
 
 # Stop and remove containers (keeps data)
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 
 # Stop and remove everything including volumes (DESTRUCTIVE)
-docker-compose -f docker-compose.prod.yml down -v
+docker compose -f docker-compose.prod.yml down -v
 ```
 
 ### Database Backup and Restore
@@ -591,7 +591,7 @@ docker-compose -f docker-compose.prod.yml down -v
 #### Manual Backup
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec backup /backup.sh
+docker compose -f docker-compose.prod.yml exec backup /backup.sh
 ```
 
 #### Restore from Backup
@@ -624,7 +624,7 @@ du -sh backups/
 **Check logs:**
 
 ```bash
-docker-compose -f docker-compose.prod.yml logs
+docker compose -f docker-compose.prod.yml logs
 ```
 
 **Common issues:**
@@ -688,8 +688,8 @@ curl https://samsyn.yourdomain.com/api/health
 Ensure `.env.prod` has correct `VITE_API_URL`. If changed, rebuild frontend:
 
 ```bash
-docker-compose -f docker-compose.prod.yml build frontend
-docker-compose -f docker-compose.prod.yml up -d frontend
+docker compose -f docker-compose.prod.yml build frontend
+docker compose -f docker-compose.prod.yml up -d frontend
 ```
 
 ### Database Connection Errors
@@ -697,19 +697,19 @@ docker-compose -f docker-compose.prod.yml up -d frontend
 **Test database connectivity:**
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec backend ping db
+docker compose -f docker-compose.prod.yml exec backend ping db
 ```
 
 **Check database is healthy:**
 
 ```bash
-docker-compose -f docker-compose.prod.yml ps db
+docker compose -f docker-compose.prod.yml ps db
 ```
 
 **Verify credentials:**
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec backend env | grep DATABASE_URL
+docker compose -f docker-compose.prod.yml exec backend env | grep DATABASE_URL
 ```
 
 ### High Resource Usage
@@ -724,7 +724,7 @@ docker stats
 Edit `.env.prod` and adjust `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, etc., then restart:
 
 ```bash
-docker-compose -f docker-compose.prod.yml restart db
+docker compose -f docker-compose.prod.yml restart db
 ```
 
 ## Rollback Procedure
@@ -754,13 +754,13 @@ git log --oneline -10
 git checkout <previous-commit-hash>
 
 # 3. Rebuild and restart
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 
 # 4. Verify rollback
 curl https://yourdomain.com/health
-docker-compose -f docker-compose.prod.yml ps
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Full Rollback (Code + Database)
@@ -771,7 +771,7 @@ If database schema changed and needs to be restored:
 cd /opt/samsyn
 
 # 1. Stop all services
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 
 # 2. List available backups
 ls -lh backups/
@@ -785,16 +785,16 @@ git log --oneline -10
 git checkout <previous-commit-hash>
 
 # 5. Rebuild and restart all services
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 
 # 6. Verify rollback
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 curl https://yourdomain.com/health
 curl https://yourdomain.com/api/health
 
 # 7. Monitor logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Rollback Without Downtime (Hot Rollback)
@@ -806,13 +806,13 @@ If you need to minimize downtime:
 git checkout <previous-commit-hash>
 
 # 2. Rebuild images
-docker-compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml build
 
 # 3. Rolling restart (Docker keeps old containers until new ones are healthy)
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # 4. Monitor the rollback
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### After Rollback
@@ -828,7 +828,7 @@ git revert <bad-commit-hash>
 git push origin main
 
 # 3. Investigate what went wrong
-docker-compose -f docker-compose.prod.yml logs > rollback_investigation.log
+docker compose -f docker-compose.prod.yml logs > rollback_investigation.log
 
 # 4. Fix issues in development/staging before re-deploying
 

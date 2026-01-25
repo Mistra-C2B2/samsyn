@@ -82,8 +82,8 @@ This checklist guides you through the complete deployment process for SamSyn in 
   # Update system
   sudo apt update && sudo apt upgrade -y
 
-  # Install Docker and Docker Compose (if not already installed)
-  sudo apt install -y docker.io docker-compose git
+  # Install Docker and Docker Compose V2 (if not already installed)
+  sudo apt install -y docker.io docker-compose-v2 git
 
   # Add user to docker group
   sudo usermod -aG docker $USER
@@ -156,19 +156,19 @@ This checklist guides you through the complete deployment process for SamSyn in 
 
 - [ ] **Build Docker images**
   ```bash
-  docker-compose -f docker-compose.prod.yml build
+  docker compose -f docker-compose.prod.yml build
   ```
 
   This may take 10-15 minutes for the first build.
 
 - [ ] **Start services**
   ```bash
-  docker-compose -f docker-compose.prod.yml up -d
+  docker compose -f docker-compose.prod.yml up -d
   ```
 
 - [ ] **Verify all containers are running**
   ```bash
-  docker-compose -f docker-compose.prod.yml ps
+  docker compose -f docker-compose.prod.yml ps
   ```
 
   You should see:
@@ -181,11 +181,11 @@ This checklist guides you through the complete deployment process for SamSyn in 
 - [ ] **Check container logs for errors**
   ```bash
   # Check all logs
-  docker-compose -f docker-compose.prod.yml logs
+  docker compose -f docker-compose.prod.yml logs
 
   # Check specific service
-  docker-compose -f docker-compose.prod.yml logs backend
-  docker-compose -f docker-compose.prod.yml logs frontend
+  docker compose -f docker-compose.prod.yml logs backend
+  docker compose -f docker-compose.prod.yml logs frontend
   ```
 
 ### Phase 4: Traefik Integration (10 minutes)
@@ -267,7 +267,7 @@ This checklist guides you through the complete deployment process for SamSyn in 
 - [ ] **Database migrations**
   ```bash
   # Check current migration version
-  docker-compose -f docker-compose.prod.yml exec backend alembic current
+  docker compose -f docker-compose.prod.yml exec backend alembic current
 
   # Should show current HEAD revision
   ```
@@ -275,7 +275,7 @@ This checklist guides you through the complete deployment process for SamSyn in 
 - [ ] **Backup system**
   ```bash
   # Trigger manual backup
-  docker-compose -f docker-compose.prod.yml exec backup /backup.sh
+  docker compose -f docker-compose.prod.yml exec backup /backup.sh
 
   # Verify backup file created
   ls -lh backups/
@@ -310,7 +310,7 @@ This checklist guides you through the complete deployment process for SamSyn in 
 - [ ] **Monitor continuously**
   - [ ] Check error logs every 2-4 hours
     ```bash
-    docker-compose -f docker-compose.prod.yml logs --tail=100 --follow
+    docker compose -f docker-compose.prod.yml logs --tail=100 --follow
     ```
   - [ ] Monitor resource usage
     ```bash
@@ -374,7 +374,7 @@ If deployment fails or critical issues are found:
 
 1. **Stop services**
    ```bash
-   docker-compose -f docker-compose.prod.yml down
+   docker compose -f docker-compose.prod.yml down
    ```
 
 2. **Restore database** (if needed)
@@ -385,14 +385,14 @@ If deployment fails or critical issues are found:
 3. **Revert to previous version**
    ```bash
    git checkout <previous-commit-hash>
-   docker-compose -f docker-compose.prod.yml build
-   docker-compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.prod.yml build
+   docker compose -f docker-compose.prod.yml up -d
    ```
 
 4. **Verify rollback**
    ```bash
    curl https://samsyn.yourdomain.com/health
-   docker-compose -f docker-compose.prod.yml logs
+   docker compose -f docker-compose.prod.yml logs
    ```
 
 5. **Notify stakeholders**

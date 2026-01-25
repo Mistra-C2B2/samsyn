@@ -197,7 +197,7 @@ jobs:
 
       - name: Test production docker-compose build
         run: |
-          docker-compose -f docker-compose.prod.yml build --parallel
+          docker compose -f docker-compose.prod.yml build --parallel
 
       - name: Verify all services built
         run: |

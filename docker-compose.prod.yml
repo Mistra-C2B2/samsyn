@@ -71,6 +71,8 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       # Services
       TITILER_URL: http://titiler:80
+      # Global Fishing Watch
+      GFW_API_TOKEN: ${GFW_API_TOKEN}
       # Mode
       DEV_MODE: "false"
     depends_on:
@@ -118,7 +120,6 @@ services:
       args:
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
         VITE_API_URL: ${VITE_API_URL}
-        VITE_GFW_API_TOKEN: ${VITE_GFW_API_TOKEN}
     container_name: samsyn-frontend-prod
     restart: unless-stopped
     networks:

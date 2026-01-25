@@ -166,11 +166,6 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
 
 # REQUIRED: Backend API URL
 VITE_API_URL=http://localhost:8000
-
-# OPTIONAL: Global Fishing Watch API token
-# Only needed if you want to use GFW data layers
-# Get from https://globalfishingwatch.org/our-apis/
-VITE_GFW_API_TOKEN=your_gfw_token_here
 ```
 
 **Backend** (`backend/.env`):
@@ -197,6 +192,11 @@ CLERK_JWKS_URL=https://your-frontend-api/.well-known/jwks.json
 # CORS and service URLs - Use these defaults
 FRONTEND_URL=http://localhost:3000,https://clerk.shared.lcl.dev
 TITILER_URL=http://host.docker.internal:8001
+
+# OPTIONAL: Global Fishing Watch API token (server-side only)
+# Only needed if you want to use GFW data layers
+# Get from https://globalfishingwatch.org/our-apis/
+GFW_API_TOKEN=your_gfw_token_here
 ```
 
 > **More details:** See [Frontend README](frontend/README.md#authentication-setup-clerk) and [Backend README](backend/README.md) for additional configuration options.

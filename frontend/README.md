@@ -33,9 +33,6 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
 
 # Backend API URL (usually http://localhost:8000 for development)
 VITE_API_URL=http://localhost:8000
-
-# Global Fishing Watch API Token (optional)
-VITE_GFW_API_TOKEN=your_gfw_token_here
 ```
 
 > **Note:** See the main [README.md](../README.md#3-set-up-clerk-authentication) for detailed instructions on getting Clerk API keys.
@@ -113,9 +110,6 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 
 # Backend API URL
 VITE_API_URL=http://localhost:8000
-
-# Global Fishing Watch API Token (optional)
-VITE_GFW_API_TOKEN=your_token_here
 ```
 
 Environment files should be placed in the `frontend/` directory:

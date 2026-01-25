@@ -16,11 +16,9 @@ COPY . .
 # Build arguments for environment variables (injected at build time)
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ARG VITE_API_URL
-ARG VITE_GFW_API_TOKEN
 
 ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
 ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_GFW_API_TOKEN=${VITE_GFW_API_TOKEN}
 
 # Build application
 RUN npm run build

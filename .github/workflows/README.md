@@ -35,7 +35,7 @@ This directory contains CI/CD workflows for automated testing and validation.
 - Tests container networking and database connectivity
 
 #### test-frontend-build
-- Runs nginx template syntax validation
+- Validates nginx template contains DOMAIN placeholders
 - Builds frontend Docker image with Vite build
 - Starts frontend container with test DOMAIN
 - Tests health endpoint responds correctly
@@ -75,9 +75,6 @@ npm run format
 
 ### Test Docker Builds Locally
 ```bash
-# Test nginx template
-./tests/infrastructure/test_nginx_template_syntax.sh
-
 # Build backend
 docker build -t samsyn-backend:test ./backend
 
@@ -89,6 +86,20 @@ docker build -t samsyn-frontend:test \
 
 # Build all with docker-compose
 docker-compose -f docker-compose.prod.yml build
+```
+
+### Verify Production Deployment
+After deploying to production, verify the configuration:
+
+```bash
+# Check CSP headers are present
+curl -I https://your-domain.com | grep -i content-security-policy
+
+# Verify nginx config has correct domain (not ${DOMAIN} placeholder)
+docker exec samsyn-frontend-prod cat /etc/nginx/nginx.conf | grep -E "clerk\.|api\."
+
+# Check health endpoint
+curl https://your-domain.com/health
 ```
 
 ---
@@ -141,7 +152,6 @@ When adding new workflows:
 
 ## Related Files
 
-- `/tests/infrastructure/` - Infrastructure test scripts
 - `docker-compose.prod.yml` - Production Docker configuration
 - `frontend/nginx.conf.template` - Nginx configuration template
 - `frontend/entrypoint.sh` - Container startup script

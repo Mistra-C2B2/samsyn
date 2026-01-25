@@ -37,6 +37,11 @@ from app.api.v1 import titiler  # noqa: E402
 
 api_router.include_router(titiler.router)
 
+# GFW Proxy - for Global Fishing Watch API (secure token handling)
+from app.api.v1 import gfw  # noqa: E402
+
+api_router.include_router(gfw.router)
+
 # WMS Servers
 from app.api.v1 import wms_servers  # noqa: E402
 

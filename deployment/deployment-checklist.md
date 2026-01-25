@@ -131,12 +131,12 @@ This checklist guides you through the complete deployment process for SamSyn in 
   - [ ] `DOMAIN` - Your production domain (e.g., `samsyn.yourdomain.com`)
   - [ ] `VITE_CLERK_PUBLISHABLE_KEY` - Clerk production publishable key
   - [ ] `VITE_API_URL` - Full API URL (e.g., `https://samsyn.yourdomain.com/api`)
-  - [ ] `VITE_GFW_API_TOKEN` - Optional GFW token (if using Global Fishing Watch)
   - [ ] `CLERK_SECRET_KEY` - Clerk production secret key
   - [ ] `CLERK_PUBLISHABLE_KEY` - Clerk production publishable key
   - [ ] `CLERK_WEBHOOK_SECRET` - Clerk webhook secret (if using webhooks)
   - [ ] `CLERK_JWKS_URL` - Clerk JWKS URL from dashboard
   - [ ] `FRONTEND_URL` - Production frontend URL
+  - [ ] `GFW_API_TOKEN` - Optional GFW token (if using Global Fishing Watch, server-side only)
   - [ ] `BACKUP_RETENTION_DAYS` - Backup retention (default: 7)
   - [ ] `BACKUP_S3_BUCKET` - Optional S3 bucket for off-site backups
   - [ ] `BACKUP_GCS_BUCKET` - Optional GCS bucket for off-site backups

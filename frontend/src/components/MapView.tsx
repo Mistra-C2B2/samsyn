@@ -1090,41 +1090,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				basemap: initBasemap,
 			} = initialPropsRef.current;
 
-			// GFW API configuration for transformRequest
-			const GFW_API_BASE = "https://gateway.api.globalfishingwatch.org";
-			const GFW_API_TOKEN = import.meta.env.VITE_GFW_API_TOKEN;
-
-			// Debug: Log if GFW token is loaded
-			if (!GFW_API_TOKEN) {
-				console.warn(
-					"GFW API token not found. Set VITE_GFW_API_TOKEN in .env.local and restart dev server.",
-				);
-			}
-
 			const map = new maplibregl.Map({
 				container: mapContainerRef.current,
 				style: getBasemapStyle(initBasemap),
 				center: [initCenter[1], initCenter[0]], // uses [lng, lat]
 				zoom: initZoom - 1,
 				attributionControl: false, // Disable default attribution
-				// Add Authorization header for GFW API tile requests
-				transformRequest: (url: string) => {
-					if (url.startsWith(GFW_API_BASE)) {
-						if (!GFW_API_TOKEN) {
-							console.error("GFW API request without token:", url);
-							return { url };
-						}
-						return {
-							url,
-							headers: {
-								Authorization: `Bearer ${GFW_API_TOKEN}`,
-							},
-						};
-					}
-					return { url };
-				},
 			});
-
 			// Add attribution control to bottom-left
 			map.addControl(new maplibregl.AttributionControl(), "bottom-left");
 
@@ -1958,7 +1930,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 						"date-range": `${dateRange.start},${dateRange.end}`,
 					});
 
-					const tileUrl = `https://gateway.api.globalfishingwatch.org/v3/4wings/tile/heatmap/{z}/{x}/{y}?${params.toString()}`;
+					const tileUrl = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/gfw/v3/4wings/tile/heatmap/{z}/{x}/{y}?${params.toString()}`;
 					console.log("[GFW MapView] Building tile URL:", {
 						interval,
 						dateRange: `${dateRange.start},${dateRange.end}`,

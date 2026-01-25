@@ -154,8 +154,8 @@ FRONTEND_URL=https://samsyn.yourdomain.com  # For CORS
 #### Optional Variables
 
 ```bash
-# Global Fishing Watch (optional)
-VITE_GFW_API_TOKEN=your_gfw_token
+# Global Fishing Watch (optional, server-side only)
+GFW_API_TOKEN=your_gfw_token
 
 # Webhook (if using Clerk webhooks)
 CLERK_WEBHOOK_SECRET=whsec_your_webhook_secret

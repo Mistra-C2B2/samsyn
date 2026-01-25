@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     CLERK_JWKS_URL: str = ""  # Clerk JWKS endpoint (e.g., "https://your-app-12.clerk.accounts.dev/.well-known/jwks.json")
     FRONTEND_URL: str = "http://localhost:3000"
     TITILER_URL: str = ""
+    GFW_API_TOKEN: str = ""  # Global Fishing Watch API token (server-side only)
     DEV_MODE: bool = True  # Enable dev-only features like WMS proxy
 
     model_config = SettingsConfigDict(env_file=".env")

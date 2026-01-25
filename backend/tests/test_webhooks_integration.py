@@ -9,8 +9,8 @@ import pytest
 
 from app.api.v1.webhooks import (
     handle_user_created,
-    handle_user_updated,
     handle_user_deleted,
+    handle_user_updated,
 )
 from app.models.map import Map
 from app.models.user import User

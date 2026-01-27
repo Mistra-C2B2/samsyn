@@ -244,7 +244,7 @@ function AppContent() {
 			visible: true,
 			opacity: 0.7,
 			description:
-				"Apparent fishing activity based on AIS data from Global Fishing Watch",
+				"This dataset shows global commercial fishing activity based on AIS tracking data from vessels worldwide. It reveals where and when fishing occurs, helping track fishing effort and support sustainable ocean management. Learn more: https://globalfishingwatch.org/dataset-and-code-fishing-effort/",
 			author: "Global Fishing Watch",
 			category: "Fishing Activity",
 			isGlobal: true,

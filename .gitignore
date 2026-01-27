@@ -44,4 +44,4 @@ __pycache__/
 !.env.*.example
 
 test-results
-playwright-report.claude/
+playwright-report*

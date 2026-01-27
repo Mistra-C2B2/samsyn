@@ -34,6 +34,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { TimeSlider } from "./components/TimeSlider";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
+import { WelcomeDialog } from "./components/WelcomeDialog";
 import { SessionProvider, useSession } from "./contexts/SessionContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { useDebouncedCallback } from "./hooks/useDebounce";
@@ -183,6 +184,7 @@ function AppContent() {
 		number | null
 	>(null);
 	const [showSettings, setShowSettings] = useState(false);
+	const [showWelcome, setShowWelcome] = useState(false);
 	const [comments, setComments] = useState<CommentResponse[]>([]);
 	const [commentsLoading, setCommentsLoading] = useState(false);
 	const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -244,7 +246,7 @@ function AppContent() {
 			visible: true,
 			opacity: 0.7,
 			description:
-				"Apparent fishing activity based on AIS data from Global Fishing Watch",
+				"This dataset shows global commercial fishing activity based on AIS tracking data from vessels worldwide. It reveals where and when fishing occurs, helping track fishing effort and support sustainable ocean management. Learn more: https://globalfishingwatch.org/dataset-and-code-fishing-effort/",
 			author: "Global Fishing Watch",
 			category: "Fishing Activity",
 			isGlobal: true,
@@ -541,6 +543,19 @@ function AppContent() {
 			},
 		});
 	}, [currentTimeRange, updateSession]);
+
+	// Check for first visit and show welcome dialog
+	useEffect(() => {
+		try {
+			const welcomeShown = localStorage.getItem("samsyn-welcome-shown");
+			if (!welcomeShown) {
+				const timer = setTimeout(() => setShowWelcome(true), 500);
+				return () => clearTimeout(timer);
+			}
+		} catch (error) {
+			console.error("Failed to check welcome state:", error);
+		}
+	}, []);
 
 	// Check if any temporal layers are visible
 	const hasTemporalLayers = useMemo(() => {
@@ -1870,6 +1885,9 @@ function AppContent() {
 					/>
 				)}
 			</div>
+
+			{/* Welcome Dialog */}
+			<WelcomeDialog open={showWelcome} onOpenChange={setShowWelcome} />
 
 			{/* Settings Dialog */}
 			<SettingsDialog

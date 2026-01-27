@@ -121,6 +121,21 @@ async def proxy_gfw_tiles(
                 },
                 timeout=30.0,
             )
+
+            # Handle 404 responses gracefully (empty tiles are expected)
+            if response.status_code == 404:
+                return Response(
+                    content=response.content,
+                    status_code=404,
+                    headers={
+                        "Content-Type": response.headers.get(
+                            "Content-Type", "application/json"
+                        ),
+                        "Cache-Control": "public, max-age=3600",
+                    },
+                )
+
+            # For other non-2xx responses, raise an error
             response.raise_for_status()
 
             # Return the tile data with appropriate content type

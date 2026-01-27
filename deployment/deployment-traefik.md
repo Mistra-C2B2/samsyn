@@ -280,8 +280,8 @@ docker network create traefik
 cd /opt/samsyn
 
 # Configure environment
-cp .env.prod.example .env.prod
-nano .env.prod
+cp .env.example .env
+nano .env
 # Set DOMAIN=samsyn.yourdomain.com
 
 # Build and start services
@@ -422,7 +422,7 @@ docker logs traefik | grep samsyn-backend
 ```
 
 **Solutions:**
-- Verify `VITE_API_URL` in `.env.prod` is correct
+- Verify `VITE_API_URL` in `.env` is correct
 - Rebuild frontend if environment variable changed:
   ```bash
   docker compose -f docker-compose.prod.yml build frontend
@@ -516,7 +516,7 @@ labels:
 
 ## Best Practices
 
-1. **Use Environment Variables:** Set `DOMAIN` in `.env.prod` for easy updates
+1. **Use Environment Variables:** Set `DOMAIN` in `.env` for easy updates
 2. **Monitor Traefik Logs:** Regularly check for errors and warnings
 3. **Enable Access Logs:** Configure Traefik to log all requests
 4. **Use Middleware:** Add rate limiting, security headers, and compression

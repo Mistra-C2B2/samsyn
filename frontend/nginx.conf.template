@@ -51,8 +51,17 @@ http {
             try_files $uri $uri/ /index.html;
             add_header Cache-Control "no-cache";
 
-            # Content Security Policy to allow Clerk authentication
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://clerk.${DOMAIN} https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.clerk.accounts.dev https://clerk.${DOMAIN} https://api.${DOMAIN} wss://*.clerk.accounts.dev wss://clerk.${DOMAIN}; frame-src 'self' https://*.clerk.accounts.dev https://clerk.${DOMAIN} https://challenges.cloudflare.com; worker-src 'self' blob:;" always;
+            # Content Security Policy to allow Clerk authentication with custom domain
+            add_header Content-Security-Policy "
+                default-src 'self';
+                script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.${DOMAIN} https://challenges.cloudflare.com;
+                style-src 'self' 'unsafe-inline';
+                font-src 'self';
+                img-src 'self' data: https: blob:;
+                connect-src 'self' https://clerk.${DOMAIN} https://api.${DOMAIN} https://${DOMAIN} wss://clerk.${DOMAIN};
+                frame-src 'self' https://clerk.${DOMAIN} https://challenges.cloudflare.com;
+                worker-src 'self' blob:;
+            " always;
         }
 
         # Health check endpoint

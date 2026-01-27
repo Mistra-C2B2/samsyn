@@ -4,7 +4,7 @@
 
 ### Credentials & Secrets
 - [ ] Generate strong PostgreSQL password (min 32 characters, random)
-- [ ] Update all `.env.prod` files with production credentials
+- [ ] Update all `.env` files with production credentials
 - [ ] Verify no `.env` files are committed to git (.gitignore configured)
 - [ ] Run Gitleaks scan to detect accidentally committed secrets (`gitleaks detect --source . --config .github/.gitleaks.toml --verbose`)
 - [ ] Use production Clerk credentials (`pk_live_*`, `sk_live_*`)
@@ -15,7 +15,7 @@
 ### File Permissions & Access Control
 - [ ] Restrict permissions on backup script (`chmod 700 scripts/backup.sh`)
 - [ ] Restrict permissions on backup directory (`chmod 700 backups/`)
-- [ ] Verify `.env.prod` has restrictive permissions (`chmod 600 .env.prod`)
+- [ ] Verify `.env` has restrictive permissions (`chmod 600 .env`)
 - [ ] Ensure sensitive scripts are owned by deployment user only
 - [ ] Review permissions on all mounted volumes in docker-compose
 

@@ -118,12 +118,12 @@ This checklist guides you through the complete deployment process for SamSyn in 
 
 - [ ] **Create production environment file**
   ```bash
-  cp .env.prod.example .env.prod
+  cp .env.example .env
   ```
 
-- [ ] **Edit .env.prod with production values**
+- [ ] **Edit .env with production values**
   ```bash
-  nano .env.prod
+  nano .env
   ```
 
   Update the following:
@@ -141,9 +141,9 @@ This checklist guides you through the complete deployment process for SamSyn in 
   - [ ] `BACKUP_S3_BUCKET` - Optional S3 bucket for off-site backups
   - [ ] `BACKUP_GCS_BUCKET` - Optional GCS bucket for off-site backups
 
-- [ ] **Verify .env.prod is in .gitignore**
+- [ ] **Verify .env is in .gitignore**
   ```bash
-  cat .gitignore | grep .env.prod
+  cat .gitignore | grep .env
   ```
 
 - [ ] **Create backups directory**

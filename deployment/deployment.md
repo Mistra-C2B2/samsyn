@@ -54,8 +54,8 @@ git clone https://github.com/your-username/samsyn.git /opt/samsyn
 cd /opt/samsyn
 
 # 2. Configure environment
-cp .env.prod.example .env.prod
-nano .env.prod  # Edit with your production values
+cp .env.example .env
+nano .env  # Edit with your production values
 
 # 3. Build and deploy
 docker compose -f docker-compose.prod.yml build
@@ -123,8 +123,8 @@ cd samsyn
 Create production environment file:
 
 ```bash
-cp .env.prod.example .env.prod
-nano .env.prod
+cp .env.example .env
+nano .env
 ```
 
 Update the following variables:
@@ -179,10 +179,10 @@ POSTGRES_WORK_MEM=16MB
 POSTGRES_MAINTENANCE_WORK_MEM=128MB
 ```
 
-**Important:** Verify `.env.prod` is in `.gitignore` to prevent committing secrets:
+**Important:** Verify `.env` is in `.gitignore` to prevent committing secrets:
 
 ```bash
-cat .gitignore | grep .env.prod
+cat .gitignore | grep .env
 ```
 
 ### Step 4: Create Directories and Set Permissions
@@ -385,7 +385,7 @@ nano security/hardening-checklist.md
 Key items to verify:
 
 - [ ] All passwords are strong and unique
-- [ ] `.env.prod` is not committed to git
+- [ ] `.env` is not committed to git
 - [ ] Database is not publicly accessible
 - [ ] SSL/TLS is working correctly
 - [ ] Rate limiting is configured (optional)
@@ -530,7 +530,7 @@ docker compose -f docker-compose.prod.yml logs frontend
 # Common issues:
 # - Build errors: Check syntax in modified files
 # - Migration errors: Check backend logs, may need manual migration fix
-# - Environment variables: Verify .env.prod has all required variables
+# - Environment variables: Verify .env has all required variables
 # - Port conflicts: Check if ports are already in use
 ```
 
@@ -685,7 +685,7 @@ curl https://samsyn.yourdomain.com/api/health
 ```
 
 **Check VITE_API_URL:**
-Ensure `.env.prod` has correct `VITE_API_URL`. If changed, rebuild frontend:
+Ensure `.env` has correct `VITE_API_URL`. If changed, rebuild frontend:
 
 ```bash
 docker compose -f docker-compose.prod.yml build frontend
@@ -721,7 +721,7 @@ docker stats
 ```
 
 **Adjust PostgreSQL settings:**
-Edit `.env.prod` and adjust `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, etc., then restart:
+Edit `.env` and adjust `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, etc., then restart:
 
 ```bash
 docker compose -f docker-compose.prod.yml restart db
@@ -961,7 +961,7 @@ Recommended server: 4 CPU cores, 8GB RAM, 50-100GB SSD
 
 ## Security Notes
 
-- Never commit `.env.prod` to version control
+- Never commit `.env` to version control
 - Use strong, unique passwords (min 32 characters)
 - Restrict permissions on sensitive files (`chmod 700 backups/`, `chmod 700 scripts/backup.sh`)
 - Keep Docker and dependencies updated

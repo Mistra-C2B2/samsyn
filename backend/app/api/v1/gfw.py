@@ -45,17 +45,12 @@ def _check_access(user: Optional[User]):
     """
     Check if the request has access to GFW proxy.
 
-    In DEV_MODE: Always allowed (no auth required)
-    In Production: Requires authenticated user
+    GFW tiles are publicly accessible since the actual API token is protected
+    server-side.
+    Users cannot steal the GFW_API_TOKEN, they only receive proxied tile data.
     """
-    if settings.DEV_MODE:
-        return  # Allow all requests in dev mode
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required to access GFW API",
-        )
+    # Always allow tile requests - the GFW API token is protected server-side
+    return
 
 
 # ============================================================================

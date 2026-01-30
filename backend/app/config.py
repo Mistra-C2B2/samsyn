@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     GFW_API_TOKEN: str = ""  # Global Fishing Watch API token (server-side only)
     DEV_MODE: bool = True  # Enable dev-only features like WMS proxy
 
+    # Database Connection Pool Settings
+    DB_POOL_SIZE: int = 20  # Base number of persistent connections
+    DB_MAX_OVERFLOW: int = 30  # Additional connections during spikes
+    DB_POOL_RECYCLE: int = 3600  # Recycle connections after N seconds
+    DB_POOL_TIMEOUT: int = 60  # Wait N seconds for connection before timing out
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

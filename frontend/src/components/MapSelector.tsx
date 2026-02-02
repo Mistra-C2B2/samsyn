@@ -1,5 +1,6 @@
 import { useUser } from "@clerk/clerk-react";
 import {
+	Info,
 	Loader2,
 	Lock,
 	Map as MapIcon,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { UserMap } from "../App";
+import { InfoDialog } from "./InfoDialog";
 import { MapCreationWizard } from "./MapCreationWizard";
 import {
 	AlertDialog,
@@ -73,6 +75,7 @@ export function MapSelector({
 	const [showCreateWizard, setShowCreateWizard] = useState(false);
 	const [editingMap, setEditingMap] = useState<UserMap | null>(null);
 	const [deletingMap, setDeletingMap] = useState<UserMap | null>(null);
+	const [infoMap, setInfoMap] = useState<UserMap | null>(null);
 
 	const handleCreate = async (
 		name: string,
@@ -109,6 +112,11 @@ export function MapSelector({
 	const handleDeleteClick = (e: React.MouseEvent, map: UserMap) => {
 		e.stopPropagation(); // Prevent map selection
 		setDeletingMap(map);
+	};
+
+	const handleInfoClick = (e: React.MouseEvent, map: UserMap) => {
+		e.stopPropagation(); // Prevent map selection
+		setInfoMap(map);
 	};
 
 	const handleDelete = async () => {
@@ -157,16 +165,16 @@ export function MapSelector({
 							return (
 								<div
 									key={map.id}
-									className={`w-full text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+									className={`w-full rounded-lg border transition-all ${
 										map.id === currentMapId
 											? "bg-teal-50 border-teal-600"
-											: "border-slate-200 hover:border-teal-400"
+											: "border-slate-200 hover:border-teal-400 hover:bg-slate-50"
 									}`}
 								>
-									<div className="flex items-start gap-3">
+									<div className="p-3 space-y-3">
 										<button
 											type="button"
-											className="flex-1 flex items-start gap-3 bg-transparent border-0 p-0 text-left cursor-pointer"
+											className="w-full flex items-start gap-3 bg-transparent border-0 p-0 text-left cursor-pointer"
 											onClick={() => {
 												onSelectMap(map.id);
 												onOpenLayerManager();
@@ -183,9 +191,9 @@ export function MapSelector({
 											</div>
 											<div className="flex-1 min-w-0">
 												<div className="flex items-center gap-2">
-													<div className="font-medium text-sm text-slate-900 truncate">
+													<h3 className="font-medium text-sm text-slate-900 truncate">
 														{map.name}
-													</div>
+													</h3>
 													{isReadOnly && (
 														<div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs flex-shrink-0">
 															<Lock className="w-3 h-3" />
@@ -193,7 +201,7 @@ export function MapSelector({
 														</div>
 													)}
 												</div>
-												<p className="text-xs text-slate-600 line-clamp-2 mt-1">
+												<p className="text-xs text-slate-600 line-clamp-2 mt-1 min-w-0 overflow-hidden break-words">
 													{map.description}
 												</p>
 												<p className="text-xs text-slate-500 mt-1">
@@ -202,29 +210,41 @@ export function MapSelector({
 												</p>
 											</div>
 										</button>
-										{isSignedIn && (canEdit || canDelete) && (
-											<div className="flex flex-col gap-1">
-												{canEdit && (
+
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-1">
+												{map.description && (
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={(e) => handleInfoClick(e, map)}
+														className="flex-shrink-0"
+													>
+														<Info className="w-4 h-4 text-slate-600" />
+													</Button>
+												)}
+												{isSignedIn && canEdit && (
 													<Button
 														variant="ghost"
 														size="sm"
 														onClick={(e) => handleEditClick(e, map)}
+														className="flex-shrink-0"
 													>
 														<Pencil className="w-4 h-4" />
 													</Button>
 												)}
-												{canDelete && (
-													<Button
-														variant="ghost"
-														size="sm"
-														onClick={(e) => handleDeleteClick(e, map)}
-														className="text-red-600 hover:text-red-700 hover:bg-red-50"
-													>
-														<Trash2 className="w-4 h-4" />
-													</Button>
-												)}
 											</div>
-										)}
+											{isSignedIn && canDelete && (
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={(e) => handleDeleteClick(e, map)}
+													className="flex-shrink-0"
+												>
+													<Trash2 className="w-4 h-4 text-red-500" />
+												</Button>
+											)}
+										</div>
 									</div>
 								</div>
 							);
@@ -296,6 +316,23 @@ export function MapSelector({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<InfoDialog
+				open={!!infoMap}
+				onOpenChange={() => setInfoMap(null)}
+				title={infoMap?.name || ""}
+				subtitle="Map"
+				sections={[
+					infoMap?.description && {
+						title: "Description",
+						content: infoMap.description,
+					},
+					infoMap && {
+						title: "Layers",
+						content: `${infoMap.layers.length} layer${infoMap.layers.length !== 1 ? "s" : ""}`,
+					},
+				]}
+			/>
 		</>
 	);
 }

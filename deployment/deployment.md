@@ -179,6 +179,8 @@ POSTGRES_WORK_MEM=16MB
 POSTGRES_MAINTENANCE_WORK_MEM=128MB
 ```
 
+**Note:** Database connection pool settings (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, etc.) are configured with sensible defaults. See [Performance & Scaling](#performance--scaling) section for adjusting based on your backend replica count.
+
 **Important:** Verify `.env` is in `.gitignore` to prevent committing secrets:
 
 ```bash
@@ -727,6 +729,9 @@ Edit `.env` and adjust `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE
 docker compose -f docker-compose.prod.yml restart db
 ```
 
+**Scale horizontally:**
+If CPU usage is consistently high, consider adding more backend replicas. See [Performance & Scaling](#performance--scaling) section.
+
 ## Rollback Procedure
 
 If an update causes critical issues, follow this rollback procedure to restore the previous working version.
@@ -918,6 +923,8 @@ If you prefer automated deployment, you can extend the test workflow to include 
 - **Security Hardening Checklist**: `security/hardening-checklist.md` - Complete security review checklist
 - **Backend API Documentation**: `backend/README.md` - API endpoints and documentation
 - **Project Overview**: `CLAUDE.md` - Development setup and architecture
+- **Connection Pool Sizing**: `CONNECTION_POOL_SIZING.md` - Detailed pool configuration, troubleshooting, and monitoring
+- **Horizontal Scaling Guide**: `SCALING_GUIDE.md` - Advanced scaling with PgBouncer, 5+ replicas, and optimization
 - **GitHub Issues**: Report bugs or request features
 
 ## Support
@@ -958,6 +965,116 @@ Database  TiTiler  Backup
 - **Total**: ~3 CPU, ~4GB RAM, 10-50GB storage
 
 Recommended server: 4 CPU cores, 8GB RAM, 50-100GB SSD
+
+## Performance & Scaling
+
+### Database Connection Pool
+
+The backend uses SQLAlchemy's connection pool to manage database connections. If you see "QueuePool limit reached" timeout errors, the pool is exhausted and needs adjustment.
+
+**Default Settings (.env):**
+
+```bash
+DB_POOL_SIZE=15              # Persistent connections per backend instance
+DB_MAX_OVERFLOW=15           # Additional burst connections per backend instance
+DB_POOL_RECYCLE=1800         # Recycle connections every 30 minutes
+DB_POOL_TIMEOUT=60           # Wait 60s for connection before timeout
+```
+
+**Connection Pool Sizing:**
+
+Total database connections = `(DB_POOL_SIZE + DB_MAX_OVERFLOW) × number_of_backend_replicas`
+
+| Backend Replicas | Pool Size | Overflow | Per Backend | Total All | PostgreSQL Limit |
+|------------------|-----------|----------|-------------|-----------|------------------|
+| 1 | 20 | 30 | 50 | 50 | 100 ✅ |
+| 2 | 15 | 20 | 35 | 70 | 100 ✅ |
+| 3 | 15 | 15 | 30 | 90 | 100 ✅ |
+
+**Check PostgreSQL Max Connections:**
+
+```bash
+docker compose -f docker-compose.prod.yml exec db psql -U samsyn -c "SHOW max_connections;"
+```
+
+PostgreSQL defaults to 100 connections. Keep total connections below 90 to leave headroom for administrative connections.
+
+**For advanced scenarios** (5+ replicas, PgBouncer configuration), see [CONNECTION_POOL_SIZING.md](../CONNECTION_POOL_SIZING.md).
+
+### Horizontal Scaling (Multiple Backend Servers)
+
+Scale horizontally by running multiple backend containers. Traefik automatically load balances traffic across all healthy instances.
+
+**Configure Replicas:**
+
+Edit `docker-compose.prod.yml`:
+
+```yaml
+backend:
+  deploy:
+    replicas: 3  # Set to 1, 2, 3, or more
+```
+
+**Deploy with Replicas:**
+
+```bash
+# Deploy with configured replica count
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Or dynamically scale without rebuild
+docker compose -f docker-compose.prod.yml up -d --scale backend=2
+```
+
+**Recommended Configuration by Replica Count:**
+
+| Replicas | Server Cores | Pool Size | Overflow | Total Connections | Use Case |
+|----------|--------------|-----------|----------|-------------------|----------|
+| 1 | 2-4 | 20 | 30 | 50 | Low traffic, getting started |
+| 2 | 2-4 | 15 | 20 | 70 | Medium traffic, redundancy |
+| 3 | 4+ | 15 | 15 | 90 | High traffic, production |
+
+**Resource Requirements per Backend Instance:**
+
+- CPU: ~0.5-1 core under load
+- Memory: ~250-500 MB (depends on pool size)
+- Recommended: 2-4 cores total for 2-3 replicas
+
+**For advanced scaling** (5+ replicas, resource optimization), see [SCALING_GUIDE.md](../SCALING_GUIDE.md).
+
+### Monitoring
+
+**Check Current Connection Usage:**
+
+```bash
+docker compose -f docker-compose.prod.yml exec db psql -U samsyn -c "
+SELECT
+    (SELECT setting::int FROM pg_settings WHERE name='max_connections') as max,
+    (SELECT count(*) FROM pg_stat_activity WHERE datname='samsyn') as current,
+    round(100.0 * (SELECT count(*) FROM pg_stat_activity WHERE datname='samsyn') /
+          (SELECT setting::int FROM pg_settings WHERE name='max_connections'), 2) as usage_pct;"
+```
+
+**Check Backend Health:**
+
+```bash
+# View all running backends
+docker compose -f docker-compose.prod.yml ps backend
+
+# Monitor resource usage
+docker stats
+```
+
+**When to Scale:**
+
+- **Scale UP** (add replicas): CPU > 70% sustained, response times increasing
+- **Scale DOWN** (reduce replicas): CPU < 20% sustained, cost optimization needed
+- **Increase pool size**: Connection usage > 80%, frequent timeouts
+
+### Advanced Topics
+
+- **PgBouncer** (connection pooler for 5+ replicas): See [SCALING_GUIDE.md](../SCALING_GUIDE.md#advanced-adding-pgbouncer-connection-pooler)
+- **Detailed troubleshooting**: See [CONNECTION_POOL_SIZING.md](../CONNECTION_POOL_SIZING.md#quick-troubleshooting)
+- **Monitoring scripts**: See [SCALING_GUIDE.md](../SCALING_GUIDE.md#monitoring--health-checks)
 
 ## Security Notes
 

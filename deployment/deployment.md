@@ -179,6 +179,23 @@ POSTGRES_WORK_MEM=16MB
 POSTGRES_MAINTENANCE_WORK_MEM=128MB
 ```
 
+#### HTTP Client Connection Pool (optional)
+
+For high-traffic tile servers (TiTiler, WMS proxies), configure HTTP client pooling:
+
+```bash
+# HTTP Client Connection Pool Settings (optional)
+HTTP_POOL_CONNECTIONS=100      # Max total connections in pool
+HTTP_POOL_MAXSIZE=100          # Max connections per host
+HTTP_TIMEOUT=30.0              # Default timeout in seconds
+HTTP_KEEPALIVE_EXPIRY=30.0     # Keep connections alive for N seconds
+```
+
+**When to adjust:**
+- **Tile-heavy maps**: Increase to 150-200 connections if serving many GeoTIFF layers
+- **Multiple external APIs**: Increase if calling many WMS/WFS services concurrently
+- **Low memory**: Decrease to 50 if memory is constrained
+
 **Note:** Database connection pool settings (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, etc.) are configured with sensible defaults. See [Performance & Scaling](#performance--scaling) section for adjusting based on your backend replica count.
 
 **Important:** Verify `.env` is in `.gitignore` to prevent committing secrets:
@@ -1000,6 +1017,33 @@ docker compose -f docker-compose.prod.yml exec db psql -U samsyn -c "SHOW max_co
 PostgreSQL defaults to 100 connections. Keep total connections below 90 to leave headroom for administrative connections.
 
 **For advanced scenarios** (5+ replicas, PgBouncer configuration), see [CONNECTION_POOL_SIZING.md](../CONNECTION_POOL_SIZING.md).
+
+### HTTP Connection Pool (TiTiler & External Services)
+
+The backend uses a shared `httpx.AsyncClient` with connection pooling to efficiently handle external HTTP requests (TiTiler, WMS servers, etc.). This prevents connection exhaustion when loading maps with many tiles.
+
+**Default Settings (.env):**
+
+```bash
+HTTP_POOL_CONNECTIONS=100      # Max total connections in pool
+HTTP_POOL_MAXSIZE=100          # Max connections per host
+HTTP_TIMEOUT=30.0              # Request timeout in seconds
+HTTP_KEEPALIVE_EXPIRY=30.0     # Connection reuse duration
+```
+
+**When to Adjust:**
+
+- **Tile request errors (502 Bad Gateway)**: Connection pool exhausted, increase to 150-200
+- **Multiple tile servers**: Increase if serving from multiple TiTiler/WMS endpoints
+- **Slow external APIs**: Increase timeout to 60.0 for slow GeoTIFF sources
+- **Memory constraints**: Decrease to 50 if memory is limited
+
+**Monitoring:**
+
+```bash
+# Check backend logs for connection errors
+docker compose -f docker-compose.prod.yml logs backend | grep -i "pool\|connection"
+```
 
 ### Horizontal Scaling (Multiple Backend Servers)
 

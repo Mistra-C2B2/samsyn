@@ -15,7 +15,7 @@ import logging
 from typing import Annotated, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -32,6 +32,21 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/titiler", tags=["titiler"])
+
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+
+def get_http_client(request: Request) -> httpx.AsyncClient:
+    """
+    Get the shared HTTP client from application state.
+
+    This client is configured with connection pooling to prevent
+    connection exhaustion when handling many concurrent requests.
+    """
+    return request.app.state.http_client
 
 
 # ============================================================================
@@ -116,6 +131,21 @@ def _validate_url_whitelisted(url: str, db: Session, is_admin: bool = False):
         )
 
 
+def _generate_empty_tile() -> bytes:
+    """
+    Generate a transparent 1x1 PNG tile.
+
+    Used when a tile is requested outside the GeoTIFF bounds,
+    which is normal behavior for tile servers.
+    """
+    # Transparent 1x1 PNG (67 bytes)
+    return (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+
 def _parse_titiler_error(response: httpx.Response) -> str:
     """
     Parse TiTiler error response and return a user-friendly message.
@@ -186,6 +216,7 @@ async def get_cog_tile(
     ),
     nodata: Optional[str] = Query(None, description="Nodata value to use"),
     db: Annotated[Session, Depends(get_db)] = None,
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)] = None,
 ):
     """
     Proxy for TiTiler COG tile requests.
@@ -229,25 +260,38 @@ async def get_cog_tile(
     if nodata:
         params["nodata"] = nodata
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        try:
-            response = await client.get(titiler_url, params=params)
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="TiTiler request timed out",
+    try:
+        response = await http_client.get(titiler_url, params=params)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="TiTiler request timed out",
+        )
+    except httpx.HTTPStatusError as e:
+        # 404 errors typically mean the tile is outside the GeoTIFF bounds
+        # Return a transparent tile instead of an error (normal for tile servers)
+        if e.response.status_code == 404:
+            logger.debug(
+                f"Tile outside bounds for {url} at {z}/{x}/{y}, returning empty tile"
             )
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=_parse_titiler_error(e.response),
+            return Response(
+                content=_generate_empty_tile(),
+                media_type="image/png",
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                },
             )
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to connect to TiTiler: {str(e)}",
-            )
+        # For other HTTP errors, raise as before
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_parse_titiler_error(e.response),
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to connect to TiTiler: {str(e)}",
+        )
 
     # Return the tile image
     return Response(
@@ -264,6 +308,7 @@ async def get_cog_info(
     url: str = Query(..., description="URL to the COG file"),
     db: Annotated[Session, Depends(get_db)] = None,
     is_admin: Annotated[bool, Depends(get_is_admin)] = False,
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)] = None,
 ):
     """
     Get metadata/info for a Cloud-Optimized GeoTIFF file.
@@ -297,25 +342,24 @@ async def get_cog_info(
     titiler_url = f"{settings.TITILER_URL.rstrip('/')}/cog/info"
     params = {"url": url}
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        try:
-            response = await client.get(titiler_url, params=params)
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="TiTiler request timed out",
-            )
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=_parse_titiler_error(e.response),
-            )
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to connect to TiTiler: {str(e)}",
-            )
+    try:
+        response = await http_client.get(titiler_url, params=params)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="TiTiler request timed out",
+        )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_parse_titiler_error(e.response),
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to connect to TiTiler: {str(e)}",
+        )
 
     return response.json()
 
@@ -328,6 +372,7 @@ async def get_cog_statistics(
     ),
     db: Annotated[Session, Depends(get_db)] = None,
     is_admin: Annotated[bool, Depends(get_is_admin)] = False,
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)] = None,
 ):
     """
     Get band statistics for a Cloud-Optimized GeoTIFF file.
@@ -363,28 +408,28 @@ async def get_cog_statistics(
     if bidx:
         params["bidx"] = bidx
 
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        try:
-            response = await client.get(titiler_url, params=params)
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail=(
-                    "TiTiler statistics request timed out "
-                    "(this can take a while for large files)"
-                ),
-            )
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=_parse_titiler_error(e.response),
-            )
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to connect to TiTiler: {str(e)}",
-            )
+    # Statistics can take longer, use extended timeout
+    try:
+        response = await http_client.get(titiler_url, params=params, timeout=60.0)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=(
+                "TiTiler statistics request timed out "
+                "(this can take a while for large files)"
+            ),
+        )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_parse_titiler_error(e.response),
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to connect to TiTiler: {str(e)}",
+        )
 
     return response.json()
 
@@ -399,6 +444,7 @@ async def get_cog_preview(
     bidx: Optional[str] = Query(None, description="Band index or indices"),
     db: Annotated[Session, Depends(get_db)] = None,
     is_admin: Annotated[bool, Depends(get_is_admin)] = False,
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)] = None,
 ):
     """
     Get a preview image of a Cloud-Optimized GeoTIFF file.
@@ -441,25 +487,24 @@ async def get_cog_preview(
     if bidx:
         params["bidx"] = bidx
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        try:
-            response = await client.get(titiler_url, params=params)
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="TiTiler preview request timed out",
-            )
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=_parse_titiler_error(e.response),
-            )
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to connect to TiTiler: {str(e)}",
-            )
+    try:
+        response = await http_client.get(titiler_url, params=params)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="TiTiler preview request timed out",
+        )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_parse_titiler_error(e.response),
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to connect to TiTiler: {str(e)}",
+        )
 
     return Response(
         content=response.content,

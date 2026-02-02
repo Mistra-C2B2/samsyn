@@ -9,10 +9,11 @@ Figma: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSyn
 ## Quick Commands
 
 ```bash
-./run.sh dev          # Frontend (port 3000)
-./run.sh dev-backend  # Backend (port 8000)
-./run.sh migrate      # Run migrations
-npm run check         # Lint/format (from frontend/)
+./run.sh dev               # Frontend (port 3000)
+./run.sh dev-backend       # Backend (port 8000)
+./run.sh migrate           # Apply migrations (run when new file in alembic/versions/)
+./run.sh migrate-new "msg" # Create new migration
+npm run check              # Lint/format (from frontend/)
 ```
 
 ## Architecture

@@ -1,54 +1,42 @@
 # CLAUDE.md
 
-## Project Overview
+## Overview
 
-SamSyn is a React-based marine spatial planning application with interactive maps, layer management, temporal data visualization, and commenting. Built with Vite, Tailwind CSS, and shadcn/ui components.
+Marine spatial planning app: React + Vite + Tailwind + shadcn/ui. Interactive maps (MapLibre GL), layer management, temporal viz, commenting.
 
-Figma design: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSyn
+Figma: https://www.figma.com/design/B7evwPwamo0GPIBMmQFH7z/SamSyn
 
-## Commands
+## Quick Commands
 
 ```bash
-npm i               # Install dependencies
-npm run dev         # Start dev server (port 3000)
-npm run build       # Production build
-npm run lint        # Lint with Biome
-npm run format      # Format with Biome
-npm run check       # Lint and format with Biome (auto-fix)
+./run.sh dev          # Frontend (port 3000)
+./run.sh dev-backend  # Backend (port 8000)
+./run.sh migrate      # Run migrations
+npm run check         # Lint/format (from frontend/)
 ```
 
 ## Architecture
 
-- **State**: All in `frontend/src/App.tsx` via useState hooks, flows down through props
-- **Panels**: Only one side panel open at a time (LayerManager, MapSelector, Comments, LayerCreator, AdminPanel)
-- **Map**: MapLibre GL in `MapView.tsx` with drawing tools
-- **UI**: shadcn/ui components in `frontend/src/components/ui/`, path alias `@` → `./frontend/src`
-
-## Key Files
-
-| File                                      | Purpose                                         |
-| ----------------------------------------- | ----------------------------------------------- |
-| `frontend/src/App.tsx`                    | Root component, all state, Layer/UserMap types  |
-| `frontend/src/components/MapView.tsx`     | Map rendering, drawing tools                    |
-| `frontend/src/components/LayerManager.tsx`| Layer list, visibility, opacity, reordering     |
-| `frontend/src/components/LayerCreator.tsx`| Create/edit layers (draw, upload, WMS, GeoJSON) |
+- **State**: All in `App.tsx`, flows via props
+- **Panels**: One open at a time (LayerManager/MapSelector/Comments/LayerCreator/AdminPanel)
+- **UI**: shadcn/ui components, `@` alias → `./frontend/src`
+- **Key Files**: `App.tsx` (root + state), `MapView.tsx` (map), `LayerManager.tsx`, `LayerCreator.tsx`
 
 ## Testing
 
-### Console Error Check
-
-After frontend changes, run:
-
+Frontend console check:
 ```bash
-npm run dev                         # Start dev server first
-python frontend/tests/test_console.py   # Check for console errors/warnings
+python frontend/tests/test_console.py
 ```
 
-## Backend
+Backend tests:
+```bash
+cd backend
+./setup_test_db.sh        # First-time only
+uv run pytest tests/      # Run all tests
+```
 
-See [backend/README.md](backend/README.md) for API endpoints documentation.
+## Docs
 
-## Notes
-
-- Clerk auth: Set `VITE_CLERK_PUBLISHABLE_KEY` in `.env.local` to enable
-- Check if dev server is already running before starting
+- [README.md](README.md) - Setup, prerequisites, full docs
+- [backend/README.md](backend/README.md) - API endpoints

@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 3600  # Recycle connections after N seconds
     DB_POOL_TIMEOUT: int = 60  # Wait N seconds for connection before timing out
 
+    # HTTP Client Connection Pool Settings
+    HTTP_POOL_CONNECTIONS: int = 100  # Max connections in pool
+    HTTP_POOL_MAXSIZE: int = 100  # Max connections per host
+    HTTP_TIMEOUT: float = 30.0  # Default timeout in seconds
+    HTTP_KEEPALIVE_EXPIRY: float = 30.0  # Keep connections alive for N seconds
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

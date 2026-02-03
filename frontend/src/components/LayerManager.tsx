@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { Layer } from "../App";
+import { InfoDialog } from "./InfoDialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -32,13 +33,6 @@ import {
 } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "./ui/dialog";
 import { Input } from "./ui/input";
 import {
 	Select,
@@ -842,71 +836,53 @@ export function LayerManager({
 			)}
 
 			{/* Layer Info Dialog */}
-			<Dialog
+			<InfoDialog
 				open={!!selectedLayerInfo}
 				onOpenChange={() => setSelectedLayerInfo(null)}
-			>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle>{selectedLayerInfo?.name}</DialogTitle>
-						<DialogDescription>
-							{selectedLayerInfo?.isGlobal ? "Library" : "Community"} Layer
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-4 py-4">
-						{selectedLayerInfo?.description && (
-							<div>
-								<h4 className="text-sm text-slate-700 mb-1">Description</h4>
-								<p className="text-sm text-slate-600">
-									{selectedLayerInfo.description}
-								</p>
-							</div>
-						)}
-
-						{selectedLayerInfo?.author && (
-							<div>
-								<h4 className="text-sm text-slate-700 mb-1">Author</h4>
-								<p className="text-sm text-slate-600">
-									{selectedLayerInfo.author}
-								</p>
-							</div>
-						)}
-
-						{selectedLayerInfo?.doi && (
-							<div>
-								<h4 className="text-sm text-slate-700 mb-1">DOI</h4>
-								<a
-									href={`https://doi.org/${selectedLayerInfo.doi}`}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-sm text-teal-600 hover:text-teal-700 hover:underline"
-								>
-									{selectedLayerInfo.doi}
-								</a>
-							</div>
-						)}
-
-						{/* WMS Legend Image */}
-						{selectedLayerInfo?.wmsLegendUrl && (
-							<div>
-								<h4 className="text-sm text-slate-700 mb-2">Legend</h4>
-								<img
-									src={selectedLayerInfo.wmsLegendUrl}
-									alt="Layer legend"
-									className="max-w-full"
-									onError={(e) => {
-										// Hide image on error
-										e.currentTarget.style.display = "none";
-									}}
-								/>
-							</div>
-						)}
-
-						{/* Manual Legend (gradient or categorical) */}
-						{!selectedLayerInfo?.wmsLegendUrl && selectedLayerInfo?.legend && (
-							<div>
-								<h4 className="text-sm text-slate-700 mb-2">Legend</h4>
-								{selectedLayerInfo.legend.type === "gradient" ? (
+				title={selectedLayerInfo?.name || ""}
+				subtitle={
+					selectedLayerInfo?.isGlobal ? "Library Layer" : "Community Layer"
+				}
+				sections={[
+					selectedLayerInfo?.description && {
+						title: "Description",
+						content: selectedLayerInfo.description,
+					},
+					selectedLayerInfo?.author && {
+						title: "Author",
+						content: selectedLayerInfo.author,
+					},
+					selectedLayerInfo?.doi && {
+						title: "DOI",
+						render: () => (
+							<a
+								href={`https://doi.org/${selectedLayerInfo.doi}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-sm text-teal-600 hover:text-teal-700 hover:underline break-words"
+							>
+								{selectedLayerInfo.doi}
+							</a>
+						),
+					},
+					selectedLayerInfo?.wmsLegendUrl && {
+						title: "Legend",
+						render: () => (
+							<img
+								src={selectedLayerInfo.wmsLegendUrl}
+								alt="Layer legend"
+								className="max-w-full"
+								onError={(e) => {
+									e.currentTarget.style.display = "none";
+								}}
+							/>
+						),
+					},
+					!selectedLayerInfo?.wmsLegendUrl &&
+						selectedLayerInfo?.legend && {
+							title: "Legend",
+							render: () =>
+								selectedLayerInfo.legend?.type === "gradient" ? (
 									<div className="space-y-2">
 										<div
 											className="h-4 rounded"
@@ -929,7 +905,7 @@ export function LayerManager({
 									</div>
 								) : (
 									<div className="space-y-2">
-										{selectedLayerInfo.legend.items.map((item, idx) => (
+										{selectedLayerInfo.legend?.items.map((item, idx) => (
 											<div
 												key={`legend-${item.label}-${item.color}-${idx}`}
 												className="flex items-center gap-2"
@@ -940,28 +916,21 @@ export function LayerManager({
 														backgroundColor: item.color,
 													}}
 												/>
-												<span className="text-sm text-slate-600">
+												<span className="text-sm text-slate-600 break-words">
 													{item.label}
 												</span>
 											</div>
 										))}
 									</div>
-								)}
-							</div>
-						)}
-
-						{selectedLayerInfo?.features &&
-							selectedLayerInfo.features.length > 0 && (
-								<div>
-									<h4 className="text-sm text-slate-700 mb-1">Features</h4>
-									<p className="text-sm text-slate-600">
-										{selectedLayerInfo.features.length} feature(s)
-									</p>
-								</div>
-							)}
-					</div>
-				</DialogContent>
-			</Dialog>
+								),
+						},
+					selectedLayerInfo?.features &&
+						selectedLayerInfo.features.length > 0 && {
+							title: "Features",
+							content: `${selectedLayerInfo.features.length} feature(s)`,
+						},
+				]}
+			/>
 
 			{/* Delete Confirmation Dialog */}
 			<AlertDialog

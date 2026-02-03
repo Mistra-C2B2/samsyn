@@ -8,6 +8,7 @@ import {
 } from "@clerk/clerk-react";
 import {
 	Layers,
+	Loader2,
 	Map as MapIcon,
 	MessageSquare,
 	Settings,
@@ -1557,12 +1558,23 @@ function AppContent() {
 					) : (
 						<div className="flex items-center justify-center h-full bg-slate-100">
 							<div className="text-center">
-								<p className="text-slate-500 text-lg font-medium">
-									No Maps available
-								</p>
-								<p className="text-slate-400 text-sm mt-2">
-									Create a new map to get started
-								</p>
+								{mapsLoading ? (
+									<>
+										<Loader2 className="w-8 h-8 animate-spin text-teal-600 mx-auto mb-3" />
+										<p className="text-slate-500 text-lg font-medium">
+											Loading maps...
+										</p>
+									</>
+								) : (
+									<>
+										<p className="text-slate-500 text-lg font-medium">
+											No maps available
+										</p>
+										<p className="text-slate-400 text-sm mt-2">
+											Create a new map to get started
+										</p>
+									</>
+								)}
 							</div>
 						</div>
 					)}

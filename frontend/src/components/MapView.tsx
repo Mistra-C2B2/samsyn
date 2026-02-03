@@ -17,7 +17,6 @@ import {
 	updatePopupSection,
 } from "../utils/aggregatedPopup";
 import { generateFeaturePopupHTML } from "../utils/featurePopup";
-import { Legend } from "./Legend";
 
 // TerraDraw is loaded dynamically to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1096,6 +1095,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 				center: [initCenter[1], initCenter[0]], // uses [lng, lat]
 				zoom: initZoom - 1,
 				attributionControl: false, // Disable default attribution
+				// No transformRequest needed - TiTiler now uses URL whitelist instead of auth
 			});
 			// Add attribution control to bottom-left
 			map.addControl(new maplibregl.AttributionControl(), "bottom-left");
@@ -2541,7 +2541,6 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>(
 		}, [mapLoaded]);
 
 		const visibleLayers = layers.filter((layer) => layer.visible);
-		const layersWithLegends = visibleLayers.filter((layer) => layer.legend);
 
 		// Collect unique attributions from visible layers
 		const visibleAttributions = Array.from(

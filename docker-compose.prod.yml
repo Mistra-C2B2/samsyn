@@ -86,6 +86,11 @@ services:
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-15}
       DB_POOL_RECYCLE: ${DB_POOL_RECYCLE:-1800}
       DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-60}
+      # HTTP Client Connection Pool
+      HTTP_POOL_CONNECTIONS: ${HTTP_POOL_CONNECTIONS:-100}
+      HTTP_POOL_MAXSIZE: ${HTTP_POOL_MAXSIZE:-100}
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-30.0}
+      HTTP_KEEPALIVE_EXPIRY: ${HTTP_KEEPALIVE_EXPIRY:-30.0}
     depends_on:
       db:
         condition: service_healthy

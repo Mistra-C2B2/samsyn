@@ -217,6 +217,12 @@ export class MapService {
 						? { type: legendConfig.type, items: legendConfig.items }
 						: undefined;
 
+				// Extract layer metadata (author, DOI, etc.)
+				const layerMetadata = layerResponse.layer_metadata as {
+					author?: string;
+					doi?: string;
+				};
+
 				return {
 					id: layerResponse.id,
 					name: layerResponse.name,
@@ -228,10 +234,34 @@ export class MapService {
 					createdBy: layerResponse.created_by,
 					editable: layerResponse.editable as "creator-only" | "everyone",
 					isGlobal: layerResponse.is_global, // Whether layer is a library layer
+					visibility:
+						(layerResponse.visibility as "private" | "public") || "private",
+					creationSource:
+						(layerResponse.creation_source as
+							| "layer_creator"
+							| "admin_panel"
+							| "system") || "system",
+					// Timestamps
+					createdAt: layerResponse.created_at,
+					updatedAt: layerResponse.updated_at,
+					// Creator information
+					creator: layerResponse.creator
+						? {
+								id: layerResponse.creator.id,
+								email: layerResponse.creator.email,
+								username: layerResponse.creator.username || undefined,
+								firstName: layerResponse.creator.first_name || undefined,
+								lastName: layerResponse.creator.last_name || undefined,
+							}
+						: undefined,
+					// Style properties
 					color: styleConfig?.color,
 					lineWidth: styleConfig?.lineWidth,
 					fillPolygons: styleConfig?.fillPolygons,
 					markerIcon: styleConfig?.markerIcon,
+					// Metadata properties
+					author: layerMetadata?.author,
+					doi: layerMetadata?.doi,
 					data,
 					legend,
 					wmsUrl:

@@ -930,6 +930,54 @@ export function LayerManager({
 							content: `${selectedLayerInfo.features.length} feature(s)`,
 						},
 				]}
+				detailsSections={[
+					selectedLayerInfo?.creator && {
+						title: "Creator",
+						content: (() => {
+							const creator = selectedLayerInfo.creator;
+							if (creator.firstName || creator.lastName) {
+								const name = [creator.firstName, creator.lastName]
+									.filter(Boolean)
+									.join(" ");
+								return `${name} (${creator.email})`;
+							}
+							return creator.username || creator.email;
+						})(),
+					},
+					selectedLayerInfo?.editable && {
+						title: "Edit Permissions",
+						content:
+							selectedLayerInfo.editable === "everyone"
+								? "Everyone can edit"
+								: "Creator only",
+					},
+					selectedLayerInfo?.createdAt && {
+						title: "Created",
+						content: new Date(selectedLayerInfo.createdAt).toLocaleString(
+							undefined,
+							{
+								year: "numeric",
+								month: "short",
+								day: "numeric",
+								hour: "2-digit",
+								minute: "2-digit",
+							},
+						),
+					},
+					selectedLayerInfo?.updatedAt && {
+						title: "Last Modified",
+						content: new Date(selectedLayerInfo.updatedAt).toLocaleString(
+							undefined,
+							{
+								year: "numeric",
+								month: "short",
+								day: "numeric",
+								hour: "2-digit",
+								minute: "2-digit",
+							},
+						),
+					},
+				]}
 			/>
 
 			{/* Delete Confirmation Dialog */}

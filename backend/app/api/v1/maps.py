@@ -110,12 +110,27 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                     "created_by": ml.layer.created_by,
                     "editable": ml.layer.editable,
                     "is_global": ml.layer.is_global,
+                    "visibility": ml.layer.visibility or "private",
+                    "creation_source": ml.layer.creation_source or "system",
                     "source_config": ml.layer.source_config or {},
                     "style_config": ml.layer.style_config or {},
                     "legend_config": ml.layer.legend_config or {},
                     "layer_metadata": ml.layer.layer_metadata or {},
                     "created_at": ml.layer.created_at,
                     "updated_at": ml.layer.updated_at,
+                    "creator": {
+                        "id": ml.layer.creator.id,
+                        "clerk_id": ml.layer.creator.clerk_id,
+                        "email": ml.layer.creator.email,
+                        "username": ml.layer.creator.username,
+                        "first_name": ml.layer.creator.first_name,
+                        "last_name": ml.layer.creator.last_name,
+                        "profile_image_url": ml.layer.creator.profile_image_url,
+                        "created_at": ml.layer.creator.created_at,
+                        "updated_at": ml.layer.creator.updated_at,
+                    }
+                    if hasattr(ml.layer, "creator") and ml.layer.creator
+                    else None,
                     "features": [
                         {
                             "id": feat.id,

@@ -89,13 +89,16 @@ class MapService:
         Returns:
             Map if found and user has view access, None otherwise
         """
-        # Eagerly load map_layers with their layer and features
+        # Eagerly load map_layers with their layer, features, and creator
         map_obj = (
             self.db.query(Map)
             .options(
                 joinedload(Map.map_layers)
                 .joinedload(MapLayer.layer)
-                .joinedload(Layer.features)
+                .joinedload(Layer.features),
+                joinedload(Map.map_layers)
+                .joinedload(MapLayer.layer)
+                .joinedload(Layer.creator),
             )
             .filter(Map.id == map_id)
             .first()

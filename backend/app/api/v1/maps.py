@@ -29,7 +29,6 @@ from app.schemas.map import (
     MapLayerReorder,
     MapLayerResponse,
     MapLayerUpdate,
-    MapListResponse,
     MapResponse,
     MapUpdate,
 )
@@ -110,12 +109,27 @@ def serialize_map_to_dict(map_obj, user_role: Optional[str] = None):
                     "created_by": ml.layer.created_by,
                     "editable": ml.layer.editable,
                     "is_global": ml.layer.is_global,
+                    "visibility": ml.layer.visibility or "private",
+                    "creation_source": ml.layer.creation_source or "system",
                     "source_config": ml.layer.source_config or {},
                     "style_config": ml.layer.style_config or {},
                     "legend_config": ml.layer.legend_config or {},
                     "layer_metadata": ml.layer.layer_metadata or {},
                     "created_at": ml.layer.created_at,
                     "updated_at": ml.layer.updated_at,
+                    "creator": {
+                        "id": ml.layer.creator.id,
+                        "clerk_id": ml.layer.creator.clerk_id,
+                        "email": ml.layer.creator.email,
+                        "username": ml.layer.creator.username,
+                        "first_name": ml.layer.creator.first_name,
+                        "last_name": ml.layer.creator.last_name,
+                        "profile_image_url": ml.layer.creator.profile_image_url,
+                        "created_at": ml.layer.creator.created_at,
+                        "updated_at": ml.layer.creator.updated_at,
+                    }
+                    if hasattr(ml.layer, "creator") and ml.layer.creator
+                    else None,
                     "features": [
                         {
                             "id": feat.id,
@@ -198,7 +212,7 @@ def serialize_map_layer_to_dict(map_layer):
 # ============================================================================
 
 
-@router.get("", response_model=List[MapListResponse])
+@router.get("", response_model=List[MapResponse])
 async def list_user_maps(
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
     db: Annotated[Session, Depends(get_db)],
@@ -215,12 +229,12 @@ async def list_user_maps(
     For unauthenticated users, returns only public maps.
 
     Returns:
-        List of maps with summary information (without full nested data)
+        List of maps with full nested data including layers and collaborators
     """
     service = MapService(db)
     maps = service.list_user_maps(current_user.id if current_user else None)
 
-    # Convert to list response with counts
+    # Convert to full response with nested data
     result = []
     for map_obj in maps:
         # Calculate user role for this map
@@ -228,23 +242,9 @@ async def list_user_maps(
             map_obj.id, current_user.id if current_user else None
         )
 
-        map_dict = {
-            "id": map_obj.id,
-            "name": map_obj.name,
-            "description": map_obj.description,
-            "created_by": map_obj.created_by,
-            "view_permission": map_obj.view_permission,
-            "edit_permission": map_obj.edit_permission,
-            "center_lat": map_obj.center_lat,
-            "center_lng": map_obj.center_lng,
-            "zoom": map_obj.zoom,
-            "created_at": map_obj.created_at,
-            "updated_at": map_obj.updated_at,
-            "collaborator_count": len(map_obj.collaborators),
-            "layer_count": len(map_obj.map_layers),
-            "user_role": user_role,
-        }
-        result.append(MapListResponse(**map_dict))
+        # Use serialize_map_to_dict to return full nested data
+        map_dict = serialize_map_to_dict(map_obj, user_role)
+        result.append(MapResponse(**map_dict))
 
     return result
 

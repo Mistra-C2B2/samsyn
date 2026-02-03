@@ -129,7 +129,14 @@ class LayerService:
         Returns:
             Layer if found, None otherwise
         """
-        return self.db.query(Layer).filter(Layer.id == layer_id).first()
+        from sqlalchemy.orm import joinedload
+
+        return (
+            self.db.query(Layer)
+            .options(joinedload(Layer.creator))
+            .filter(Layer.id == layer_id)
+            .first()
+        )
 
     def create_layer(self, layer_data: LayerCreate, creator_id: UUID) -> Layer:
         """

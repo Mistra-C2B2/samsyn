@@ -107,8 +107,8 @@ export function LayerManager({
 	const canEditLayer = (layer: Layer) => {
 		if (!isSignedIn || !onEditLayer) return false;
 
-		// Layers added from the library should not be editable
-		if (availableLayers.some((l) => l.id === layer.id)) return false;
+		// Global library layers should not be editable from map view
+		if (layer.isGlobal) return false;
 
 		// Global Fishing Effort layer should not be editable (check by dataset since ID changes after backend creation)
 		if (layer.gfw4WingsDataset) return false;
@@ -929,6 +929,54 @@ export function LayerManager({
 							title: "Features",
 							content: `${selectedLayerInfo.features.length} feature(s)`,
 						},
+				]}
+				detailsSections={[
+					selectedLayerInfo?.creator && {
+						title: "Creator",
+						content: (() => {
+							const creator = selectedLayerInfo.creator;
+							if (creator.firstName || creator.lastName) {
+								const name = [creator.firstName, creator.lastName]
+									.filter(Boolean)
+									.join(" ");
+								return `${name} (${creator.email})`;
+							}
+							return creator.username || creator.email;
+						})(),
+					},
+					selectedLayerInfo?.editable && {
+						title: "Edit Permissions",
+						content:
+							selectedLayerInfo.editable === "everyone"
+								? "Everyone can edit"
+								: "Creator only",
+					},
+					selectedLayerInfo?.createdAt && {
+						title: "Created",
+						content: new Date(selectedLayerInfo.createdAt).toLocaleString(
+							undefined,
+							{
+								year: "numeric",
+								month: "short",
+								day: "numeric",
+								hour: "2-digit",
+								minute: "2-digit",
+							},
+						),
+					},
+					selectedLayerInfo?.updatedAt && {
+						title: "Last Modified",
+						content: new Date(selectedLayerInfo.updatedAt).toLocaleString(
+							undefined,
+							{
+								year: "numeric",
+								month: "short",
+								day: "numeric",
+								hour: "2-digit",
+								minute: "2-digit",
+							},
+						),
+					},
 				]}
 			/>
 

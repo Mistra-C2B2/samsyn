@@ -76,6 +76,16 @@ export interface Layer {
 	isGlobal?: boolean; // Whether layer is in the global library (Admin Panel layers)
 	visibility?: "private" | "public"; // Layer visibility in library (private=creator only, public=everyone)
 	creationSource?: "layer_creator" | "admin_panel" | "system"; // How the layer was created
+	// Metadata
+	createdAt?: string; // ISO datetime
+	updatedAt?: string; // ISO datetime
+	creator?: {
+		id: string;
+		email: string;
+		username?: string;
+		firstName?: string;
+		lastName?: string;
+	}; // Creator user information
 	// Style settings (layer-level)
 	lineWidth?: number;
 	fillPolygons?: boolean;
@@ -274,12 +284,9 @@ function AppContent() {
 			// - Public non-global layers (visibility=public, is_global=false) from all users
 			// The backend handles this filtering automatically
 			const layerList = await layerService.listLayers();
-			// Transform each layer to frontend format
-			const backendLayers = await Promise.all(
-				layerList.map(async (listItem) => {
-					const fullLayer = await layerService.getLayer(listItem.id);
-					return layerService.transformToLayer(fullLayer);
-				}),
+			// layerList now contains full data, just transform it
+			const backendLayers = layerList.map((layer) =>
+				layerService.transformToLayer(layer),
 			);
 			// Exclude the current user's own layers from Library
 			// (they appear in "My Layers" tab instead)
@@ -311,12 +318,9 @@ function AppContent() {
 			const layerList = await layerService.listLayers({
 				include_my_layers: true,
 			});
-			// Transform each layer to frontend format
-			const userLayers = await Promise.all(
-				layerList.map(async (listItem) => {
-					const fullLayer = await layerService.getLayer(listItem.id);
-					return layerService.transformToLayer(fullLayer);
-				}),
+			// layerList now contains full data, just transform it
+			const userLayers = layerList.map((layer) =>
+				layerService.transformToLayer(layer),
 			);
 			setMyLayers(userLayers);
 		} catch (error) {
@@ -364,14 +368,8 @@ function AppContent() {
 		try {
 			const mapList = await mapService.listMaps();
 
-			// Transform map list responses to UserMap format
-			const userMaps = await Promise.all(
-				mapList.map(async (mapListItem) => {
-					// Fetch full map details to get layers
-					const fullMap = await mapService.getMap(mapListItem.id);
-					return mapService.transformToUserMap(fullMap);
-				}),
-			);
+			// mapList now contains full data, just transform it
+			const userMaps = mapList.map((map) => mapService.transformToUserMap(map));
 
 			if (userMaps.length > 0) {
 				setMaps(userMaps);

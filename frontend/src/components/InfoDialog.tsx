@@ -1,4 +1,10 @@
 import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "./ui/accordion";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -21,6 +27,7 @@ interface InfoDialogProps {
 	title: string;
 	subtitle?: string;
 	sections: (InfoDialogSection | undefined)[];
+	detailsSections?: (InfoDialogSection | undefined)[]; // Sections to show in "Details" accordion
 	maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
 	enableScrolling?: boolean;
 	maxHeight?: string;
@@ -40,11 +47,37 @@ export function InfoDialog({
 	title,
 	subtitle,
 	sections,
+	detailsSections,
 	maxWidth = "md",
 	enableScrolling = false,
 	maxHeight,
 }: InfoDialogProps) {
 	const validSections = sections.filter(Boolean) as InfoDialogSection[];
+	const validDetailsSections = detailsSections?.filter(
+		Boolean,
+	) as InfoDialogSection[];
+
+	const renderSection = (section: InfoDialogSection, index: number) => {
+		const shouldBreakWords = section.breakWords !== false;
+		const key = section.key || section.title || `section-${index}`;
+
+		return (
+			<div key={key} className={section.className || ""}>
+				{section.title && (
+					<h4 className="text-sm text-slate-700 mb-1">{section.title}</h4>
+				)}
+				{section.render ? (
+					section.render()
+				) : (
+					<div
+						className={`text-sm text-slate-600 ${shouldBreakWords ? "break-words" : ""}`}
+					>
+						{section.content}
+					</div>
+				)}
+			</div>
+		);
+	};
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,29 +94,22 @@ export function InfoDialog({
 					className={`space-y-4 py-4 ${enableScrolling ? "overflow-y-auto" : ""}`}
 					style={maxHeight ? { maxHeight } : undefined}
 				>
-					{validSections.map((section, index) => {
-						const shouldBreakWords = section.breakWords !== false;
-						const key = section.key || section.title || `section-${index}`;
+					{validSections.map((section, index) => renderSection(section, index))}
 
-						return (
-							<div key={key} className={section.className || ""}>
-								{section.title && (
-									<h4 className="text-sm text-slate-700 mb-1">
-										{section.title}
-									</h4>
-								)}
-								{section.render ? (
-									section.render()
-								) : (
-									<div
-										className={`text-sm text-slate-600 ${shouldBreakWords ? "break-words" : ""}`}
-									>
-										{section.content}
+					{validDetailsSections && validDetailsSections.length > 0 && (
+						<Accordion type="single" collapsible>
+							<AccordionItem value="details">
+								<AccordionTrigger>Details</AccordionTrigger>
+								<AccordionContent>
+									<div className="space-y-4">
+										{validDetailsSections.map((section, index) =>
+											renderSection(section, index),
+										)}
 									</div>
-								)}
-							</div>
-						);
-					})}
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
+					)}
 				</div>
 			</DialogContent>
 		</Dialog>

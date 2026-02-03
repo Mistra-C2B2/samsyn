@@ -25,7 +25,6 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.layer import (
     LayerCreate,
-    LayerListResponse,
     LayerResponse,
     LayerUpdate,
 )
@@ -56,6 +55,21 @@ def serialize_layer_to_dict(layer):
     Returns:
         Dict with properly serialized layer data
     """
+    # Serialize creator if present
+    creator_dict = None
+    if hasattr(layer, "creator") and layer.creator:
+        creator_dict = {
+            "id": layer.creator.id,
+            "clerk_id": layer.creator.clerk_id,
+            "email": layer.creator.email,
+            "username": layer.creator.username,
+            "first_name": layer.creator.first_name,
+            "last_name": layer.creator.last_name,
+            "profile_image_url": layer.creator.profile_image_url,
+            "created_at": layer.creator.created_at,
+            "updated_at": layer.creator.updated_at,
+        }
+
     return {
         "id": layer.id,
         "name": layer.name,
@@ -73,6 +87,7 @@ def serialize_layer_to_dict(layer):
         "layer_metadata": layer.layer_metadata or {},
         "created_at": layer.created_at,
         "updated_at": layer.updated_at,
+        "creator": creator_dict,
         "features": [
             {
                 "id": feat.id,
@@ -128,7 +143,7 @@ def serialize_layer_list_to_dict(layer):
 # ============================================================================
 
 
-@router.get("", response_model=List[LayerListResponse])
+@router.get("", response_model=List[LayerResponse])
 async def list_layers(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[Optional[User], Depends(get_current_user_optional)],
@@ -160,7 +175,7 @@ async def list_layers(
     - include_my_layers: If true, return only user's own non-global layers
 
     Returns:
-        List of layers matching the filters (simplified response without full config)
+        List of layers matching the filters with full nested data
     """
     service = LayerService(db)
     layers = service.list_layers(
@@ -172,9 +187,7 @@ async def list_layers(
         include_my_layers=include_my_layers,
     )
 
-    return [
-        LayerListResponse(**serialize_layer_list_to_dict(layer)) for layer in layers
-    ]
+    return [LayerResponse(**serialize_layer_to_dict(layer)) for layer in layers]
 
 
 @router.get("/{layer_id}", response_model=LayerResponse)

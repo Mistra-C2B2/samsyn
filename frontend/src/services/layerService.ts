@@ -225,6 +225,19 @@ export class LayerService {
 					| "layer_creator"
 					| "admin_panel"
 					| "system") || "system",
+			// Timestamps
+			createdAt: layerResponse.created_at,
+			updatedAt: layerResponse.updated_at,
+			// Creator information
+			creator: layerResponse.creator
+				? {
+						id: layerResponse.creator.id,
+						email: layerResponse.creator.email,
+						username: layerResponse.creator.username || undefined,
+						firstName: layerResponse.creator.first_name || undefined,
+						lastName: layerResponse.creator.last_name || undefined,
+					}
+				: undefined,
 			// Style properties from style_config
 			color: styleConfig?.color,
 			lineWidth: styleConfig?.lineWidth,
